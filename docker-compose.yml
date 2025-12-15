@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: kinesio_postgres
+    environment:
+      POSTGRES_DB: kinesio
+      POSTGRES_USER: kinesio
+      POSTGRES_PASSWORD: kinesio
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
