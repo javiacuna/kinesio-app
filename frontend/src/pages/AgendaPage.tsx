@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { listKinesiologists } from "../features/kinesiologists/api";
-import { createAppointment, listAppointmentsDay } from "../features/appointments/api";
+import { createAppointment, listAppointmentsDay, updateAppointment } from "../features/appointments/api";
+import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
+import { formatLocalTime } from "../shared/time/format";
 
 function todayISO() {
   const d = new Date();
@@ -12,11 +14,15 @@ function todayISO() {
 }
 
 export default function AgendaPage() {
+  // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
+
+  // Crear turno (inputs UX)
   const [patientId, setPatientId] = useState("");
-  const [startAt, setStartAt] = useState("2025-12-15T14:00:00Z");
-  const [endAt, setEndAt] = useState("2025-12-15T14:45:00Z");
+  const [apptDate, setApptDate] = useState(todayISO());
+  const [startTime, setStartTime] = useState("09:00");
+  const [durationMin, setDurationMin] = useState(45);
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -24,10 +30,16 @@ export default function AgendaPage() {
     if (last && !patientId) setPatientId(last);
   }, [patientId]);
 
+  useEffect(() => {
+  setApptDate(date);
+  }, [date]);
+
   const kinesioQ = useQuery({
     queryKey: ["kinesiologists"],
     queryFn: listKinesiologists,
   });
+
+  const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
 
   const canLoadAgenda = Boolean(kinesiologistId);
 
@@ -42,20 +54,30 @@ export default function AgendaPage() {
     onSuccess: () => agendaQ.refetch(),
   });
 
-  const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
+  const cancelM = useMutation({
+  mutationFn: (args: { id: string; reason?: string }) =>
+    updateAppointment({
+      id: args.id,
+      status: "cancelled",
+      cancelled_reason: args.reason ?? "Cancelado desde la agenda",
+    }),
+  onSuccess: () => agendaQ.refetch(),
+});
 
   function create() {
+    const endTime = addMinutesToHHmm(startTime, durationMin);
+
     createM.mutate({
       patient_id: patientId.trim(),
       kinesiologist_id: kinesiologistId,
-      start_at: startAt.trim(),
-      end_at: endAt.trim(),
+      start_at: localDateTimeToUTC(apptDate, startTime),
+      end_at: localDateTimeToUTC(apptDate, endTime),
       notes: notes.trim() ? notes.trim() : undefined,
     });
   }
 
-  const createError = (createM.error as any)?.message;
-  const createStatus = (createM.error as any)?.status;
+  const createErr: any = createM.error;
+  const isOverlap = createErr?.status === 409;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -68,16 +90,26 @@ export default function AgendaPage() {
           <a className="text-sm underline" href="/patients">Ir a Pacientes</a>
         </header>
 
+        {/* Filtros agenda */}
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
-              <label className="text-sm font-medium">Fecha</label>
-              <input className="mt-1 w-full border rounded-lg p-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <label className="text-sm font-medium">Fecha (para ver agenda)</label>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
             </div>
 
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Kinesiólogo</label>
-              <select className="mt-1 w-full border rounded-lg p-2" value={kinesiologistId} onChange={(e) => setKinesiologistId(e.target.value)}>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={kinesiologistId}
+                onChange={(e) => setKinesiologistId(e.target.value)}
+              >
                 <option value="">Seleccionar…</option>
                 {kinesios.map((k) => (
                   <option key={k.id} value={k.id}>
@@ -85,31 +117,85 @@ export default function AgendaPage() {
                   </option>
                 ))}
               </select>
-              {kinesioQ.isError && <p className="text-sm text-red-600 mt-1">Error: {String(kinesioQ.error?.message)}</p>}
+
+              {kinesioQ.isError && (
+                <p className="text-sm text-red-600 mt-1">
+                  Error: {String(kinesioQ.error?.message)}
+                </p>
+              )}
             </div>
           </div>
         </section>
 
+        {/* Crear turno */}
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Crear turno</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
+            <div className="md:col-span-2">
               <label className="text-sm font-medium">patient_id</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={patientId} onChange={(e) => setPatientId(e.target.value)} />
-              <p className="text-xs text-gray-500 mt-1">Tip: creá un paciente en /patients y se guarda automáticamente.</p>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Tip: creá un paciente en /patients y se guarda automáticamente.
+              </p>
             </div>
+
+            <div>
+              <label className="text-sm font-medium">Fecha del turno</label>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                type="date"
+                value={apptDate}
+                onChange={(e) => setApptDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Hora inicio</label>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Duración (min)</label>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                type="number"
+                min={15}
+                step={15}
+                value={durationMin}
+                onChange={(e) => setDurationMin(Number(e.target.value))}
+              />
+
+              <div className="flex gap-2 mt-2">
+                {[30, 45, 60].map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className="px-3 py-1 rounded-lg border bg-white text-sm hover:bg-gray-100"
+                    onClick={() => setDurationMin(m)}
+                  >
+                    {m} min
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div>
               <label className="text-sm font-medium">Notas</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">start_at (RFC3339)</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
-            </div>
-            <div>
-              <label className="text-sm font-medium">end_at (RFC3339)</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
           </div>
 
@@ -122,13 +208,23 @@ export default function AgendaPage() {
           </button>
 
           {createM.isError && (
-            <p className="text-sm text-red-600">
-              Error: {createError}
-              {createStatus === 409 ? " (solapamiento)" : ""}
-            </p>
+            <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
+              {isOverlap ? (
+                <>
+                  <div className="font-medium">Solapamiento detectado</div>
+                  <div>El kinesiólogo ya tiene un turno en ese horario. Elegí otro horario.</div>
+                </>
+              ) : (
+                <>
+                  <div className="font-medium">Error</div>
+                  <div>{String(createErr?.message)}</div>
+                </>
+              )}
+            </div>
           )}
         </section>
 
+        {/* Agenda del día */}
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Turnos del día</h2>
 
@@ -143,16 +239,43 @@ export default function AgendaPage() {
                 <p className="text-sm text-gray-600 py-2">No hay turnos.</p>
               ) : (
                 agendaQ.data.map((a) => (
-                  <div key={a.id} className="py-3 flex items-start justify-between gap-4">
-                    <div>
-                      <div className="font-medium">{a.start_at} → {a.end_at}</div>
-                      <div className="text-sm text-gray-600">Paciente: {a.patient_id}</div>
-                      <div className="text-sm text-gray-600">Estado: {a.status}</div>
-                      {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
+                <div key={a.id} className="py-3 flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-medium">
+                      {formatLocalTime(a.start_at)} → {formatLocalTime(a.end_at)}
                     </div>
-                    <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+                    <div className="text-sm text-gray-600">Paciente: {a.patient_id}</div>
+                    <div className="text-sm text-gray-600">Estado: {a.status}</div>
+                    {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
                   </div>
-                ))
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+
+                    {a.status !== "cancelled" ? (
+                      <button
+                        className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                        disabled={cancelM.isPending}
+                        onClick={() => {
+                          const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
+                          cancelM.mutate({ id: a.id, reason });
+                        }}
+                      >
+                        {cancelM.isPending ? "Cancelando…" : "Cancelar"}
+                      </button>
+                    ) : (
+                      <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
+                        Cancelado
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))
+              )}
+              {cancelM.isError && (
+                <p className="text-sm text-red-600">
+                  Error al cancelar: {String((cancelM.error as any)?.message)}
+                </p>
               )}
             </div>
           )}
@@ -161,3 +284,4 @@ export default function AgendaPage() {
     </div>
   );
 }
+

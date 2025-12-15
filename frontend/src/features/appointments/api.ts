@@ -20,3 +20,20 @@ export function createAppointment(input: CreateAppointmentInput) {
     body: JSON.stringify(input),
   });
 }
+
+export type UpdateAppointmentInput = {
+  id: string;
+  status?: "scheduled" | "cancelled";
+  cancelled_reason?: string;
+  notes?: string;
+  start_at?: string;
+  end_at?: string;
+};
+
+export function updateAppointment(input: UpdateAppointmentInput) {
+  const { id, ...patch } = input;
+  return apiFetch<Appointment>(`/api/v1/appointments/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
