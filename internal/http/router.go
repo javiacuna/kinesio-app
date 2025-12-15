@@ -40,21 +40,23 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
+
 	registerPatientUC := patientsUC.NewRegisterPatientUseCase(patientRepo)
-	patientHandler := patientsHTTP.NewHandler(registerPatientUC)
+	getPatientByIDUC := patientsUC.NewGetPatientByIDUseCase(patientRepo)
+
+	patientHandler := patientsHTTP.NewHandler(registerPatientUC, getPatientByIDUC)
 
 	// API v1
 	v1 := r.Group("/api/v1")
-	// CU01 - Registrar paciente
-	v1.POST("/patients", patientHandler.RegisterPatient)
 
 	// Auth: placeholder para Firebase (por ahora opcional)
 	// Cuando setees FIREBASE_PROJECT_ID, este middleware exigirá JWTs (Authorization: Bearer <token>).
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID))
 
-	// Aquí iremos agregando recursos endpoint por endpoint:
-	// v1.POST("/patients", ...)
-	// v1.GET("/patients/:id", ...)
+	// CU01 - Registrar paciente
+	v1.POST("/patients", patientHandler.RegisterPatient)
+	v1.GET("/patients/:id", patientHandler.GetPatientByID)
+
 	_ = db
 
 	return r

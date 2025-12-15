@@ -2,6 +2,7 @@ package gorm
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
@@ -60,4 +61,29 @@ func (r *Repository) ExistsByEmail(ctx context.Context, email string) (bool, err
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bool, error) {
+	var m PatientModel
+	err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.Patient{}, false, nil
+		}
+		return domain.Patient{}, false, err
+	}
+
+	p := domain.Patient{
+		ID:            m.ID,
+		DNI:           m.DNI,
+		FirstName:     m.FirstName,
+		LastName:      m.LastName,
+		Email:         m.Email,
+		Phone:         m.Phone,
+		BirthDate:     m.BirthDate,
+		ClinicalNotes: m.ClinicalNotes,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
+	}
+	return p, true, nil
 }

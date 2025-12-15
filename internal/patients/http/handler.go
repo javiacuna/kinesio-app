@@ -13,10 +13,11 @@ import (
 
 type Handler struct {
 	register *usecase.RegisterPatientUseCase
+	getByID  *usecase.GetPatientByIDUseCase
 }
 
-func NewHandler(register *usecase.RegisterPatientUseCase) *Handler {
-	return &Handler{register: register}
+func NewHandler(register *usecase.RegisterPatientUseCase, getByID *usecase.GetPatientByIDUseCase) *Handler {
+	return &Handler{register: register, getByID: getByID}
 }
 
 type registerPatientRequest struct {
@@ -114,4 +115,22 @@ func isReceptionist(auth string) bool {
 	// Demo token
 	auth = strings.TrimSpace(auth)
 	return strings.EqualFold(auth, "Bearer demo-recepcionista-token")
+}
+
+func (h *Handler) GetPatientByID(c *gin.Context) {
+	// Por ahora lo dejo SIN auth (útil para debug y para frontend).
+	// Lo cerramos por rol en el siguiente paso.
+	id := c.Param("id")
+
+	p, found, err := h.getByID.Execute(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, toResponse(p))
 }
