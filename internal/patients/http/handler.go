@@ -14,10 +14,12 @@ import (
 type Handler struct {
 	register *usecase.RegisterPatientUseCase
 	getByID  *usecase.GetPatientByIDUseCase
+	searchUC *usecase.SearchPatientsUseCase
 }
 
-func NewHandler(register *usecase.RegisterPatientUseCase, getByID *usecase.GetPatientByIDUseCase) *Handler {
-	return &Handler{register: register, getByID: getByID}
+func NewHandler(register *usecase.RegisterPatientUseCase, getByID *usecase.GetPatientByIDUseCase,
+	searchUC *usecase.SearchPatientsUseCase) *Handler {
+	return &Handler{register: register, getByID: getByID, searchUC: searchUC}
 }
 
 type registerPatientRequest struct {
@@ -133,4 +135,28 @@ func (h *Handler) GetPatientByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, toResponse(p))
+}
+
+func (h *Handler) Search(c *gin.Context) {
+	// Auth demo (igual que Register): requiere header
+	if !isReceptionist(c.GetHeader("Authorization")) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	q := strings.TrimSpace(c.Query("query"))
+	limit := 20
+
+	items, err := h.searchUC.Execute(c.Request.Context(), q, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+
+	out := make([]patientResponse, 0, len(items))
+	for _, p := range items {
+		out = append(out, toResponse(p))
+	}
+
+	c.JSON(http.StatusOK, out)
 }

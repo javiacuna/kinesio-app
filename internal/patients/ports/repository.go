@@ -11,4 +11,5 @@ type Repository interface {
 	ExistsByDNI(ctx context.Context, dni string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	GetByID(ctx context.Context, id string) (domain.Patient, bool, error)
+	Search(ctx context.Context, query string, limit int) ([]domain.Patient, error)
 }

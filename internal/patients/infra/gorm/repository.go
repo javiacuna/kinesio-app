@@ -3,6 +3,7 @@ package gorm
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
@@ -86,4 +87,54 @@ func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bo
 		UpdatedAt:     m.UpdatedAt,
 	}
 	return p, true, nil
+}
+
+func (r *Repository) Search(ctx context.Context, query string, limit int) ([]domain.Patient, error) {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return []domain.Patient{}, nil
+	}
+
+	var models []PatientModel
+	tx := r.db.WithContext(ctx).Model(&PatientModel{})
+
+	if _, err := strconv.Atoi(q); err == nil {
+		tx = tx.Where("dni LIKE ?", q+"%")
+	} else {
+		like := "%" + q + "%"
+		tx = tx.Where(`
+			lower(email) LIKE ? OR
+			lower(first_name) LIKE ? OR
+			lower(last_name) LIKE ?
+		`, like, like, like)
+	}
+
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	if err := tx.Order("last_name asc, first_name asc").Limit(limit).Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.Patient, 0, len(models))
+	for _, m := range models {
+		out = append(out, m.ToDomain())
+	}
+	return out, nil
+}
+
+func (m PatientModel) ToDomain() domain.Patient {
+	return domain.Patient{
+		ID:            m.ID,
+		DNI:           m.DNI,
+		FirstName:     m.FirstName,
+		LastName:      m.LastName,
+		Email:         m.Email,
+		Phone:         m.Phone,
+		BirthDate:     m.BirthDate,
+		ClinicalNotes: m.ClinicalNotes,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
+	}
 }

@@ -64,6 +64,13 @@ export default function AgendaPage() {
   onSuccess: () => agendaQ.refetch(),
 });
 
+const rescheduleM = useMutation({
+  mutationFn: (args: { id: string; start_at: string; end_at: string }) =>
+    updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at }),
+  onSuccess: () => agendaQ.refetch(),
+});
+
+
   function create() {
     const endTime = addMinutesToHHmm(startTime, durationMin);
 
@@ -255,7 +262,7 @@ export default function AgendaPage() {
                     {a.status !== "cancelled" ? (
                       <button
                         className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                        disabled={cancelM.isPending}
+                        disabled={cancelM.isPending || rescheduleM.isPending}
                         onClick={() => {
                           const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
                           cancelM.mutate({ id: a.id, reason });
@@ -268,6 +275,33 @@ export default function AgendaPage() {
                         Cancelado
                       </span>
                     )}
+                    <button
+                      className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                      disabled={rescheduleM.isPending || cancelM.isPending}
+                      onClick={() => {
+                        const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
+                        if (!newDate) return;
+
+                        const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
+                        if (!newStart) return;
+
+                        const dur = window.prompt("Duración en minutos:", "45");
+                        if (!dur) return;
+
+                        const durationMin = Number(dur);
+                        if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+
+                        const endTime = addMinutesToHHmm(newStart, durationMin);
+
+                        rescheduleM.mutate({
+                          id: a.id,
+                          start_at: localDateTimeToUTC(newDate, newStart),
+                          end_at: localDateTimeToUTC(newDate, endTime),
+                        });
+                      }}
+                    >
+                      {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
+                    </button>
                   </div>
                 </div>
               ))
@@ -277,6 +311,21 @@ export default function AgendaPage() {
                   Error al cancelar: {String((cancelM.error as any)?.message)}
                 </p>
               )}
+             {rescheduleM.isError && (
+              <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700 mb-2">
+                {(rescheduleM.error as any)?.status === 409 ? (
+                  <>
+                    <div className="font-medium">Solapamiento al reprogramar</div>
+                    <div>Ese horario se superpone con otro turno del kinesiólogo.</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium">Error al reprogramar</div>
+                    <div>{String((rescheduleM.error as any)?.message)}</div>
+                  </>
+                )}
+              </div>
+            )}
             </div>
           )}
         </section>
