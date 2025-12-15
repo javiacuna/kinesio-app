@@ -12,6 +12,10 @@ import (
 	patientsHTTP "github.com/javiacuna/kinesio-backend/internal/patients/http"
 	patientsRepo "github.com/javiacuna/kinesio-backend/internal/patients/infra/gorm"
 	patientsUC "github.com/javiacuna/kinesio-backend/internal/patients/usecase"
+
+	appointmentsHTTP "github.com/javiacuna/kinesio-backend/internal/appointments/http"
+	appointmentsRepo "github.com/javiacuna/kinesio-backend/internal/appointments/infra/gorm"
+	appointmentsUC "github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
 )
 
 type RouterDeps struct {
@@ -40,11 +44,15 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
-
 	registerPatientUC := patientsUC.NewRegisterPatientUseCase(patientRepo)
 	getPatientByIDUC := patientsUC.NewGetPatientByIDUseCase(patientRepo)
-
 	patientHandler := patientsHTTP.NewHandler(registerPatientUC, getPatientByIDUC)
+
+	apptRepo := appointmentsRepo.New(db)
+	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
+	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
+	updateApptUC := appointmentsUC.NewUpdateAppointmentUseCase(apptRepo)
+	apptHandler := appointmentsHTTP.NewHandler(createApptUC, listDayUC, updateApptUC)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -56,6 +64,10 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)
 	v1.GET("/patients/:id", patientHandler.GetPatientByID)
+
+	v1.POST("/appointments", apptHandler.Create)
+	v1.GET("/appointments", apptHandler.ListDay)
+	v1.PATCH("/appointments/:id", apptHandler.Update)
 
 	_ = db
 
