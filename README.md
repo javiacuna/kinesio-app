@@ -1,8 +1,17 @@
 # Kinesio App
 
-Kinesio App es una aplicación para la gestión integral de un consultorio de kinesiología. Permite administrar pacientes y turnos (agenda), y está preparada para incorporar módulos como planes de tratamiento, seguimiento/evolución clínica, materiales/ejercicios y reportes, según el alcance del Trabajo Final de Grado.
+Kinesio App es una aplicación web para la gestión integral de un consultorio de kinesiología. 
+Permite administrar pacientes y gestionar turnos mediante una agenda diaria, centralizando la información clínica y operativa del consultorio en una única plataforma.
 
-El backend está desarrollado en Go exponiendo una API REST, con persistencia en PostgreSQL y una arquitectura basada en Clean Architecture (separación de dominio, casos de uso, infraestructura y delivery HTTP). La autenticación/autorización se contempla mediante Firebase (en desarrollo puede utilizarse un modo demo para facilitar pruebas locales).
+El sistema está compuesto por un backend desarrollado en Go, siguiendo principios de Clean Architecture y separación de responsabilidades, y un frontend desarrollado en React con TypeScript, orientado a una experiencia de usuario simple y eficiente para el personal administrativo y profesional.
+
+Kinesio App facilita:
+- El registro y consulta de pacientes.
+- La asignación, visualización, reprogramación y cancelación de turnos.
+- El control de solapamientos en la agenda.
+- La organización diaria del trabajo del kinesiólogo.
+
+La aplicación fue diseñada como solución tecnológica para un entorno real de consultorio, priorizando mantenibilidad, claridad en los flujos de negocio y una arquitectura escalable.
 
 ## Requisitos
 - Go 1.22+
