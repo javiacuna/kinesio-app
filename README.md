@@ -28,3 +28,43 @@ go run ./cmd/api
 API:
 - Health: `GET http://localhost:8080/health`
 - Version: `GET http://localhost:8080/version`
+
+## Frontend
+
+El frontend está desarrollado con **React + TypeScript + Vite** y se encuentra en la carpeta `frontend/`.  
+Durante el desarrollo local, el frontend utiliza un **proxy de Vite** para comunicarse con el backend sin problemas de CORS.
+
+### Requisitos
+- Node.js 18+
+- npm 9+
+
+### Levantar el frontend en local
+
+1) Ir a la carpeta del frontend:
+```bash
+cd frontend
+```
+
+2) Instalar dependencias:
+```bash
+npm install
+```
+
+3) Ejecutar el servidor de desarrollo:
+```bash
+npm run dev
+```
+
+4) El frontend quedará disponible en:
+```bash
+http://localhost:5173
+```
+
+Comunicación con el backend
+
+Para desarrollo local, el frontend asume que el backend está corriendo en:
+```bash
+http://localhost:8080
+```
+
+Las llamadas a la API se realizan mediante rutas relativas (/api/v1/...) y son redirigidas automáticamente al backend a través del proxy configurado en Vite.
