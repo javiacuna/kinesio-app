@@ -16,6 +16,10 @@ import (
 	appointmentsHTTP "github.com/javiacuna/kinesio-backend/internal/appointments/http"
 	appointmentsRepo "github.com/javiacuna/kinesio-backend/internal/appointments/infra/gorm"
 	appointmentsUC "github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
+
+	kineHTTP "github.com/javiacuna/kinesio-backend/internal/kinesiologists/http"
+	kineRepo "github.com/javiacuna/kinesio-backend/internal/kinesiologists/infra/gorm"
+	kineUC "github.com/javiacuna/kinesio-backend/internal/kinesiologists/usecase"
 )
 
 type RouterDeps struct {
@@ -64,6 +68,10 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		listByPatientUC,
 	)
 
+	kRepo := kineRepo.New(db)
+	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
+	kHandler := kineHTTP.NewHandler(listKUC)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -80,6 +88,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.PATCH("/appointments/:id", apptHandler.Update)
 	v1.GET("/appointments/:id", apptHandler.GetByID)
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
+
+	v1.GET("/kinesiologists", kHandler.List)
 
 	_ = db
 
