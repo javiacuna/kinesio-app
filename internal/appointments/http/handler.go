@@ -11,17 +11,27 @@ import (
 )
 
 type Handler struct {
-	create  *usecase.CreateAppointmentUseCase
-	listDay *usecase.ListAppointmentsDayUseCase
-	update  *usecase.UpdateAppointmentUseCase
+	create        *usecase.CreateAppointmentUseCase
+	listDay       *usecase.ListAppointmentsDayUseCase
+	update        *usecase.UpdateAppointmentUseCase
+	getByID       *usecase.GetAppointmentByIDUseCase
+	listByPatient *usecase.ListAppointmentsByPatientUseCase
 }
 
 func NewHandler(
 	create *usecase.CreateAppointmentUseCase,
 	listDay *usecase.ListAppointmentsDayUseCase,
 	update *usecase.UpdateAppointmentUseCase,
+	getByID *usecase.GetAppointmentByIDUseCase,
+	listByPatient *usecase.ListAppointmentsByPatientUseCase,
 ) *Handler {
-	return &Handler{create: create, listDay: listDay, update: update}
+	return &Handler{
+		create:        create,
+		listDay:       listDay,
+		update:        update,
+		getByID:       getByID,
+		listByPatient: listByPatient,
+	}
 }
 
 type createReq struct {
@@ -167,4 +177,55 @@ func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
 
 func isReceptionist(auth string) bool {
 	return strings.EqualFold(strings.TrimSpace(auth), "Bearer demo-recepcionista-token")
+}
+
+func (h *Handler) GetByID(c *gin.Context) {
+	id := c.Param("id")
+
+	out, found, err := h.getByID.Execute(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_id"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, toResp(out))
+}
+
+func (h *Handler) ListByPatient(c *gin.Context) {
+	patientID := c.Query("patient_id")
+	from := c.Query("from")
+	to := c.Query("to")
+
+	items, details, err := h.listByPatient.Execute(
+		c.Request.Context(),
+		patientID,
+		from,
+		to,
+	)
+
+	if err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "validation_error",
+				"details": details,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+
+	resp := make([]resp, 0, len(items))
+	for _, it := range items {
+		resp = append(resp, toResp(it))
+	}
+	c.JSON(http.StatusOK, resp)
 }

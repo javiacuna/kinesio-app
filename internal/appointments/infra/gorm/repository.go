@@ -127,3 +127,27 @@ func toDomain(m AppointmentModel) domain.Appointment {
 		UpdatedAt:       m.UpdatedAt,
 	}
 }
+
+func (r *Repository) ListByPatientAndRange(
+	ctx context.Context,
+	patientID uuid.UUID,
+	from time.Time,
+	to time.Time,
+) ([]domain.Appointment, error) {
+
+	var ms []AppointmentModel
+	err := r.db.WithContext(ctx).
+		Where("patient_id = ?", patientID).
+		Where("start_at >= ? AND start_at <= ?", from, to).
+		Order("start_at ASC").
+		Find(&ms).Error
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.Appointment, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, toDomain(m))
+	}
+	return out, nil
+}

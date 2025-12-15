@@ -18,4 +18,7 @@ type Repository interface {
 
 	// Agenda del día (filtrada por kinesiólogo). startDay inclusive, endDay exclusive.
 	ListByKinesiologistAndRange(ctx context.Context, kinesiologistID uuid.UUID, startDay, endDay time.Time) ([]domain.Appointment, error)
+
+	ListByPatientAndRange(ctx context.Context, patientID uuid.UUID,
+		from time.Time, to time.Time) ([]domain.Appointment, error)
 }
