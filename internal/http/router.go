@@ -8,6 +8,10 @@ import (
 
 	"github.com/javiacuna/kinesio-backend/internal/config"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
+
+	patientsHTTP "github.com/javiacuna/kinesio-backend/internal/patients/http"
+	patientsRepo "github.com/javiacuna/kinesio-backend/internal/patients/infra/gorm"
+	patientsUC "github.com/javiacuna/kinesio-backend/internal/patients/usecase"
 )
 
 type RouterDeps struct {
@@ -34,8 +38,15 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		})
 	})
 
+	// Patients wiring
+	patientRepo := patientsRepo.New(db)
+	registerPatientUC := patientsUC.NewRegisterPatientUseCase(patientRepo)
+	patientHandler := patientsHTTP.NewHandler(registerPatientUC)
+
 	// API v1
 	v1 := r.Group("/api/v1")
+	// CU01 - Registrar paciente
+	v1.POST("/patients", patientHandler.RegisterPatient)
 
 	// Auth: placeholder para Firebase (por ahora opcional)
 	// Cuando setees FIREBASE_PROJECT_ID, este middleware exigirá JWTs (Authorization: Bearer <token>).
