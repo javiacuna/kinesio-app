@@ -20,6 +20,18 @@ import (
 	kineHTTP "github.com/javiacuna/kinesio-backend/internal/kinesiologists/http"
 	kineRepo "github.com/javiacuna/kinesio-backend/internal/kinesiologists/infra/gorm"
 	kineUC "github.com/javiacuna/kinesio-backend/internal/kinesiologists/usecase"
+
+	exercisePlanHTTP "github.com/javiacuna/kinesio-backend/internal/exerciseplans/http"
+	exercisePlanGorm "github.com/javiacuna/kinesio-backend/internal/exerciseplans/infra/gorm"
+	exercisePlanUC "github.com/javiacuna/kinesio-backend/internal/exerciseplans/usecase"
+
+	evoHTTP "github.com/javiacuna/kinesio-backend/internal/evolutions/http"
+	evoGorm "github.com/javiacuna/kinesio-backend/internal/evolutions/infra/gorm"
+	evoUC "github.com/javiacuna/kinesio-backend/internal/evolutions/usecase"
+
+	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
+	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
+	matUC "github.com/javiacuna/kinesio-backend/internal/materials/usecase"
 )
 
 type RouterDeps struct {
@@ -73,11 +85,31 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
 	kHandler := kineHTTP.NewHandler(listKUC)
 
+	planRepo := exercisePlanGorm.NewRepository(db)
+	planCreateUC := exercisePlanUC.NewCreatePlanUseCase(planRepo)
+	planListUC := exercisePlanUC.NewListPlansByPatientUseCase(planRepo)
+	planGetUC := exercisePlanUC.NewGetPlanByIDUseCase(planRepo)
+	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC)
+
+	evoRepo := evoGorm.NewRepository(db)
+	evoCreateUC := evoUC.NewCreateEvolutionUseCase(evoRepo)
+	evoListUC := evoUC.NewListEvolutionsByPatientUseCase(evoRepo)
+	evoGetUC := evoUC.NewGetEvolutionByIDUseCase(evoRepo)
+	evoHandler := evoHTTP.NewHandler(evoCreateUC, evoListUC, evoGetUC)
+
+	matRepo := matGorm.NewRepository(db)
+	matCreateUC := matUC.NewCreateMaterialUseCase(matRepo)
+	matListUC := matUC.NewListMaterialsUseCase(matRepo)
+	matLoanUC := matUC.NewLoanMaterialUseCase(matRepo)
+	matReturnUC := matUC.NewReturnMaterialUseCase(matRepo)
+	matListLoansUC := matUC.NewListLoansByPatientUseCase(matRepo)
+	matHandler := matHTTP.NewHandler(matCreateUC, matListUC, matLoanUC, matReturnUC, matListLoansUC)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
 	// Auth: placeholder para Firebase (por ahora opcional)
-	// Cuando setees FIREBASE_PROJECT_ID, este middleware exigirá JWTs (Authorization: Bearer <token>).
+	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exigirá JWTs (Authorization: Bearer <token>).
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID))
 
 	// CU01 - Registrar paciente
@@ -92,6 +124,22 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 
 	v1.GET("/kinesiologists", kHandler.List)
+
+	v1.POST("/patients/:patient_id/exercise-plans", planHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/exercise-plans", planHandler.ListByPatient)
+	v1.GET("/exercise-plans/:plan_id", planHandler.GetByID)
+
+	v1.POST("/patients/:patient_id/evolutions", evoHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/evolutions", evoHandler.ListByPatient)
+	v1.GET("/evolutions/:evolution_id", evoHandler.GetByID)
+
+	v1.POST("/materials", matHandler.CreateMaterial)
+	v1.GET("/materials", matHandler.ListMaterials)
+
+	v1.POST("/material-loans", matHandler.LoanMaterial)
+	v1.POST("/material-loans/:loan_id/return", matHandler.ReturnLoan)
+
+	v1.GET("/patients/:patient_id/material-loans", matHandler.ListLoansByPatient)
 
 	_ = db
 
