@@ -4,6 +4,8 @@ import { listKinesiologists } from "../features/kinesiologists/api";
 import { createAppointment, listAppointmentsDay, updateAppointment } from "../features/appointments/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
+import { PatientSearch } from "@/features/patients/components/PatientSearch";
+import { AgendaGrid } from "@/features/appointments/components/AgendaGrid";
 
 function todayISO() {
   const d = new Date();
@@ -31,7 +33,7 @@ export default function AgendaPage() {
   }, [patientId]);
 
   useEffect(() => {
-  setApptDate(date);
+    setApptDate(date);
   }, [date]);
 
   const kinesioQ = useQuery({
@@ -55,20 +57,20 @@ export default function AgendaPage() {
   });
 
   const cancelM = useMutation({
-  mutationFn: (args: { id: string; reason?: string }) =>
-    updateAppointment({
-      id: args.id,
-      status: "cancelled",
-      cancelled_reason: args.reason ?? "Cancelado desde la agenda",
-    }),
-  onSuccess: () => agendaQ.refetch(),
-});
+    mutationFn: (args: { id: string; reason?: string }) =>
+      updateAppointment({
+        id: args.id,
+        status: "cancelled",
+        cancelled_reason: args.reason ?? "Cancelado desde la agenda",
+      }),
+    onSuccess: () => agendaQ.refetch(),
+  });
 
-const rescheduleM = useMutation({
-  mutationFn: (args: { id: string; start_at: string; end_at: string }) =>
-    updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at }),
-  onSuccess: () => agendaQ.refetch(),
-});
+  const rescheduleM = useMutation({
+    mutationFn: (args: { id: string; start_at: string; end_at: string }) =>
+      updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at }),
+    onSuccess: () => agendaQ.refetch(),
+  });
 
 
   function create() {
@@ -140,14 +142,15 @@ const rescheduleM = useMutation({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">patient_id</label>
-              <input
-                className="mt-1 w-full border rounded-lg p-2"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
+              <PatientSearch
+                valuePatientId={patientId}
+                onSelect={(p) => {
+                  setPatientId(p.id);
+                  localStorage.setItem("last_patient_id", p.id);
+                }}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Tip: creá un paciente en /patients y se guarda automáticamente.
+              <p className="text-xs text-gray-500 mt-2">
+                Tip: si no existe, crealo en /patients y después buscá por DNI o email.
               </p>
             </div>
 
@@ -241,91 +244,134 @@ const rescheduleM = useMutation({
           {agendaQ.isError && <p className="text-sm text-red-600">Error: {String(agendaQ.error?.message)}</p>}
 
           {agendaQ.data && (
-            <div className="divide-y">
-              {agendaQ.data.length === 0 ? (
-                <p className="text-sm text-gray-600 py-2">No hay turnos.</p>
-              ) : (
-                agendaQ.data.map((a) => (
-                <div key={a.id} className="py-3 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="font-medium">
-                      {formatLocalTime(a.start_at)} → {formatLocalTime(a.end_at)}
-                    </div>
-                    <div className="text-sm text-gray-600">Paciente: {a.patient_id}</div>
-                    <div className="text-sm text-gray-600">Estado: {a.status}</div>
-                    {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
-                  </div>
+            <div className="space-y-4">
+              <AgendaGrid
+                date={date}
+                appointments={agendaQ.data}
+                onPickSlot={(hhmm) => {
+                  setApptDate(date);
+                  setStartTime(hhmm);
+                  setDurationMin(45);
+                  // opcional: llevar al formulario
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onCancel={(appt) => {
+                  const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
+                  cancelM.mutate({ id: appt.id, reason });
+                }}
+                onReschedule={(appt) => {
+                  const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
+                  if (!newDate) return;
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+                  const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
+                  if (!newStart) return;
 
-                    {a.status !== "cancelled" ? (
-                      <button
-                        className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                        disabled={cancelM.isPending || rescheduleM.isPending}
-                        onClick={() => {
-                          const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
-                          cancelM.mutate({ id: a.id, reason });
-                        }}
-                      >
-                        {cancelM.isPending ? "Cancelando…" : "Cancelar"}
-                      </button>
-                    ) : (
-                      <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
-                        Cancelado
-                      </span>
-                    )}
-                    <button
-                      className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                      disabled={rescheduleM.isPending || cancelM.isPending}
-                      onClick={() => {
-                        const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
-                        if (!newDate) return;
+                  const dur = window.prompt("Duración en minutos:", "45");
+                  if (!dur) return;
 
-                        const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
-                        if (!newStart) return;
+                  const durationMin = Number(dur);
+                  if (!Number.isFinite(durationMin) || durationMin <= 0) return;
 
-                        const dur = window.prompt("Duración en minutos:", "45");
-                        if (!dur) return;
+                  const endTime = addMinutesToHHmm(newStart, durationMin);
 
-                        const durationMin = Number(dur);
-                        if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+                  rescheduleM.mutate({
+                    id: appt.id,
+                    start_at: localDateTimeToUTC(newDate, newStart),
+                    end_at: localDateTimeToUTC(newDate, endTime),
+                  });
+                }}
+              />
 
-                        const endTime = addMinutesToHHmm(newStart, durationMin);
-
-                        rescheduleM.mutate({
-                          id: a.id,
-                          start_at: localDateTimeToUTC(newDate, newStart),
-                          end_at: localDateTimeToUTC(newDate, endTime),
-                        });
-                      }}
-                    >
-                      {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
-                    </button>
-                  </div>
-                </div>
-              ))
-              )}
-              {cancelM.isError && (
-                <p className="text-sm text-red-600">
-                  Error al cancelar: {String((cancelM.error as any)?.message)}
-                </p>
-              )}
-             {rescheduleM.isError && (
-              <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700 mb-2">
-                {(rescheduleM.error as any)?.status === 409 ? (
-                  <>
-                    <div className="font-medium">Solapamiento al reprogramar</div>
-                    <div>Ese horario se superpone con otro turno del kinesiólogo.</div>
-                  </>
+              {/* Tu listado actual (lo dejás por ahora) */}
+              <div className="divide-y">
+                {agendaQ.data.length === 0 ? (
+                  <p className="text-sm text-gray-600 py-2">No hay turnos.</p>
                 ) : (
-                  <>
-                    <div className="font-medium">Error al reprogramar</div>
-                    <div>{String((rescheduleM.error as any)?.message)}</div>
-                  </>
+                  agendaQ.data.map((a) => (
+                    <div key={a.id} className="py-3 flex items-start justify-between gap-4">
+                      <div>
+                        <div className="font-medium">
+                          {formatLocalTime(a.start_at)} → {formatLocalTime(a.end_at)}
+                        </div>
+                        <div className="text-sm text-gray-600">Paciente: {a.patient_id}</div>
+                        <div className="text-sm text-gray-600">Estado: {a.status}</div>
+                        {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+
+                        {a.status !== "cancelled" ? (
+                          <button
+                            className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                            disabled={cancelM.isPending || rescheduleM.isPending}
+                            onClick={() => {
+                              const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
+                              cancelM.mutate({ id: a.id, reason });
+                            }}
+                          >
+                            {cancelM.isPending ? "Cancelando…" : "Cancelar"}
+                          </button>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
+                            Cancelado
+                          </span>
+                        )}
+
+                        <button
+                          className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                          disabled={rescheduleM.isPending || cancelM.isPending}
+                          onClick={() => {
+                            const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
+                            if (!newDate) return;
+
+                            const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
+                            if (!newStart) return;
+
+                            const dur = window.prompt("Duración en minutos:", "45");
+                            if (!dur) return;
+
+                            const durationMin = Number(dur);
+                            if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+
+                            const endTime = addMinutesToHHmm(newStart, durationMin);
+
+                            rescheduleM.mutate({
+                              id: a.id,
+                              start_at: localDateTimeToUTC(newDate, newStart),
+                              end_at: localDateTimeToUTC(newDate, endTime),
+                            });
+                          }}
+                        >
+                          {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {cancelM.isError && (
+                  <p className="text-sm text-red-600">
+                    Error al cancelar: {String((cancelM.error as any)?.message)}
+                  </p>
+                )}
+
+                {rescheduleM.isError && (
+                  <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700 mb-2">
+                    {(rescheduleM.error as any)?.status === 409 ? (
+                      <>
+                        <div className="font-medium">Solapamiento al reprogramar</div>
+                        <div>Ese horario se superpone con otro turno del kinesiólogo.</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-medium">Error al reprogramar</div>
+                        <div>{String((rescheduleM.error as any)?.message)}</div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
             </div>
           )}
         </section>
