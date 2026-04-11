@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/domain"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/ports"
 	"gorm.io/gorm"
@@ -33,11 +34,30 @@ func (r *Repository) Create(ctx context.Context, a domain.Appointment) (domain.A
 		CancelledReason: a.CancelledReason,
 	}
 	if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
+		if relationErr := appointmentRelationError(err); relationErr != nil {
+			return domain.Appointment{}, relationErr
+		}
 		return domain.Appointment{}, err
 	}
 	a.CreatedAt = m.CreatedAt
 	a.UpdatedAt = m.UpdatedAt
 	return a, nil
+}
+
+func appointmentRelationError(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23503" {
+		return nil
+	}
+
+	switch pgErr.ConstraintName {
+	case "fk_appointments_patient", "appointments_patient_id_fkey":
+		return domain.ErrPatientNotFound
+	case "fk_appointments_kinesiologist", "appointments_kinesiologist_id_fkey":
+		return domain.ErrKinesiologistNotFound
+	default:
+		return nil
+	}
 }
 
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.Appointment, bool, error) {

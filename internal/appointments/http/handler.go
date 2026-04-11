@@ -14,6 +14,7 @@ type Handler struct {
 	create        *usecase.CreateAppointmentUseCase
 	listDay       *usecase.ListAppointmentsDayUseCase
 	update        *usecase.UpdateAppointmentUseCase
+	cancel        *usecase.CancelAppointmentUseCase
 	getByID       *usecase.GetAppointmentByIDUseCase
 	listByPatient *usecase.ListAppointmentsByPatientUseCase
 }
@@ -22,6 +23,7 @@ func NewHandler(
 	create *usecase.CreateAppointmentUseCase,
 	listDay *usecase.ListAppointmentsDayUseCase,
 	update *usecase.UpdateAppointmentUseCase,
+	cancel *usecase.CancelAppointmentUseCase,
 	getByID *usecase.GetAppointmentByIDUseCase,
 	listByPatient *usecase.ListAppointmentsByPatientUseCase,
 ) *Handler {
@@ -29,6 +31,7 @@ func NewHandler(
 		create:        create,
 		listDay:       listDay,
 		update:        update,
+		cancel:        cancel,
 		getByID:       getByID,
 		listByPatient: listByPatient,
 	}
@@ -48,6 +51,10 @@ type updateReq struct {
 	Status          *string `json:"status,omitempty"` // scheduled|cancelled
 	CancelledReason *string `json:"cancelled_reason,omitempty"`
 	Notes           *string `json:"notes,omitempty"`
+}
+
+type cancelReq struct {
+	Reason *string `json:"reason,omitempty"`
 }
 
 type resp struct {
@@ -89,6 +96,10 @@ func (h *Handler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": details})
 		case errors.Is(err, domain.ErrOverlap):
 			c.JSON(http.StatusConflict, gin.H{"error": "overlap"})
+		case errors.Is(err, domain.ErrPatientNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "patient_not_found"})
+		case errors.Is(err, domain.ErrKinesiologistNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "kinesiologist_not_found"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		}
@@ -147,6 +158,38 @@ func (h *Handler) Update(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": details})
 		case errors.Is(err, domain.ErrOverlap):
 			c.JSON(http.StatusConflict, gin.H{"error": "overlap"})
+		case errors.Is(err, domain.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, toResp(out))
+}
+
+func (h *Handler) Cancel(c *gin.Context) {
+	if !isReceptionist(c.GetHeader("Authorization")) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req cancelReq
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+			return
+		}
+	}
+
+	out, details, err := h.cancel.Execute(c.Request.Context(), c.Param("id"), usecase.CancelAppointmentInput{
+		Reason: req.Reason,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrValidation):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": details})
 		case errors.Is(err, domain.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 		default:

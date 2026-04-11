@@ -72,6 +72,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
 	updateApptUC := appointmentsUC.NewUpdateAppointmentUseCase(apptRepo)
+	cancelApptUC := appointmentsUC.NewCancelAppointmentUseCase(apptRepo)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
@@ -80,6 +81,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		createApptUC,
 		listDayUC,
 		updateApptUC,
+		cancelApptUC,
 		getApptByIDUC,
 		listByPatientUC,
 	)
@@ -124,7 +126,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/appointments", apptHandler.Create)
 	v1.GET("/appointments", apptHandler.ListDay)
+	v1.PUT("/appointments/:id", apptHandler.Update)
 	v1.PATCH("/appointments/:id", apptHandler.Update)
+	v1.DELETE("/appointments/:id", apptHandler.Cancel)
 	v1.GET("/appointments/:id", apptHandler.GetByID)
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 

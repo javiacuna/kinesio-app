@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { listKinesiologists } from "../features/kinesiologists/api";
-import { createAppointment, listAppointmentsDay, updateAppointment } from "../features/appointments/api";
+import { cancelAppointment, createAppointment, listAppointmentsDay, updateAppointment } from "../features/appointments/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
@@ -57,12 +57,7 @@ export default function AgendaPage() {
   });
 
   const cancelM = useMutation({
-    mutationFn: (args: { id: string; reason?: string }) =>
-      updateAppointment({
-        id: args.id,
-        status: "cancelled",
-        cancelled_reason: args.reason ?? "Cancelado desde la agenda",
-      }),
+    mutationFn: cancelAppointment,
     onSuccess: () => agendaQ.refetch(),
   });
 
@@ -379,4 +374,3 @@ export default function AgendaPage() {
     </div>
   );
 }
-

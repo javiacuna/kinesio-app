@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS appointments (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE appointments
+  ADD CONSTRAINT fk_appointments_patient
+  FOREIGN KEY (patient_id)
+  REFERENCES patients(id);
+
 -- Índices útiles para agenda y solapamientos
 CREATE INDEX IF NOT EXISTS ix_appointments_kine_start ON appointments (kinesiologist_id, start_at);
 CREATE INDEX IF NOT EXISTS ix_appointments_patient_start ON appointments (patient_id, start_at);

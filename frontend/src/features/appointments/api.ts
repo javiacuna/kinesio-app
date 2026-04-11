@@ -33,7 +33,14 @@ export type UpdateAppointmentInput = {
 export function updateAppointment(input: UpdateAppointmentInput) {
   const { id, ...patch } = input;
   return apiFetch<Appointment>(`/api/v1/appointments/${id}`, {
-    method: "PATCH",
+    method: "PUT",
     body: JSON.stringify(patch),
+  });
+}
+
+export function cancelAppointment(input: { id: string; reason?: string }) {
+  return apiFetch<Appointment>(`/api/v1/appointments/${input.id}`, {
+    method: "DELETE",
+    body: JSON.stringify({ reason: input.reason }),
   });
 }
