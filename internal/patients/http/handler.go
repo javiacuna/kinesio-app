@@ -14,13 +14,14 @@ import (
 
 type Handler struct {
 	register *usecase.RegisterPatientUseCase
+	update   *usecase.UpdatePatientUseCase
 	getByID  *usecase.GetPatientByIDUseCase
 	searchUC *usecase.SearchPatientsUseCase
 }
 
-func NewHandler(register *usecase.RegisterPatientUseCase, getByID *usecase.GetPatientByIDUseCase,
+func NewHandler(register *usecase.RegisterPatientUseCase, update *usecase.UpdatePatientUseCase, getByID *usecase.GetPatientByIDUseCase,
 	searchUC *usecase.SearchPatientsUseCase) *Handler {
-	return &Handler{register: register, getByID: getByID, searchUC: searchUC}
+	return &Handler{register: register, update: update, getByID: getByID, searchUC: searchUC}
 }
 
 type registerPatientRequest struct {
@@ -89,6 +90,52 @@ func (h *Handler) RegisterPatient(c *gin.Context) {
 
 	resp := toResponse(out)
 	c.JSON(http.StatusCreated, resp)
+}
+
+func (h *Handler) UpdatePatient(c *gin.Context) {
+	if !isReceptionist(c.GetHeader("Authorization")) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req registerPatientRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	out, validation, err := h.update.Execute(c.Request.Context(), usecase.UpdatePatientInput{
+		ID:            c.Param("id"),
+		DNI:           req.DNI,
+		FirstName:     req.FirstName,
+		LastName:      req.LastName,
+		Email:         req.Email,
+		Phone:         req.Phone,
+		BirthDate:     req.BirthDate,
+		ClinicalNotes: req.ClinicalNotes,
+	})
+
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrValidation):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": validation})
+			return
+		case errors.Is(err, domain.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		case errors.Is(err, domain.ErrDuplicateDNI):
+			c.JSON(http.StatusConflict, gin.H{"error": "dni_duplicado"})
+			return
+		case errors.Is(err, domain.ErrDuplicateEmail):
+			c.JSON(http.StatusConflict, gin.H{"error": "email_duplicado"})
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, toResponse(out))
 }
 
 func toResponse(p domain.Patient) patientResponse {

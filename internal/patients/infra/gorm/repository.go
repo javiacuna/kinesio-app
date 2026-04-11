@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
@@ -43,6 +44,34 @@ func (r *Repository) Create(ctx context.Context, p domain.Patient) (domain.Patie
 
 	p.CreatedAt = m.CreatedAt
 	p.UpdatedAt = m.UpdatedAt
+	return p, nil
+}
+
+func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patient, error) {
+	updatedAt := time.Now().UTC()
+	updates := map[string]any{
+		"dni":            p.DNI,
+		"first_name":     p.FirstName,
+		"last_name":      p.LastName,
+		"email":          p.Email,
+		"phone":          p.Phone,
+		"birth_date":     p.BirthDate,
+		"clinical_notes": p.ClinicalNotes,
+		"updated_at":     updatedAt,
+	}
+
+	tx := r.db.WithContext(ctx).Model(&PatientModel{}).Where("id = ?", p.ID).Updates(updates)
+	if tx.Error != nil {
+		if duplicateErr := patientDuplicateError(tx.Error); duplicateErr != nil {
+			return domain.Patient{}, duplicateErr
+		}
+		return domain.Patient{}, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return domain.Patient{}, domain.ErrNotFound
+	}
+
+	p.UpdatedAt = updatedAt
 	return p, nil
 }
 

@@ -8,6 +8,7 @@ import (
 
 type Repository interface {
 	Create(ctx context.Context, p domain.Patient) (domain.Patient, error)
+	Update(ctx context.Context, p domain.Patient) (domain.Patient, error)
 	ExistsByDNI(ctx context.Context, dni string) (bool, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	GetByID(ctx context.Context, id string) (domain.Patient, bool, error)

@@ -27,13 +27,13 @@ func NewPatient(dni, firstName, lastName, email string, phone *string, birthDate
 		FirstName:     strings.TrimSpace(firstName),
 		LastName:      strings.TrimSpace(lastName),
 		Email:         strings.ToLower(strings.TrimSpace(email)),
-		Phone:         trimPtr(phone),
+		Phone:         TrimOptionalString(phone),
 		BirthDate:     birthDate,
-		ClinicalNotes: trimPtr(notes),
+		ClinicalNotes: TrimOptionalString(notes),
 	}
 }
 
-func trimPtr(s *string) *string {
+func TrimOptionalString(s *string) *string {
 	if s == nil {
 		return nil
 	}
