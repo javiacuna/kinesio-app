@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -146,6 +147,11 @@ func (h *Handler) Search(c *gin.Context) {
 
 	q := strings.TrimSpace(c.Query("query"))
 	limit := 20
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		if parsedLimit, err := strconv.Atoi(rawLimit); err == nil {
+			limit = parsedLimit
+		}
+	}
 
 	items, err := h.searchUC.Execute(c.Request.Context(), q, limit)
 	if err != nil {
