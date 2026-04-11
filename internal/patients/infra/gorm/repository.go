@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patients/ports"
 	"gorm.io/gorm"
@@ -34,12 +35,31 @@ func (r *Repository) Create(ctx context.Context, p domain.Patient) (domain.Patie
 	}
 
 	if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
+		if duplicateErr := patientDuplicateError(err); duplicateErr != nil {
+			return domain.Patient{}, duplicateErr
+		}
 		return domain.Patient{}, err
 	}
 
 	p.CreatedAt = m.CreatedAt
 	p.UpdatedAt = m.UpdatedAt
 	return p, nil
+}
+
+func patientDuplicateError(err error) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return nil
+	}
+
+	switch pgErr.ConstraintName {
+	case "ux_patients_dni":
+		return domain.ErrDuplicateDNI
+	case "ux_patients_email":
+		return domain.ErrDuplicateEmail
+	default:
+		return nil
+	}
 }
 
 func (r *Repository) ExistsByDNI(ctx context.Context, dni string) (bool, error) {
