@@ -75,6 +75,17 @@ func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patie
 	return p, nil
 }
 
+func (r *Repository) Delete(ctx context.Context, id string) error {
+	tx := r.db.WithContext(ctx).Delete(&PatientModel{}, "id = ?", strings.TrimSpace(id))
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func patientDuplicateError(err error) error {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
@@ -136,6 +147,31 @@ func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bo
 		UpdatedAt:     m.UpdatedAt,
 	}
 	return p, true, nil
+}
+
+func (r *Repository) List(ctx context.Context, limit int, offset int) ([]domain.Patient, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	var models []PatientModel
+	if err := r.db.WithContext(ctx).
+		Model(&PatientModel{}).
+		Order("last_name asc, first_name asc").
+		Limit(limit).
+		Offset(offset).
+		Find(&models).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.Patient, 0, len(models))
+	for _, m := range models {
+		out = append(out, m.ToDomain())
+	}
+	return out, nil
 }
 
 func (r *Repository) Search(ctx context.Context, query string, limit int) ([]domain.Patient, error) {

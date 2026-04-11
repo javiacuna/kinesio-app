@@ -15,13 +15,16 @@ import (
 type Handler struct {
 	register *usecase.RegisterPatientUseCase
 	update   *usecase.UpdatePatientUseCase
+	delete   *usecase.DeletePatientUseCase
 	getByID  *usecase.GetPatientByIDUseCase
+	listUC   *usecase.ListPatientsUseCase
 	searchUC *usecase.SearchPatientsUseCase
 }
 
-func NewHandler(register *usecase.RegisterPatientUseCase, update *usecase.UpdatePatientUseCase, getByID *usecase.GetPatientByIDUseCase,
+func NewHandler(register *usecase.RegisterPatientUseCase, update *usecase.UpdatePatientUseCase, deleteUC *usecase.DeletePatientUseCase,
+	getByID *usecase.GetPatientByIDUseCase, listUC *usecase.ListPatientsUseCase,
 	searchUC *usecase.SearchPatientsUseCase) *Handler {
-	return &Handler{register: register, update: update, getByID: getByID, searchUC: searchUC}
+	return &Handler{register: register, update: update, delete: deleteUC, getByID: getByID, listUC: listUC, searchUC: searchUC}
 }
 
 type registerPatientRequest struct {
@@ -138,6 +141,30 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 	c.JSON(http.StatusOK, toResponse(out))
 }
 
+func (h *Handler) DeletePatient(c *gin.Context) {
+	if !isReceptionist(c.GetHeader("Authorization")) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	validation, err := h.delete.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrValidation):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": validation})
+			return
+		case errors.Is(err, domain.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func toResponse(p domain.Patient) patientResponse {
 	var birth *string
 	if p.BirthDate != nil {
@@ -198,6 +225,29 @@ func (h *Handler) Search(c *gin.Context) {
 		if parsedLimit, err := strconv.Atoi(rawLimit); err == nil {
 			limit = parsedLimit
 		}
+	}
+
+	if q == "" {
+		offset := 0
+		if rawOffset := strings.TrimSpace(c.Query("offset")); rawOffset != "" {
+			if parsedOffset, err := strconv.Atoi(rawOffset); err == nil {
+				offset = parsedOffset
+			}
+		}
+
+		items, err := h.listUC.Execute(c.Request.Context(), limit, offset)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+
+		out := make([]patientResponse, 0, len(items))
+		for _, p := range items {
+			out = append(out, toResponse(p))
+		}
+
+		c.JSON(http.StatusOK, out)
+		return
 	}
 
 	items, err := h.searchUC.Execute(c.Request.Context(), q, limit)

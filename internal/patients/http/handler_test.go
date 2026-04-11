@@ -20,7 +20,10 @@ type registerPatientRepo struct {
 	existsDNI   bool
 	existsEmail bool
 	patient     domain.Patient
+	patients    []domain.Patient
 	found       bool
+	deletedID   string
+	deleteErr   error
 }
 
 func (r *registerPatientRepo) Create(ctx context.Context, p domain.Patient) (domain.Patient, error) {
@@ -37,6 +40,14 @@ func (r *registerPatientRepo) Update(ctx context.Context, p domain.Patient) (dom
 	return p, nil
 }
 
+func (r *registerPatientRepo) Delete(ctx context.Context, id string) error {
+	r.deletedID = id
+	if r.deleteErr != nil {
+		return r.deleteErr
+	}
+	return nil
+}
+
 func (r *registerPatientRepo) ExistsByDNI(ctx context.Context, dni string) (bool, error) {
 	return r.existsDNI, nil
 }
@@ -49,8 +60,19 @@ func (r *registerPatientRepo) GetByID(ctx context.Context, id string) (domain.Pa
 	return r.patient, r.found, nil
 }
 
+func (r *registerPatientRepo) List(ctx context.Context, limit int, offset int) ([]domain.Patient, error) {
+	if offset > len(r.patients) {
+		return []domain.Patient{}, nil
+	}
+	end := offset + limit
+	if end > len(r.patients) {
+		end = len(r.patients)
+	}
+	return r.patients[offset:end], nil
+}
+
 func (r *registerPatientRepo) Search(ctx context.Context, query string, limit int) ([]domain.Patient, error) {
-	return nil, nil
+	return r.patients, nil
 }
 
 func TestRegisterPatientEndpoint(t *testing.T) {
@@ -115,7 +137,7 @@ func TestRegisterPatientEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			registerUC := usecase.NewRegisterPatientUseCase(tt.repo)
-			handler := NewHandler(registerUC, nil, nil, nil)
+			handler := NewHandler(registerUC, nil, nil, nil, nil, nil)
 
 			router := gin.New()
 			router.POST("/patients", handler.RegisterPatient)
@@ -251,7 +273,7 @@ func TestUpdatePatientEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			updateUC := usecase.NewUpdatePatientUseCase(tt.repo)
-			handler := NewHandler(nil, updateUC, nil, nil)
+			handler := NewHandler(nil, updateUC, nil, nil, nil, nil)
 
 			router := gin.New()
 			router.PUT("/patients/:id", handler.UpdatePatient)
@@ -294,6 +316,144 @@ func TestUpdatePatientEndpoint(t *testing.T) {
 				if got["phone"] != "3511234567" {
 					t.Fatalf("phone = %v, want trimmed phone", got["phone"])
 				}
+			}
+		})
+	}
+}
+
+func TestListPatientsEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	patients := []domain.Patient{
+		{ID: uuid.New(), DNI: "11111111", FirstName: "Ana", LastName: "Lopez", Email: "ana@example.com", CreatedAt: now, UpdatedAt: now},
+		{ID: uuid.New(), DNI: "22222222", FirstName: "Bruno", LastName: "Perez", Email: "bruno@example.com", CreatedAt: now, UpdatedAt: now},
+	}
+	repo := &registerPatientRepo{patients: patients}
+	listUC := usecase.NewListPatientsUseCase(repo)
+	searchUC := usecase.NewSearchPatientsUseCase(repo)
+	handler := NewHandler(nil, nil, nil, nil, listUC, searchUC)
+
+	tests := []struct {
+		name       string
+		target     string
+		wantStatus int
+		wantLen    int
+	}{
+		{
+			name:       "lists patients",
+			target:     "/patients",
+			wantStatus: http.StatusOK,
+			wantLen:    2,
+		},
+		{
+			name:       "lists patients with pagination",
+			target:     "/patients?limit=1&offset=1",
+			wantStatus: http.StatusOK,
+			wantLen:    1,
+		},
+		{
+			name:       "keeps search behavior when query is present",
+			target:     "/patients?query=ana&limit=20",
+			wantStatus: http.StatusOK,
+			wantLen:    2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.GET("/patients", handler.Search)
+
+			req := httptest.NewRequest(http.MethodGet, tt.target, nil)
+			req.Header.Set("Authorization", "Bearer demo-recepcionista-token")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+
+			var got []map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if len(got) != tt.wantLen {
+				t.Fatalf("len = %d, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+}
+
+func TestDeletePatientEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	patientID := uuid.New()
+
+	tests := []struct {
+		name       string
+		id         string
+		repo       *registerPatientRepo
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name:       "deletes patient",
+			id:         patientID.String(),
+			repo:       &registerPatientRepo{},
+			wantStatus: http.StatusNoContent,
+		},
+		{
+			name:       "validates invalid id",
+			id:         "not-a-uuid",
+			repo:       &registerPatientRepo{},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "validation_error",
+		},
+		{
+			name:       "returns not found",
+			id:         patientID.String(),
+			repo:       &registerPatientRepo{deleteErr: domain.ErrNotFound},
+			wantStatus: http.StatusNotFound,
+			wantError:  "not_found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deleteUC := usecase.NewDeletePatientUseCase(tt.repo)
+			handler := NewHandler(nil, nil, deleteUC, nil, nil, nil)
+
+			router := gin.New()
+			router.DELETE("/patients/:id", handler.DeletePatient)
+
+			req := httptest.NewRequest(http.MethodDelete, "/patients/"+tt.id, nil)
+			req.Header.Set("Authorization", "Bearer demo-recepcionista-token")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+
+			if tt.wantError == "" {
+				if rec.Body.Len() != 0 {
+					t.Fatalf("body = %q, want empty body", rec.Body.String())
+				}
+				if tt.repo.deletedID != tt.id {
+					t.Fatalf("deletedID = %q, want %q", tt.repo.deletedID, tt.id)
+				}
+				return
+			}
+
+			var got map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if got["error"] != tt.wantError {
+				t.Fatalf("error = %v, want %q", got["error"], tt.wantError)
 			}
 		})
 	}

@@ -62,9 +62,11 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	patientRepo := patientsRepo.New(db)
 	registerPatientUC := patientsUC.NewRegisterPatientUseCase(patientRepo)
 	updatePatientUC := patientsUC.NewUpdatePatientUseCase(patientRepo)
+	deletePatientUC := patientsUC.NewDeletePatientUseCase(patientRepo)
 	getPatientByIDUC := patientsUC.NewGetPatientByIDUseCase(patientRepo)
+	listPatientsUC := patientsUC.NewListPatientsUseCase(patientRepo)
 	searchPatients := patientsUC.NewSearchPatientsUseCase(patientRepo)
-	patientHandler := patientsHTTP.NewHandler(registerPatientUC, updatePatientUC, getPatientByIDUC, searchPatients)
+	patientHandler := patientsHTTP.NewHandler(registerPatientUC, updatePatientUC, deletePatientUC, getPatientByIDUC, listPatientsUC, searchPatients)
 
 	apptRepo := appointmentsRepo.New(db)
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
@@ -116,6 +118,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)
 	v1.PUT("/patients/:id", patientHandler.UpdatePatient)
+	v1.DELETE("/patients/:id", patientHandler.DeletePatient)
 	v1.GET("/patients/:id", patientHandler.GetPatientByID)
 	v1.GET("/patients", patientHandler.Search)
 
