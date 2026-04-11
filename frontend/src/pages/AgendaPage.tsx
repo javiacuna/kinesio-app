@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { listKinesiologists } from "../features/kinesiologists/api";
-import { cancelAppointment, createAppointment, listAppointmentsDay, updateAppointment } from "../features/appointments/api";
+import {
+  cancelAppointment,
+  createAppointment,
+  listAppointmentsDay,
+  updateAppointment,
+} from "../features/appointments/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
@@ -13,6 +18,10 @@ function todayISO() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
+}
+
+function isOverlapError(error: unknown) {
+  return (error as any)?.status === 409 || (error as any)?.message === "overlap";
 }
 
 export default function AgendaPage() {
@@ -81,7 +90,8 @@ export default function AgendaPage() {
   }
 
   const createErr: any = createM.error;
-  const isOverlap = createErr?.status === 409;
+  const hasCreateOverlap = isOverlapError(createM.error);
+  const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -214,10 +224,10 @@ export default function AgendaPage() {
 
           {createM.isError && (
             <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
-              {isOverlap ? (
+              {hasCreateOverlap ? (
                 <>
                   <div className="font-medium">Solapamiento detectado</div>
-                  <div>El kinesiólogo ya tiene un turno en ese horario. Elegí otro horario.</div>
+                  <div>El kinesiólogo ya tiene un turno activo en ese horario.</div>
                 </>
               ) : (
                 <>
@@ -353,10 +363,10 @@ export default function AgendaPage() {
 
                 {rescheduleM.isError && (
                   <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700 mb-2">
-                    {(rescheduleM.error as any)?.status === 409 ? (
+                    {hasRescheduleOverlap ? (
                       <>
                         <div className="font-medium">Solapamiento al reprogramar</div>
-                        <div>Ese horario se superpone con otro turno del kinesiólogo.</div>
+                        <div>El kinesiólogo ya tiene un turno activo en ese horario.</div>
                       </>
                     ) : (
                       <>

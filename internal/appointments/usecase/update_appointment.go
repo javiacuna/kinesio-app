@@ -43,6 +43,8 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 		return domain.Appointment{}, nil, domain.ErrNotFound
 	}
 
+	originalStatus := current.Status
+
 	// Status
 	if in.Status != nil {
 		switch domain.Status(strings.TrimSpace(*in.Status)) {
@@ -90,8 +92,11 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 		return domain.Appointment{}, errs, domain.ErrValidation
 	}
 
-	// Si se reprogramó, validar solapamiento (excluyéndose)
-	if in.StartAt != nil || in.EndAt != nil {
+	timeChanged := in.StartAt != nil || in.EndAt != nil
+	shouldValidateOverlap := current.Status == domain.StatusScheduled &&
+		(timeChanged || originalStatus != domain.StatusScheduled)
+
+	if shouldValidateOverlap {
 		ex := current.ID
 		overlap, err := uc.repo.HasOverlap(ctx, current.KinesiologistID, newStart, newEnd, &ex)
 		if err != nil {
@@ -100,6 +105,9 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 		if overlap {
 			return domain.Appointment{}, nil, domain.ErrOverlap
 		}
+	}
+
+	if timeChanged {
 		current.StartAt = newStart
 		current.EndAt = newEnd
 	}

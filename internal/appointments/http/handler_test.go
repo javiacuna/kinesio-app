@@ -224,6 +224,8 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
+	cancelled := existing
+	cancelled.Status = domain.StatusCancelled
 
 	tests := []struct {
 		name       string
@@ -286,6 +288,17 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"start_at": "2026-04-11T15:00:00Z",
 				"end_at":   "2026-04-11T15:45:00Z",
+			},
+			wantStatus: http.StatusConflict,
+			wantError:  "overlap",
+		},
+		{
+			name:   "rejects overlap when reactivating cancelled appointment",
+			id:     appointmentID.String(),
+			repo:   &appointmentRepo{appointment: cancelled, found: true, overlap: true},
+			method: http.MethodPut,
+			body: map[string]any{
+				"status": "scheduled",
 			},
 			wantStatus: http.StatusConflict,
 			wantError:  "overlap",
