@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,7 +17,9 @@ import (
 )
 
 type exercisePlanRepo struct {
-	created domain.ExercisePlan
+	created  domain.ExercisePlan
+	listed   []domain.ExercisePlan
+	listedID uuid.UUID
 }
 
 func (r *exercisePlanRepo) Create(ctx context.Context, p domain.ExercisePlan) (domain.ExercisePlan, error) {
@@ -29,7 +32,8 @@ func (r *exercisePlanRepo) GetByID(ctx context.Context, id uuid.UUID) (domain.Ex
 }
 
 func (r *exercisePlanRepo) ListByPatient(ctx context.Context, patientID uuid.UUID) ([]domain.ExercisePlan, error) {
-	return nil, nil
+	r.listedID = patientID
+	return r.listed, nil
 }
 
 func TestCreatePlanEndpoint(t *testing.T) {
@@ -66,7 +70,7 @@ func TestCreatePlanEndpoint(t *testing.T) {
 		},
 		{
 			name:  "creates and assigns plan from patient route",
-			route: "/patients/" + patientID.String() + "/exercise-plans",
+			route: "/patients/" + patientID.String() + "/plans",
 			body: map[string]any{
 				"kinesiologist_id": kinesiologistID.String(),
 				"frequency":        "daily",
@@ -108,7 +112,7 @@ func TestCreatePlanEndpoint(t *testing.T) {
 
 			router := gin.New()
 			router.POST("/plans", handler.Create)
-			router.POST("/patients/:patient_id/exercise-plans", handler.CreateForPatient)
+			router.POST("/patients/:patient_id/plans", handler.CreateForPatient)
 
 			payload, err := json.Marshal(tt.body)
 			if err != nil {
@@ -145,6 +149,103 @@ func TestCreatePlanEndpoint(t *testing.T) {
 			}
 			if repo.created.PatientID != patientID {
 				t.Fatalf("created patient id = %s, want %s", repo.created.PatientID, patientID)
+			}
+		})
+	}
+}
+
+func TestListPatientPlansEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	patientID := uuid.New()
+	kinesiologistID := uuid.New()
+	planID := uuid.New()
+	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name       string
+		route      string
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name:       "lists plans from short route",
+			route:      "/patients/" + patientID.String() + "/plans",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "validates patient id",
+			route:      "/patients/not-a-uuid/plans",
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid_patient_id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &exercisePlanRepo{
+				listed: []domain.ExercisePlan{
+					{
+						ID:              planID,
+						PatientID:       patientID,
+						KinesiologistID: kinesiologistID,
+						Frequency:       domain.FrequencyWeekly,
+						DurationWeeks:   4,
+						Status:          domain.PlanActive,
+						CreatedAt:       now,
+						UpdatedAt:       now,
+						Items: []domain.ExercisePlanItem{
+							{
+								ID:               uuid.New(),
+								PlanID:           planID,
+								Name:             "Sentadillas",
+								EstimatedMinutes: 10,
+								CreatedAt:        now,
+								UpdatedAt:        now,
+							},
+						},
+					},
+				},
+			}
+			listUC := usecase.NewListPlansByPatientUseCase(repo)
+			handler := NewHandler(nil, listUC, nil)
+
+			router := gin.New()
+			router.GET("/patients/:patient_id/plans", handler.ListByPatient)
+
+			req := httptest.NewRequest(http.MethodGet, tt.route, nil)
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+
+			if tt.wantError != "" {
+				var got map[string]any
+				if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+					t.Fatalf("unmarshal response: %v", err)
+				}
+				if got["error"] != tt.wantError {
+					t.Fatalf("error = %v, want %q", got["error"], tt.wantError)
+				}
+				return
+			}
+
+			if repo.listedID != patientID {
+				t.Fatalf("listed patient id = %s, want %s", repo.listedID, patientID)
+			}
+
+			var got []map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("len = %d, want 1", len(got))
+			}
+			if got[0]["id"] != planID.String() {
+				t.Fatalf("id = %v, want %s", got[0]["id"], planID.String())
 			}
 		})
 	}

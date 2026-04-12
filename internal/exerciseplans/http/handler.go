@@ -74,7 +74,12 @@ func (h *Handler) create(c *gin.Context, patientID string, req createPlanRequest
 }
 
 func (h *Handler) ListByPatient(c *gin.Context) {
-	pid, err := uuid.Parse(c.Param("patient_id"))
+	patientID := c.Param("patient_id")
+	if patientID == "" {
+		patientID = c.Param("id")
+	}
+
+	pid, err := uuid.Parse(patientID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_patient_id"})
 		return

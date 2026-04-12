@@ -135,9 +135,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/kinesiologists", kHandler.List)
 
 	v1.POST("/plans", planHandler.Create)
-	v1.POST("/patients/:patient_id/exercise-plans", planHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/exercise-plans", planHandler.ListByPatient)
-	v1.GET("/exercise-plans/:plan_id", planHandler.GetByID)
+	v1.POST("/patients/:patient_id/plans", planHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
+	v1.GET("/plans/:plan_id", planHandler.GetByID)
 
 	v1.POST("/patients/:patient_id/evolutions", evoHandler.CreateForPatient)
 	v1.GET("/patients/:patient_id/evolutions", evoHandler.ListByPatient)
