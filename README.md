@@ -38,6 +38,39 @@ API:
 - Health: `GET http://localhost:8080/health`
 - Version: `GET http://localhost:8080/version`
 
+### Firebase Auth
+
+Para usar autenticación real con Firebase:
+
+1. Activar Email/Password en Firebase Authentication.
+2. Configurar estas variables en `.env`:
+
+```bash
+FIREBASE_PROJECT_ID=proyecto-final-b67f5
+FIREBASE_WEB_API_KEY=tu_web_api_key
+GOOGLE_APPLICATION_CREDENTIALS=/ruta/absoluta/firebase-service-account.json
+```
+
+El login del backend queda disponible en:
+
+```bash
+POST /api/v1/auth/login
+```
+
+El resto de endpoints puede recibir el token con:
+
+```bash
+Authorization: Bearer <firebase_id_token>
+```
+
+Para asignar roles a usuarios de Firebase:
+
+```bash
+go run ./cmd/firebase-role --email recepcion@test.com --role recepcionista
+go run ./cmd/firebase-role --email admin@test.com --role admin
+go run ./cmd/firebase-role --email kine@test.com --role kinesiologo
+```
+
 ## Frontend
 
 El frontend está desarrollado con React + TypeScript + Vite y se encuentra en la carpeta `frontend/`.  

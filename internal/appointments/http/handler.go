@@ -3,11 +3,11 @@ package http
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/domain"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 )
 
 type Handler struct {
@@ -71,7 +71,7 @@ type resp struct {
 }
 
 func (h *Handler) Create(c *gin.Context) {
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -132,7 +132,7 @@ func (h *Handler) ListDay(c *gin.Context) {
 }
 
 func (h *Handler) Update(c *gin.Context) {
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -170,7 +170,7 @@ func (h *Handler) Update(c *gin.Context) {
 }
 
 func (h *Handler) Cancel(c *gin.Context) {
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -217,10 +217,6 @@ func toResp(a domain.Appointment) resp {
 }
 
 func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
-
-func isReceptionist(auth string) bool {
-	return strings.EqualFold(strings.TrimSpace(auth), "Bearer demo-recepcionista-token")
-}
 
 func (h *Handler) GetByID(c *gin.Context) {
 	id := c.Param("id")

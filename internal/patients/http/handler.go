@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patients/usecase"
 )
@@ -51,9 +52,7 @@ type patientResponse struct {
 }
 
 func (h *Handler) RegisterPatient(c *gin.Context) {
-	// Auth demo (hasta integrar Firebase real): requiere header
-	// Authorization: Bearer demo-recepcionista-token
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -96,7 +95,7 @@ func (h *Handler) RegisterPatient(c *gin.Context) {
 }
 
 func (h *Handler) UpdatePatient(c *gin.Context) {
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -142,7 +141,7 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 }
 
 func (h *Handler) DeletePatient(c *gin.Context) {
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -188,12 +187,6 @@ func toResponse(p domain.Patient) patientResponse {
 
 func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
 
-func isReceptionist(auth string) bool {
-	// Demo token
-	auth = strings.TrimSpace(auth)
-	return strings.EqualFold(auth, "Bearer demo-recepcionista-token")
-}
-
 func (h *Handler) GetPatientByID(c *gin.Context) {
 	// Por ahora lo dejo SIN auth (útil para debug y para frontend).
 	// Lo cerramos por rol en el siguiente paso.
@@ -213,8 +206,7 @@ func (h *Handler) GetPatientByID(c *gin.Context) {
 }
 
 func (h *Handler) Search(c *gin.Context) {
-	// Auth demo (igual que Register): requiere header
-	if !isReceptionist(c.GetHeader("Authorization")) {
+	if !middleware.HasRole(c, "recepcionista") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}

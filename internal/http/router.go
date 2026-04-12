@@ -1,11 +1,15 @@
 package http
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
+	authFirebase "github.com/javiacuna/kinesio-backend/internal/auth/firebase"
+	authHTTP "github.com/javiacuna/kinesio-backend/internal/auth/http"
 	"github.com/javiacuna/kinesio-backend/internal/config"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 
@@ -57,6 +61,12 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 			"env": cfg.Env,
 		})
 	})
+
+	firebaseAuthClient, err := authFirebase.NewAuthClient(context.Background(), cfg.FirebaseProjectID, cfg.FirebaseCredentialsFile)
+	if err != nil {
+		log.Warn().Err(err).Msg("firebase admin auth client could not be initialized")
+	}
+	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey)
 
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
@@ -113,9 +123,11 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// API v1
 	v1 := r.Group("/api/v1")
 
-	// Auth: placeholder para Firebase (por ahora opcional)
-	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exigirá JWTs (Authorization: Bearer <token>).
-	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID))
+	v1.POST("/auth/login", authHandler.Login)
+
+	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.
+	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
+	v1.GET("/auth/me", authHandler.Me)
 
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)

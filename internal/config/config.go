@@ -19,21 +19,25 @@ type Config struct {
 	DBPassword string
 	DBSSLMode  string
 
-	FirebaseProjectID string
+	FirebaseProjectID       string
+	FirebaseWebAPIKey       string
+	FirebaseCredentialsFile string
 }
 
 func MustLoad() Config {
 	cfg := Config{
-		AppName:           getenv("APP_NAME", "kinesio-app"),
-		Env:               getenv("ENV", "local"),
-		HTTPPort:          getenv("HTTP_PORT", "8080"),
-		DBHost:            getenv("DB_HOST", "localhost"),
-		DBPort:            getenv("DB_PORT", "5432"),
-		DBName:            getenv("DB_NAME", "kinesio"),
-		DBUser:            getenv("DB_USER", "kinesio"),
-		DBPassword:        getenv("DB_PASSWORD", "kinesio"),
-		DBSSLMode:         getenv("DB_SSLMODE", "disable"),
-		FirebaseProjectID: getenv("FIREBASE_PROJECT_ID", ""),
+		AppName:                 getenv("APP_NAME", "kinesio-app"),
+		Env:                     getenv("ENV", "local"),
+		HTTPPort:                getenv("HTTP_PORT", "8080"),
+		DBHost:                  getenv("DB_HOST", "localhost"),
+		DBPort:                  getenv("DB_PORT", "5432"),
+		DBName:                  getenv("DB_NAME", "kinesio"),
+		DBUser:                  getenv("DB_USER", "kinesio"),
+		DBPassword:              getenv("DB_PASSWORD", "kinesio"),
+		DBSSLMode:               getenv("DB_SSLMODE", "disable"),
+		FirebaseProjectID:       getenv("FIREBASE_PROJECT_ID", ""),
+		FirebaseWebAPIKey:       getenv("FIREBASE_WEB_API_KEY", ""),
+		FirebaseCredentialsFile: getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
 	}
 
 	// Validaciones mínimas
