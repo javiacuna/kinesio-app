@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,11 +12,17 @@ import (
 )
 
 type CreateEvolutionInput struct {
-	PatientID       string  `json:"patient_id"`
-	KinesiologistID string  `json:"kinesiologist_id"`
-	AppointmentID   *string `json:"appointment_id,omitempty"`
-	PainLevel       *int    `json:"pain_level,omitempty"`
-	Notes           string  `json:"notes"`
+	PatientID       string                      `json:"patient_id"`
+	KinesiologistID string                      `json:"kinesiologist_id"`
+	AppointmentID   *string                     `json:"appointment_id,omitempty"`
+	PainLevel       *int                        `json:"pain_level,omitempty"`
+	Notes           string                      `json:"notes"`
+	Photos          []CreateEvolutionPhotoInput `json:"photos,omitempty"`
+}
+
+type CreateEvolutionPhotoInput struct {
+	URL     string  `json:"url"`
+	Caption *string `json:"caption,omitempty"`
 }
 
 type CreateEvolutionUseCase struct {
@@ -59,6 +66,11 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 			validation["pain_level"] = "must_be_between_0_and_10"
 		}
 	}
+	for i, photo := range in.Photos {
+		if strings.TrimSpace(photo.URL) == "" {
+			validation["photos["+strconv.Itoa(i)+"].url"] = "required"
+		}
+	}
 
 	if len(validation) > 0 {
 		return domain.PatientEvolution{}, validation, domain.ErrValidation
@@ -73,8 +85,19 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		AppointmentID:   apptID,
 		PainLevel:       in.PainLevel,
 		Notes:           notes,
+		Photos:          make([]domain.PatientEvolutionPhoto, 0, len(in.Photos)),
 		CreatedAt:       now,
 		UpdatedAt:       now,
+	}
+
+	for _, photo := range in.Photos {
+		e.Photos = append(e.Photos, domain.PatientEvolutionPhoto{
+			ID:          uuid.New(),
+			EvolutionID: e.ID,
+			URL:         strings.TrimSpace(photo.URL),
+			Caption:     trimPtr(photo.Caption),
+			CreatedAt:   now,
+		})
 	}
 
 	out, err := uc.repo.Create(ctx, e)
@@ -82,4 +105,15 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		return domain.PatientEvolution{}, nil, err
 	}
 	return out, nil, nil
+}
+
+func trimPtr(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	v := strings.TrimSpace(*s)
+	if v == "" {
+		return nil
+	}
+	return &v
 }

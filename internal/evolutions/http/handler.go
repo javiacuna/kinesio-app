@@ -25,21 +25,30 @@ func NewHandler(createUC *usecase.CreateEvolutionUseCase, listUC *usecase.ListEv
 }
 
 type createEvolutionRequest struct {
-	KinesiologistID string  `json:"kinesiologist_id"`
-	AppointmentID   *string `json:"appointment_id,omitempty"`
-	PainLevel       *int    `json:"pain_level,omitempty"`
-	Notes           string  `json:"notes"`
+	KinesiologistID string                              `json:"kinesiologist_id"`
+	AppointmentID   *string                             `json:"appointment_id,omitempty"`
+	PainLevel       *int                                `json:"pain_level,omitempty"`
+	Notes           string                              `json:"notes"`
+	Photos          []usecase.CreateEvolutionPhotoInput `json:"photos,omitempty"`
 }
 
 type evolutionResponse struct {
-	ID              string  `json:"id"`
-	PatientID       string  `json:"patient_id"`
-	KinesiologistID string  `json:"kinesiologist_id"`
-	AppointmentID   *string `json:"appointment_id,omitempty"`
-	PainLevel       *int    `json:"pain_level,omitempty"`
-	Notes           string  `json:"notes"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ID              string                   `json:"id"`
+	PatientID       string                   `json:"patient_id"`
+	KinesiologistID string                   `json:"kinesiologist_id"`
+	AppointmentID   *string                  `json:"appointment_id,omitempty"`
+	PainLevel       *int                     `json:"pain_level,omitempty"`
+	Notes           string                   `json:"notes"`
+	Photos          []evolutionPhotoResponse `json:"photos"`
+	CreatedAt       string                   `json:"created_at"`
+	UpdatedAt       string                   `json:"updated_at"`
+}
+
+type evolutionPhotoResponse struct {
+	ID        string  `json:"id"`
+	URL       string  `json:"url"`
+	Caption   *string `json:"caption,omitempty"`
+	CreatedAt string  `json:"created_at"`
 }
 
 func (h *Handler) CreateForPatient(c *gin.Context) {
@@ -51,12 +60,17 @@ func (h *Handler) CreateForPatient(c *gin.Context) {
 		return
 	}
 
+	h.create(c, patientID, req)
+}
+
+func (h *Handler) create(c *gin.Context, patientID string, req createEvolutionRequest) {
 	out, validation, err := h.createUC.Execute(c.Request.Context(), usecase.CreateEvolutionInput{
 		PatientID:       patientID,
 		KinesiologistID: req.KinesiologistID,
 		AppointmentID:   req.AppointmentID,
 		PainLevel:       req.PainLevel,
 		Notes:           req.Notes,
+		Photos:          req.Photos,
 	})
 
 	if err != nil {
@@ -125,6 +139,16 @@ func toResponse(e domain.PatientEvolution) evolutionResponse {
 		appt = &s
 	}
 
+	photos := make([]evolutionPhotoResponse, 0, len(e.Photos))
+	for _, photo := range e.Photos {
+		photos = append(photos, evolutionPhotoResponse{
+			ID:        photo.ID.String(),
+			URL:       photo.URL,
+			Caption:   photo.Caption,
+			CreatedAt: photo.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+
 	return evolutionResponse{
 		ID:              e.ID.String(),
 		PatientID:       e.PatientID.String(),
@@ -132,6 +156,7 @@ func toResponse(e domain.PatientEvolution) evolutionResponse {
 		AppointmentID:   appt,
 		PainLevel:       e.PainLevel,
 		Notes:           e.Notes,
+		Photos:          photos,
 		CreatedAt:       e.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:       e.UpdatedAt.UTC().Format(time.RFC3339),
 	}

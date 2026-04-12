@@ -33,7 +33,10 @@ func (r *Repository) Create(ctx context.Context, e domain.PatientEvolution) (dom
 
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.PatientEvolution, bool, error) {
 	var m PatientEvolutionModel
-	err := r.db.WithContext(ctx).First(&m, "id = ?", id.String()).Error
+	err := r.db.WithContext(ctx).
+		Preload("Photos").
+		First(&m, "id = ?", id.String()).
+		Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return domain.PatientEvolution{}, false, nil
@@ -46,6 +49,7 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.PatientE
 func (r *Repository) ListByPatient(ctx context.Context, patientID uuid.UUID, limit int) ([]domain.PatientEvolution, error) {
 	var ms []PatientEvolutionModel
 	if err := r.db.WithContext(ctx).
+		Preload("Photos").
 		Order("created_at desc").
 		Limit(limit).
 		Find(&ms, "patient_id = ?", patientID.String()).
@@ -67,7 +71,7 @@ func toModel(e domain.PatientEvolution) PatientEvolutionModel {
 		appt = &s
 	}
 
-	return PatientEvolutionModel{
+	m := PatientEvolutionModel{
 		ID:              e.ID.String(),
 		PatientID:       e.PatientID.String(),
 		KinesiologistID: e.KinesiologistID.String(),
@@ -76,7 +80,18 @@ func toModel(e domain.PatientEvolution) PatientEvolutionModel {
 		Notes:           e.Notes,
 		CreatedAt:       e.CreatedAt,
 		UpdatedAt:       e.UpdatedAt,
+		Photos:          make([]PatientEvolutionPhotoModel, 0, len(e.Photos)),
 	}
+	for _, photo := range e.Photos {
+		m.Photos = append(m.Photos, PatientEvolutionPhotoModel{
+			ID:          photo.ID.String(),
+			EvolutionID: photo.EvolutionID.String(),
+			URL:         photo.URL,
+			Caption:     photo.Caption,
+			CreatedAt:   photo.CreatedAt,
+		})
+	}
+	return m
 }
 
 func toDomain(m PatientEvolutionModel) domain.PatientEvolution {
@@ -86,7 +101,7 @@ func toDomain(m PatientEvolutionModel) domain.PatientEvolution {
 		appt = &id
 	}
 
-	return domain.PatientEvolution{
+	e := domain.PatientEvolution{
 		ID:              uuid.MustParse(m.ID),
 		PatientID:       uuid.MustParse(m.PatientID),
 		KinesiologistID: uuid.MustParse(m.KinesiologistID),
@@ -95,5 +110,16 @@ func toDomain(m PatientEvolutionModel) domain.PatientEvolution {
 		Notes:           m.Notes,
 		CreatedAt:       m.CreatedAt,
 		UpdatedAt:       m.UpdatedAt,
+		Photos:          make([]domain.PatientEvolutionPhoto, 0, len(m.Photos)),
 	}
+	for _, photo := range m.Photos {
+		e.Photos = append(e.Photos, domain.PatientEvolutionPhoto{
+			ID:          uuid.MustParse(photo.ID),
+			EvolutionID: uuid.MustParse(photo.EvolutionID),
+			URL:         photo.URL,
+			Caption:     photo.Caption,
+			CreatedAt:   photo.CreatedAt,
+		})
+	}
+	return e
 }
