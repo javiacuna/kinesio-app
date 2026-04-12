@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -62,10 +63,10 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, in CreatePlanInput) (d
 
 	for i, it := range in.Items {
 		if strings.TrimSpace(it.Name) == "" {
-			validation[("items[" + string(rune(i)) + "].name")] = "required"
+			validation[fmt.Sprintf("items[%d].name", i)] = "required"
 		}
 		if it.EstimatedMinutes <= 0 {
-			validation[("items[" + string(rune(i)) + "].estimated_minutes")] = "must_be_>_0"
+			validation[fmt.Sprintf("items[%d].estimated_minutes", i)] = "must_be_>_0"
 		}
 	}
 

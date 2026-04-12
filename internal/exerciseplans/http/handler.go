@@ -22,11 +22,22 @@ func NewHandler(createUC *usecase.CreatePlanUseCase, listUC *usecase.ListPlansBy
 }
 
 type createPlanRequest struct {
+	PatientID       string                        `json:"patient_id"`
 	KinesiologistID string                        `json:"kinesiologist_id"`
 	Frequency       string                        `json:"frequency"`
 	DurationWeeks   int                           `json:"duration_weeks"`
 	Observations    *string                       `json:"observations"`
 	Items           []usecase.CreatePlanItemInput `json:"items"`
+}
+
+func (h *Handler) Create(c *gin.Context) {
+	var req createPlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	h.create(c, req.PatientID, req)
 }
 
 func (h *Handler) CreateForPatient(c *gin.Context) {
@@ -38,6 +49,10 @@ func (h *Handler) CreateForPatient(c *gin.Context) {
 		return
 	}
 
+	h.create(c, patientID, req)
+}
+
+func (h *Handler) create(c *gin.Context, patientID string, req createPlanRequest) {
 	out, validation, err := h.createUC.Execute(c.Request.Context(), usecase.CreatePlanInput{
 		PatientID:       patientID,
 		KinesiologistID: req.KinesiologistID,
