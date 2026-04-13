@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch } from "../shared/api/http";
 
 type Patient = {
@@ -48,14 +49,14 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <main>
       <div className="max-w-3xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Pacientes</h1>
             <p className="text-sm text-gray-600">Alta de paciente (por ahora sin búsqueda/listado).</p>
           </div>
-          <a className="text-sm underline" href="/">Ir a Agenda</a>
+          <Link className="text-sm underline" to="/agenda">Ir a Agenda</Link>
         </header>
 
         <div className="bg-white rounded-xl shadow p-4 space-y-3">
@@ -94,6 +95,6 @@ export default function PatientsPage() {
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

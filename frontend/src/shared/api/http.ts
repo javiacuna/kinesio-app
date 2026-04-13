@@ -1,10 +1,13 @@
-const DEMO_TOKEN = "demo-recepcionista-token";
+import { getAuthToken } from "@/features/auth/session";
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
 
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  headers.set("Authorization", `Bearer ${DEMO_TOKEN}`);
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const res = await fetch(path, { ...init, headers });
 

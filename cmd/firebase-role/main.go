@@ -17,6 +17,7 @@ var validRoles = map[string]struct{}{
 	"admin":         {},
 	"recepcionista": {},
 	"kinesiologo":   {},
+	"paciente":      {},
 }
 
 func main() {
@@ -29,7 +30,7 @@ func main() {
 
 	selectedRole := strings.ToLower(strings.TrimSpace(*role))
 	if _, ok := validRoles[selectedRole]; !ok {
-		exitf("invalid role %q; use admin, recepcionista or kinesiologo", *role)
+		exitf("invalid role %q; use admin, recepcionista, kinesiologo or paciente", *role)
 	}
 
 	cfg := config.MustLoad()

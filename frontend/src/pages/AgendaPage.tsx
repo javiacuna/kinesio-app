@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/features/auth/AuthProvider";
 import { listKinesiologists } from "../features/kinesiologists/api";
 import {
   cancelAppointment,
@@ -25,6 +27,7 @@ function isOverlapError(error: unknown) {
 }
 
 export default function AgendaPage() {
+  const { user } = useAuth();
   // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
@@ -94,14 +97,18 @@ export default function AgendaPage() {
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <main>
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Agenda</h1>
             <p className="text-sm text-gray-600">Agenda diaria y creación de turnos.</p>
           </div>
-          <a className="text-sm underline" href="/patients">Ir a Pacientes</a>
+          {(user?.role === "admin" || user?.role === "recepcionista") && (
+            <Link className="text-sm underline" to="/patients">
+              Ir a Pacientes
+            </Link>
+          )}
         </header>
 
         {/* Filtros agenda */}
@@ -381,6 +388,6 @@ export default function AgendaPage() {
           )}
         </section>
       </div>
-    </div>
+    </main>
   );
 }

@@ -63,12 +63,20 @@ El resto de endpoints puede recibir el token con:
 Authorization: Bearer <firebase_id_token>
 ```
 
+En el frontend:
+
+- `/login`: formulario de ingreso con email y contraseña.
+- `recepcionista` y `admin`: redirigen a `/agenda` y pueden entrar a `/patients`.
+- `kinesiologo`: redirige a `/agenda`.
+- `paciente`: redirige a `/portal`.
+
 Para asignar roles a usuarios de Firebase:
 
 ```bash
 go run ./cmd/firebase-role --email recepcion@test.com --role recepcionista
 go run ./cmd/firebase-role --email admin@test.com --role admin
 go run ./cmd/firebase-role --email kine@test.com --role kinesiologo
+go run ./cmd/firebase-role --email paciente@test.com --role paciente
 ```
 
 ## Frontend
