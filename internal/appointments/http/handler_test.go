@@ -28,7 +28,7 @@ func (r *appointmentRepo) Create(ctx context.Context, a domain.Appointment) (dom
 	if r.createErr != nil {
 		return domain.Appointment{}, r.createErr
 	}
-	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
 	a.CreatedAt = now
 	a.UpdatedAt = now
 	return a, nil
@@ -40,7 +40,7 @@ func (r *appointmentRepo) GetByID(ctx context.Context, id uuid.UUID) (domain.App
 
 func (r *appointmentRepo) Update(ctx context.Context, a domain.Appointment) (domain.Appointment, error) {
 	a.CreatedAt = r.appointment.CreatedAt
-	a.UpdatedAt = time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC)
+	a.UpdatedAt = time.Date(2027, 4, 11, 13, 0, 0, 0, time.UTC)
 	r.appointment = a
 	return a, nil
 }
@@ -77,8 +77,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
-				"start_at":         "2026-04-11T14:00:00Z",
-				"end_at":           "2026-04-11T14:30:00Z",
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
 				"notes":            " Primera visita ",
 			},
 			auth:       "Bearer demo-recepcionista-token",
@@ -90,8 +90,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
-				"start_at":         "2026-04-11T14:00:00Z",
-				"end_at":           "2026-04-11T14:30:00Z",
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
 			},
 			wantStatus: http.StatusUnauthorized,
 			wantError:  "unauthorized",
@@ -102,8 +102,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       "bad-patient",
 				"kinesiologist_id": "bad-kine",
-				"start_at":         "2026-04-11T14:30:00Z",
-				"end_at":           "2026-04-11T14:00:00Z",
+				"start_at":         "2027-04-11T14:30:00Z",
+				"end_at":           "2027-04-11T14:00:00Z",
 			},
 			auth:       "Bearer demo-recepcionista-token",
 			wantStatus: http.StatusBadRequest,
@@ -115,8 +115,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
-				"start_at":         "2026-04-11T14:00:00Z",
-				"end_at":           "2026-04-11T14:30:00Z",
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
 			},
 			auth:       "Bearer demo-recepcionista-token",
 			wantStatus: http.StatusConflict,
@@ -128,8 +128,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
-				"start_at":         "2026-04-11T14:00:00Z",
-				"end_at":           "2026-04-11T14:30:00Z",
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
 			},
 			auth:       "Bearer demo-recepcionista-token",
 			wantStatus: http.StatusNotFound,
@@ -141,8 +141,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
-				"start_at":         "2026-04-11T14:00:00Z",
-				"end_at":           "2026-04-11T14:30:00Z",
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
 			},
 			auth:       "Bearer demo-recepcionista-token",
 			wantStatus: http.StatusNotFound,
@@ -213,13 +213,13 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 	appointmentID := uuid.New()
 	patientID := uuid.New()
 	kinesiologistID := uuid.New()
-	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
 	existing := domain.Appointment{
 		ID:              appointmentID,
 		PatientID:       patientID,
 		KinesiologistID: kinesiologistID,
-		StartAt:         time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
-		EndAt:           time.Date(2026, 4, 11, 14, 30, 0, 0, time.UTC),
+		StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+		EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
 		Status:          domain.StatusScheduled,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -242,8 +242,8 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 			repo:   &appointmentRepo{appointment: existing, found: true},
 			method: http.MethodPut,
 			body: map[string]any{
-				"start_at": "2026-04-11T15:00:00Z",
-				"end_at":   "2026-04-11T15:45:00Z",
+				"start_at": "2027-04-11T15:00:00Z",
+				"end_at":   "2027-04-11T15:45:00Z",
 				"notes":    " Reprogramado ",
 			},
 			wantStatus: http.StatusOK,
@@ -286,8 +286,8 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 			repo:   &appointmentRepo{appointment: existing, found: true, overlap: true},
 			method: http.MethodPut,
 			body: map[string]any{
-				"start_at": "2026-04-11T15:00:00Z",
-				"end_at":   "2026-04-11T15:45:00Z",
+				"start_at": "2027-04-11T15:00:00Z",
+				"end_at":   "2027-04-11T15:45:00Z",
 			},
 			wantStatus: http.StatusConflict,
 			wantError:  "overlap",
@@ -353,13 +353,13 @@ func TestCancelAppointmentEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	appointmentID := uuid.New()
-	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
 	existing := domain.Appointment{
 		ID:              appointmentID,
 		PatientID:       uuid.New(),
 		KinesiologistID: uuid.New(),
-		StartAt:         time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
-		EndAt:           time.Date(2026, 4, 11, 14, 30, 0, 0, time.UTC),
+		StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+		EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
 		Status:          domain.StatusScheduled,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -451,15 +451,15 @@ func TestListAppointmentsEndpoint(t *testing.T) {
 
 	appointmentID := uuid.New()
 	kinesiologistID := uuid.New()
-	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
 	repo := &appointmentRepo{
 		appointments: []domain.Appointment{
 			{
 				ID:              appointmentID,
 				PatientID:       uuid.New(),
 				KinesiologistID: kinesiologistID,
-				StartAt:         time.Date(2026, 4, 11, 14, 0, 0, 0, time.UTC),
-				EndAt:           time.Date(2026, 4, 11, 14, 30, 0, 0, time.UTC),
+				StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+				EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
 				Status:          domain.StatusScheduled,
 				CreatedAt:       now,
 				UpdatedAt:       now,
@@ -475,7 +475,7 @@ func TestListAppointmentsEndpoint(t *testing.T) {
 	}{
 		{
 			name:       "lists agenda",
-			target:     "/appointments?kinesiologist_id=" + kinesiologistID.String() + "&date=2026-04-11",
+			target:     "/appointments?kinesiologist_id=" + kinesiologistID.String() + "&date=2027-04-11",
 			wantStatus: http.StatusOK,
 		},
 		{

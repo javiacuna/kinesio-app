@@ -15,6 +15,7 @@ export function AppShell() {
 
   const canSeePatients = user?.role === "admin" || user?.role === "recepcionista";
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
+  const canSeeStaff = user?.role === "admin";
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -50,6 +51,14 @@ export function AppShell() {
                 to="/patients"
               >
                 Pacientes
+              </Link>
+            )}
+            {canSeeStaff && (
+              <Link
+                className={navClass(location.pathname === "/staff")}
+                to="/staff"
+              >
+                Equipo
               </Link>
             )}
             <button

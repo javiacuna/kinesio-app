@@ -38,7 +38,7 @@ export default function LoginPage() {
       <section className="w-full max-w-sm bg-white border rounded-lg p-6 shadow-sm">
         <div className="mb-6">
           <h1 className="text-2xl font-semibold">Ingresar</h1>
-          <p className="text-sm text-gray-600 mt-1">Usá tu cuenta del consultorio.</p>
+          <p className="text-sm text-gray-600 mt-1">Ingresá con tu email y contraseña.</p>
         </div>
 
         <form className="space-y-4" onSubmit={submit}>

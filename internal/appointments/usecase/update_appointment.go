@@ -88,11 +88,16 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 		errs["end_at"] = "Debe ser mayor a start_at"
 	}
 
+	timeChanged := in.StartAt != nil || in.EndAt != nil
+	statusChanged := in.Status != nil && current.Status != originalStatus
+	if current.Status == domain.StatusScheduled && (timeChanged || statusChanged) && !newStart.After(time.Now().UTC()) {
+		errs["start_at"] = "No se pueden programar turnos en horarios pasados"
+	}
+
 	if len(errs) > 0 {
 		return domain.Appointment{}, errs, domain.ErrValidation
 	}
 
-	timeChanged := in.StartAt != nil || in.EndAt != nil
 	shouldValidateOverlap := current.Status == domain.StatusScheduled &&
 		(timeChanged || originalStatus != domain.StatusScheduled)
 

@@ -38,15 +38,18 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 		errs["kinesiologist_id"] = "UUID inválido"
 	}
 
-	startAt, err := time.Parse(time.RFC3339, strings.TrimSpace(in.StartAt))
-	if err != nil {
+	startAt, startErr := time.Parse(time.RFC3339, strings.TrimSpace(in.StartAt))
+	if startErr != nil {
 		errs["start_at"] = "Formato inválido (usar RFC3339)"
 	}
-	endAt, err := time.Parse(time.RFC3339, strings.TrimSpace(in.EndAt))
-	if err != nil {
+	endAt, endErr := time.Parse(time.RFC3339, strings.TrimSpace(in.EndAt))
+	if endErr != nil {
 		errs["end_at"] = "Formato inválido (usar RFC3339)"
 	}
-	if err == nil && !endAt.After(startAt) {
+	if startErr == nil && !startAt.After(time.Now().UTC()) {
+		errs["start_at"] = "No se pueden crear turnos en horarios pasados"
+	}
+	if startErr == nil && endErr == nil && !endAt.After(startAt) {
 		errs["end_at"] = "Debe ser mayor a start_at"
 	}
 

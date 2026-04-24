@@ -26,6 +26,17 @@ function isOverlapError(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "overlap";
 }
 
+function isPastLocalDateTime(dateISO: string, timeHHmm: string) {
+  if (!dateISO || !timeHHmm) return false;
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const [hh, mm] = timeHHmm.split(":").map(Number);
+  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime() <= Date.now();
+}
+
+function validationDetail(error: unknown, field: string) {
+  return (error as any)?.body?.details?.[field] as string | undefined;
+}
+
 export default function AgendaPage() {
   const { user } = useAuth();
   const isKinesiologist = user?.role === "kinesiologo";
@@ -52,7 +63,7 @@ export default function AgendaPage() {
 
   const kinesioQ = useQuery({
     queryKey: ["kinesiologists"],
-    queryFn: listKinesiologists,
+    queryFn: () => listKinesiologists(),
   });
 
   const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
@@ -98,6 +109,8 @@ export default function AgendaPage() {
 
 
   function create() {
+    if (isCreateInPast) return;
+
     const endTime = addMinutesToHHmm(startTime, durationMin);
 
     createM.mutate({
@@ -109,9 +122,39 @@ export default function AgendaPage() {
     });
   }
 
+  function promptReschedule(appt: { id: string }) {
+    const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
+    if (!newDate) return;
+
+    const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
+    if (!newStart) return;
+
+    if (isPastLocalDateTime(newDate, newStart)) {
+      window.alert("No se pueden reprogramar turnos en horarios pasados.");
+      return;
+    }
+
+    const dur = window.prompt("Duración en minutos:", "45");
+    if (!dur) return;
+
+    const newDurationMin = Number(dur);
+    if (!Number.isFinite(newDurationMin) || newDurationMin <= 0) return;
+
+    const endTime = addMinutesToHHmm(newStart, newDurationMin);
+
+    rescheduleM.mutate({
+      id: appt.id,
+      start_at: localDateTimeToUTC(newDate, newStart),
+      end_at: localDateTimeToUTC(newDate, endTime),
+    });
+  }
+
   const createErr: any = createM.error;
   const hasCreateOverlap = isOverlapError(createM.error);
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
+  const isCreateInPast = isPastLocalDateTime(apptDate, startTime);
+  const createValidationMessage = validationDetail(createM.error, "start_at");
+  const rescheduleValidationMessage = validationDetail(rescheduleM.error, "start_at");
 
   return (
     <main>
@@ -201,6 +244,7 @@ export default function AgendaPage() {
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
+                min={todayISO()}
                 value={apptDate}
                 onChange={(e) => setApptDate(e.target.value)}
               />
@@ -253,11 +297,17 @@ export default function AgendaPage() {
 
           <button
             className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            disabled={!patientId.trim() || !kinesiologistId || createM.isPending}
+            disabled={!patientId.trim() || !kinesiologistId || isCreateInPast || createM.isPending}
             onClick={create}
           >
             {createM.isPending ? "Creando…" : "Crear turno"}
           </button>
+
+          {isCreateInPast && (
+            <p className="text-sm text-red-600">
+              No se pueden crear turnos en horarios pasados.
+            </p>
+          )}
 
           {createM.isError && (
             <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
@@ -269,7 +319,7 @@ export default function AgendaPage() {
               ) : (
                 <>
                   <div className="font-medium">Error</div>
-                  <div>{String(createErr?.message)}</div>
+                  <div>{createValidationMessage ?? String(createErr?.message)}</div>
                 </>
               )}
             </div>
@@ -310,25 +360,7 @@ export default function AgendaPage() {
                   cancelM.mutate({ id: appt.id, reason });
                 }}
                 onReschedule={(appt) => {
-                  const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
-                  if (!newDate) return;
-
-                  const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
-                  if (!newStart) return;
-
-                  const dur = window.prompt("Duración en minutos:", "45");
-                  if (!dur) return;
-
-                  const durationMin = Number(dur);
-                  if (!Number.isFinite(durationMin) || durationMin <= 0) return;
-
-                  const endTime = addMinutesToHHmm(newStart, durationMin);
-
-                  rescheduleM.mutate({
-                    id: appt.id,
-                    start_at: localDateTimeToUTC(newDate, newStart),
-                    end_at: localDateTimeToUTC(newDate, endTime),
-                  });
+                  promptReschedule(appt);
                 }}
               />
 
@@ -379,25 +411,7 @@ export default function AgendaPage() {
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
                             disabled={rescheduleM.isPending || cancelM.isPending}
                             onClick={() => {
-                              const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
-                              if (!newDate) return;
-
-                              const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
-                              if (!newStart) return;
-
-                              const dur = window.prompt("Duración en minutos:", "45");
-                              if (!dur) return;
-
-                              const durationMin = Number(dur);
-                              if (!Number.isFinite(durationMin) || durationMin <= 0) return;
-
-                              const endTime = addMinutesToHHmm(newStart, durationMin);
-
-                              rescheduleM.mutate({
-                                id: a.id,
-                                start_at: localDateTimeToUTC(newDate, newStart),
-                                end_at: localDateTimeToUTC(newDate, endTime),
-                              });
+                              promptReschedule(a);
                             }}
                           >
                             {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
@@ -424,7 +438,7 @@ export default function AgendaPage() {
                     ) : (
                       <>
                         <div className="font-medium">Error al reprogramar</div>
-                        <div>{String((rescheduleM.error as any)?.message)}</div>
+                        <div>{rescheduleValidationMessage ?? String((rescheduleM.error as any)?.message)}</div>
                       </>
                     )}
                   </div>

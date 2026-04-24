@@ -66,7 +66,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	if err != nil {
 		log.Warn().Err(err).Msg("firebase admin auth client could not be initialized")
 	}
-	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey)
+	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey, firebaseAuthClient)
 
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
@@ -80,7 +80,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	kRepo := kineRepo.New(db)
 	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
-	kHandler := kineHTTP.NewHandler(listKUC)
+	saveKUC := kineUC.NewSaveKinesiologistUseCase(kRepo)
+	kHandler := kineHTTP.NewHandler(listKUC, saveKUC)
 
 	apptRepo := appointmentsRepo.New(db)
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
@@ -129,6 +130,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
 	v1.GET("/auth/me", authHandler.Me)
+	v1.GET("/admin/users", authHandler.ListUsers)
+	v1.POST("/admin/users/role", authHandler.AssignRole)
 
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)
@@ -151,6 +154,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/appointments/:id", apptHandler.GetByID)
 
 	v1.GET("/kinesiologists", kHandler.List)
+	v1.POST("/kinesiologists", kHandler.Create)
+	v1.PUT("/kinesiologists/:id", kHandler.Update)
 
 	v1.POST("/plans", planHandler.Create)
 	v1.GET("/plans/:plan_id", planHandler.GetByID)
