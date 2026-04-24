@@ -26,6 +26,10 @@ function isOverlapError(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "overlap";
 }
 
+function isInactivePatientError(error: unknown) {
+  return (error as any)?.message === "patient_inactive";
+}
+
 function isPastLocalDateTime(dateISO: string, timeHHmm: string) {
   if (!dateISO || !timeHHmm) return false;
   const [y, m, d] = dateISO.split("-").map(Number);
@@ -94,6 +98,12 @@ export default function AgendaPage() {
   const createM = useMutation({
     mutationFn: createAppointment,
     onSuccess: () => agendaQ.refetch(),
+    onError: (error) => {
+      if (isInactivePatientError(error)) {
+        localStorage.removeItem("last_patient_id");
+        setPatientId("");
+      }
+    },
   });
 
   const cancelM = useMutation({
@@ -151,6 +161,7 @@ export default function AgendaPage() {
 
   const createErr: any = createM.error;
   const hasCreateOverlap = isOverlapError(createM.error);
+  const hasCreateInactivePatient = isInactivePatientError(createM.error);
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
   const isCreateInPast = isPastLocalDateTime(apptDate, startTime);
   const createValidationMessage = validationDetail(createM.error, "start_at");
@@ -315,6 +326,11 @@ export default function AgendaPage() {
                 <>
                   <div className="font-medium">Solapamiento detectado</div>
                   <div>El kinesiólogo ya tiene un turno activo en ese horario.</div>
+                </>
+              ) : hasCreateInactivePatient ? (
+                <>
+                  <div className="font-medium">Paciente archivado</div>
+                  <div>No se pueden crear turnos para pacientes archivados.</div>
                 </>
               ) : (
                 <>

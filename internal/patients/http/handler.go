@@ -36,6 +36,7 @@ type registerPatientRequest struct {
 	Phone         *string `json:"phone"`
 	BirthDate     *string `json:"birth_date"` // YYYY-MM-DD
 	ClinicalNotes *string `json:"clinical_notes"`
+	Active        *bool   `json:"active,omitempty"`
 }
 
 type patientResponse struct {
@@ -47,6 +48,7 @@ type patientResponse struct {
 	Phone         *string `json:"phone,omitempty"`
 	BirthDate     *string `json:"birth_date,omitempty"`
 	ClinicalNotes *string `json:"clinical_notes,omitempty"`
+	Active        bool    `json:"active"`
 	CreatedAt     string  `json:"created_at"`
 	UpdatedAt     string  `json:"updated_at"`
 }
@@ -115,6 +117,7 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 		Phone:         req.Phone,
 		BirthDate:     req.BirthDate,
 		ClinicalNotes: req.ClinicalNotes,
+		Active:        req.Active,
 	})
 
 	if err != nil {
@@ -180,6 +183,7 @@ func toResponse(p domain.Patient) patientResponse {
 		Phone:         p.Phone,
 		BirthDate:     birth,
 		ClinicalNotes: p.ClinicalNotes,
+		Active:        p.Active,
 		CreatedAt:     p.CreatedAt.UTC().Format(timeRFC3339()),
 		UpdatedAt:     p.UpdatedAt.UTC().Format(timeRFC3339()),
 	}
@@ -218,6 +222,7 @@ func (h *Handler) Search(c *gin.Context) {
 			limit = parsedLimit
 		}
 	}
+	includeInactive := strings.EqualFold(strings.TrimSpace(c.Query("active")), "false")
 
 	if q == "" {
 		offset := 0
@@ -227,7 +232,7 @@ func (h *Handler) Search(c *gin.Context) {
 			}
 		}
 
-		items, err := h.listUC.Execute(c.Request.Context(), limit, offset)
+		items, err := h.listUC.Execute(c.Request.Context(), limit, offset, includeInactive)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 			return
@@ -242,7 +247,7 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 
-	items, err := h.searchUC.Execute(c.Request.Context(), q, limit)
+	items, err := h.searchUC.Execute(c.Request.Context(), q, limit, includeInactive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return

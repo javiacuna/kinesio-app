@@ -15,6 +15,7 @@ type PatientModel struct {
 	Phone         *string    `gorm:"column:phone"`
 	BirthDate     *time.Time `gorm:"column:birth_date"`
 	ClinicalNotes *string    `gorm:"column:clinical_notes"`
+	Active        bool       `gorm:"column:active;not null"`
 	CreatedAt     time.Time  `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt     time.Time  `gorm:"column:updated_at;autoUpdateTime"`
 }

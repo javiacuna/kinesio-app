@@ -5,4 +5,5 @@ export type Patient = {
   last_name: string;
   email: string;
   phone?: string | null;
+  active: boolean;
 };

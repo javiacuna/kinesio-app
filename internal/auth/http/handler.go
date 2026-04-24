@@ -2,7 +2,11 @@ package http
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -67,11 +71,21 @@ type assignRoleRequest struct {
 	Role  string `json:"role"`
 }
 
+type inviteUserRequest struct {
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
 type adminUserResponse struct {
 	UID      string `json:"uid"`
 	Email    string `json:"email"`
 	Role     string `json:"role"`
 	Disabled bool   `json:"disabled"`
+}
+
+type sendOobCodeRequest struct {
+	RequestType string `json:"requestType"`
+	Email       string `json:"email"`
 }
 
 var validRoles = map[string]struct{}{
@@ -80,6 +94,8 @@ var validRoles = map[string]struct{}{
 	"kinesiologo":   {},
 	"paciente":      {},
 }
+
+var errFirebaseEmail = errors.New("firebase email failed")
 
 func (h *Handler) Login(c *gin.Context) {
 	if h.apiKey == "" {
@@ -201,13 +217,7 @@ func (h *Handler) AssignRole(c *gin.Context) {
 		return
 	}
 
-	claims := map[string]any{}
-	for key, value := range user.CustomClaims {
-		claims[key] = value
-	}
-	claims["role"] = role
-
-	if err := h.adminClient.SetCustomUserClaims(c.Request.Context(), user.UID, claims); err != nil {
+	if err := h.setUserRole(c.Request.Context(), user, role); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "firebase_error"})
 		return
 	}
@@ -216,6 +226,62 @@ func (h *Handler) AssignRole(c *gin.Context) {
 		"uid":   user.UID,
 		"email": user.Email,
 		"role":  role,
+	})
+}
+
+func (h *Handler) InviteUser(c *gin.Context) {
+	if !middleware.HasRole(c, "admin") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if h.adminClient == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "firebase_auth_not_configured"})
+		return
+	}
+	if h.apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "firebase_api_key_not_configured"})
+		return
+	}
+
+	var req inviteUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	role := strings.ToLower(strings.TrimSpace(req.Role))
+	if email == "" || !strings.Contains(email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_email"})
+		return
+	}
+	if _, ok := validRoles[role]; !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_role"})
+		return
+	}
+
+	user, created, err := h.getOrCreateUser(c.Request.Context(), email)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "firebase_error"})
+		return
+	}
+
+	if err := h.setUserRole(c.Request.Context(), user, role); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "firebase_error"})
+		return
+	}
+
+	if err := h.sendPasswordResetEmail(c.Request.Context(), email); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "password_email_failed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uid":        user.UID,
+		"email":      user.Email,
+		"role":       role,
+		"created":    created,
+		"email_sent": true,
 	})
 }
 
@@ -250,6 +316,76 @@ func (h *Handler) ListUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, out)
+}
+
+func (h *Handler) getOrCreateUser(ctx context.Context, email string) (*auth.UserRecord, bool, error) {
+	user, err := h.adminClient.GetUserByEmail(ctx, email)
+	if err == nil {
+		return user, false, nil
+	}
+
+	password, err := randomPassword()
+	if err != nil {
+		return nil, false, err
+	}
+
+	user, err = h.adminClient.CreateUser(ctx, (&auth.UserToCreate{}).
+		Email(email).
+		Password(password).
+		EmailVerified(false).
+		Disabled(false))
+	if err != nil {
+		return nil, false, err
+	}
+
+	return user, true, nil
+}
+
+func (h *Handler) setUserRole(ctx context.Context, user *auth.UserRecord, role string) error {
+	claims := map[string]any{}
+	for key, value := range user.CustomClaims {
+		claims[key] = value
+	}
+	claims["role"] = role
+	return h.adminClient.SetCustomUserClaims(ctx, user.UID, claims)
+}
+
+func (h *Handler) sendPasswordResetEmail(ctx context.Context, email string) error {
+	payload, err := json.Marshal(sendOobCodeRequest{
+		RequestType: "PASSWORD_RESET",
+		Email:       email,
+	})
+	if err != nil {
+		return err
+	}
+
+	endpoint := "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=" + h.apiKey
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Firebase-Locale", "es")
+
+	res, err := h.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return errFirebaseEmail
+	}
+
+	return nil
+}
+
+func randomPassword() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }
 
 func (h *Handler) Me(c *gin.Context) {

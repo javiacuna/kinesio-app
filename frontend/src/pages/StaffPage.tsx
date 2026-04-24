@@ -6,8 +6,15 @@ import {
   type SaveKinesiologistInput,
 } from "@/features/kinesiologists/api";
 import type { Kinesiologist } from "@/features/kinesiologists/types";
-import { assignUserRole, listAdminUsers, type AdminUser } from "@/features/auth/adminApi";
+import { inviteUserAccess, listAdminUsers, type AdminUser } from "@/features/auth/adminApi";
 import type { AuthRole } from "@/features/auth/types";
+import {
+  createStaffMember,
+  listStaffMembers,
+  updateStaffMember,
+  type SaveStaffMemberInput,
+} from "@/features/staff/api";
+import type { StaffMember, StaffRole } from "@/features/staff/types";
 
 const emptyForm: SaveKinesiologistInput = {
   first_name: "",
@@ -17,13 +24,26 @@ const emptyForm: SaveKinesiologistInput = {
   active: true,
 };
 
+const emptyStaffForm: SaveStaffMemberInput = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  role: "recepcionista",
+  phone: "",
+  active: true,
+};
+
 export default function StaffPage() {
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [items, setItems] = useState<Kinesiologist[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [staffForm, setStaffForm] = useState<SaveStaffMemberInput>(emptyStaffForm);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [sendStaffAccess, setSendStaffAccess] = useState(true);
   const [form, setForm] = useState<SaveKinesiologistInput>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [roleEmail, setRoleEmail] = useState("");
-  const [role, setRole] = useState<AuthRole>("kinesiologo");
+  const [role, setRole] = useState<AuthRole>("recepcionista");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -37,11 +57,25 @@ export default function StaffPage() {
     () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
     [users],
   );
+  const sortedStaffMembers = useMemo(
+    () => [...staffMembers].sort((a, b) => `${a.last_name} ${a.first_name}`.localeCompare(`${b.last_name} ${b.first_name}`)),
+    [staffMembers],
+  );
 
   useEffect(() => {
+    refreshStaff();
     refresh();
     refreshUsers();
   }, []);
+
+  async function refreshStaff() {
+    setError("");
+    try {
+      setStaffMembers(await listStaffMembers({ includeInactive: true }));
+    } catch (err) {
+      setError((err as Error)?.message ?? "No se pudo cargar el staff.");
+    }
+  }
 
   async function refresh() {
     setError("");
@@ -91,6 +125,43 @@ export default function StaffPage() {
     }
   }
 
+  async function submitStaffMember(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setIsSaving(true);
+
+    try {
+      const payload = {
+        ...staffForm,
+        email: staffForm.email.trim().toLowerCase(),
+        phone: staffForm.phone?.trim() || null,
+      };
+      const saved = editingStaffId
+        ? await updateStaffMember({ ...payload, id: editingStaffId })
+        : await createStaffMember(payload);
+
+      setStaffMembers((current) => {
+        const exists = current.some((item) => item.id === saved.id);
+        return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
+      });
+
+      if (sendStaffAccess) {
+        await inviteUserAccess({ email: saved.email, role: saved.role });
+        await refreshUsers();
+        setMessage(`${saved.first_name} ${saved.last_name} guardado e invitación enviada.`);
+      } else {
+        setMessage(`${saved.first_name} ${saved.last_name} guardado.`);
+      }
+
+      resetStaffForm();
+    } catch (err) {
+      setError((err as Error)?.message ?? "No se pudo guardar el miembro del equipo.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function submitRole(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -98,8 +169,12 @@ export default function StaffPage() {
     setIsAssigningRole(true);
 
     try {
-      const res = await assignUserRole({ email: roleEmail.trim().toLowerCase(), role });
-      setMessage(`Rol ${res.role} asignado a ${res.email}. Debe cerrar sesión y volver a entrar.`);
+      const res = await inviteUserAccess({ email: roleEmail.trim().toLowerCase(), role });
+      setMessage(
+        res.created
+          ? `Usuario creado e invitación enviada a ${res.email}.`
+          : `Invitación enviada a ${res.email} y rol ${res.role} confirmado.`,
+      );
       setRoleEmail("");
       await refreshUsers();
     } catch (err) {
@@ -128,6 +203,29 @@ export default function StaffPage() {
     setForm(emptyForm);
   }
 
+  function editStaff(member: StaffMember) {
+    setEditingStaffId(member.id);
+    setStaffForm({
+      first_name: member.first_name,
+      last_name: member.last_name,
+      email: member.email,
+      role: member.role,
+      phone: member.phone ?? "",
+      active: member.active,
+      firebase_uid: member.firebase_uid ?? null,
+    });
+    setSendStaffAccess(false);
+    setMessage("");
+    setError("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetStaffForm() {
+    setEditingStaffId(null);
+    setStaffForm(emptyStaffForm);
+    setSendStaffAccess(true);
+  }
+
   return (
     <main>
       <div className="max-w-5xl mx-auto p-6 space-y-6">
@@ -144,15 +242,138 @@ export default function StaffPage() {
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">{editingId ? "Editar kinesiólogo" : "Crear kinesiólogo"}</h2>
-            <p className="text-sm text-gray-600">El email debe coincidir con el usuario de Firebase para que vea sus turnos.</p>
+            <h2 className="text-lg font-semibold">{editingStaffId ? "Editar miembro del equipo" : "Crear miembro del equipo"}</h2>
+            <p className="text-sm text-gray-600">Usá este formulario para admins, recepcionistas y kinesiólogos.</p>
+          </div>
+
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={submitStaffMember}>
+            <Field label="Nombre" value={staffForm.first_name} onChange={(value) => setStaffForm({ ...staffForm, first_name: value })} />
+            <Field label="Apellido" value={staffForm.last_name} onChange={(value) => setStaffForm({ ...staffForm, last_name: value })} />
+            <Field label="Email" type="email" value={staffForm.email} onChange={(value) => setStaffForm({ ...staffForm, email: value })} />
+            <Field label="Teléfono" value={staffForm.phone ?? ""} onChange={(value) => setStaffForm({ ...staffForm, phone: value })} required={false} />
+
+            <div>
+              <label className="text-sm font-medium">Rol</label>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={staffForm.role}
+                onChange={(event) => setStaffForm({ ...staffForm, role: event.target.value as StaffRole })}
+              >
+                <option value="recepcionista">Recepcionista</option>
+                <option value="admin">Admin</option>
+                <option value="kinesiologo">Kinesiólogo</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col justify-end gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={staffForm.active}
+                  onChange={(event) => setStaffForm({ ...staffForm, active: event.target.checked })}
+                />
+                Activo
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={sendStaffAccess}
+                  onChange={(event) => setSendStaffAccess(event.target.checked)}
+                />
+                Enviar acceso por email
+              </label>
+            </div>
+
+            <div className="flex gap-2 md:col-span-2">
+              <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isSaving}>
+                {isSaving ? "Guardando..." : editingStaffId ? "Guardar cambios" : "Crear miembro"}
+              </button>
+              {editingStaffId && (
+                <button type="button" className="px-4 py-2 rounded-lg border" onClick={resetStaffForm}>
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </form>
+        </section>
+
+        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Reenviar acceso</h2>
+            <p className="text-sm text-gray-600">
+              Para resetear contraseña o corregir un rol sin editar el perfil interno.
+            </p>
+          </div>
+
+          <form className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3" onSubmit={submitRole}>
+            <Field label="Email" type="email" value={roleEmail} onChange={setRoleEmail} />
+            <div>
+              <label className="text-sm font-medium">Rol</label>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={role}
+                onChange={(event) => setRole(event.target.value as AuthRole)}
+              >
+                <option value="recepcionista">Recepcionista</option>
+                <option value="admin">Admin</option>
+                <option value="kinesiologo">Kinesiólogo</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isAssigningRole}>
+                {isAssigningRole ? "Enviando..." : "Enviar invitación"}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="bg-white rounded-xl shadow p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Staff</h2>
+            <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={refreshStaff}>
+              Actualizar
+            </button>
+          </div>
+
+          <div className="divide-y">
+            {sortedStaffMembers.length === 0 ? (
+              <p className="text-sm text-gray-600 py-3">No hay miembros del equipo cargados.</p>
+            ) : (
+              sortedStaffMembers.map((member) => (
+                <div key={member.id} className="py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-medium">{member.last_name}, {member.first_name}</div>
+                    <div className="text-sm text-gray-600">{member.email}</div>
+                    {member.phone && <div className="text-sm text-gray-600">Tel: {member.phone}</div>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
+                      {member.role}
+                    </span>
+                    <span className={`text-xs px-2 py-1 rounded-md ${member.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
+                      {member.active ? "Activo" : "Inactivo"}
+                    </span>
+                    <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editStaff(member)}>
+                      Editar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">{editingId ? "Editar perfil de kinesiólogo" : "Crear perfil de kinesiólogo"}</h2>
+            <p className="text-sm text-gray-600">Solo los kinesiólogos necesitan perfil profesional para aparecer en agenda.</p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={submitKinesiologist}>
             <Field label="Nombre" value={form.first_name} onChange={(value) => setForm({ ...form, first_name: value })} />
             <Field label="Apellido" value={form.last_name} onChange={(value) => setForm({ ...form, last_name: value })} />
             <Field label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
-            <Field label="Matrícula" value={form.license_number ?? ""} onChange={(value) => setForm({ ...form, license_number: value })} />
+            <Field label="Matrícula" value={form.license_number ?? ""} onChange={(value) => setForm({ ...form, license_number: value })} required={false} />
 
             <label className="flex items-center gap-2 text-sm md:col-span-2">
               <input
@@ -165,42 +386,13 @@ export default function StaffPage() {
 
             <div className="flex gap-2 md:col-span-2">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isSaving}>
-                {isSaving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear kinesiólogo"}
+                {isSaving ? "Guardando..." : editingId ? "Guardar cambios" : "Crear perfil"}
               </button>
               {editingId && (
                 <button type="button" className="px-4 py-2 rounded-lg border" onClick={resetForm}>
                   Cancelar
                 </button>
               )}
-            </div>
-          </form>
-        </section>
-
-        <section className="bg-white rounded-xl shadow p-4 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Asignar rol</h2>
-            <p className="text-sm text-gray-600">El usuario debe existir en Firebase Authentication.</p>
-          </div>
-
-          <form className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3" onSubmit={submitRole}>
-            <Field label="Email" type="email" value={roleEmail} onChange={setRoleEmail} />
-            <div>
-              <label className="text-sm font-medium">Rol</label>
-              <select
-                className="mt-1 w-full border rounded-lg p-2"
-                value={role}
-                onChange={(event) => setRole(event.target.value as AuthRole)}
-              >
-                <option value="admin">Admin</option>
-                <option value="recepcionista">Recepcionista</option>
-                <option value="kinesiologo">Kinesiólogo</option>
-                <option value="paciente">Paciente</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isAssigningRole}>
-                {isAssigningRole ? "Asignando..." : "Asignar"}
-              </button>
             </div>
           </form>
         </section>
@@ -244,7 +436,7 @@ export default function StaffPage() {
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
-                      Cambiar rol
+                      Invitar/resetear
                     </button>
                   </div>
                 </div>
@@ -295,11 +487,13 @@ function Field({
   value,
   onChange,
   type = "text",
+  required = true,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
+  required?: boolean;
 }) {
   return (
     <div>
@@ -309,7 +503,7 @@ function Field({
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        required={label !== "Matrícula"}
+        required={required}
       />
     </div>
   );

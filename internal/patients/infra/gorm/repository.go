@@ -33,6 +33,7 @@ func (r *Repository) Create(ctx context.Context, p domain.Patient) (domain.Patie
 		Phone:         p.Phone,
 		BirthDate:     p.BirthDate,
 		ClinicalNotes: p.ClinicalNotes,
+		Active:        p.Active,
 	}
 
 	if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
@@ -57,6 +58,7 @@ func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patie
 		"phone":          p.Phone,
 		"birth_date":     p.BirthDate,
 		"clinical_notes": p.ClinicalNotes,
+		"active":         p.Active,
 		"updated_at":     updatedAt,
 	}
 
@@ -75,8 +77,14 @@ func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patie
 	return p, nil
 }
 
-func (r *Repository) Delete(ctx context.Context, id string) error {
-	tx := r.db.WithContext(ctx).Delete(&PatientModel{}, "id = ?", strings.TrimSpace(id))
+func (r *Repository) SetActive(ctx context.Context, id string, active bool) error {
+	tx := r.db.WithContext(ctx).
+		Model(&PatientModel{}).
+		Where("id = ?", strings.TrimSpace(id)).
+		Updates(map[string]any{
+			"active":     active,
+			"updated_at": time.Now().UTC(),
+		})
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -143,13 +151,14 @@ func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bo
 		Phone:         m.Phone,
 		BirthDate:     m.BirthDate,
 		ClinicalNotes: m.ClinicalNotes,
+		Active:        m.Active,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}
 	return p, true, nil
 }
 
-func (r *Repository) List(ctx context.Context, limit int, offset int) ([]domain.Patient, error) {
+func (r *Repository) List(ctx context.Context, limit int, offset int, includeInactive bool) ([]domain.Patient, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
@@ -158,9 +167,11 @@ func (r *Repository) List(ctx context.Context, limit int, offset int) ([]domain.
 	}
 
 	var models []PatientModel
-	if err := r.db.WithContext(ctx).
-		Model(&PatientModel{}).
-		Order("last_name asc, first_name asc").
+	tx := r.db.WithContext(ctx).Model(&PatientModel{})
+	if !includeInactive {
+		tx = tx.Where("active = true")
+	}
+	if err := tx.Order("last_name asc, first_name asc").
 		Limit(limit).
 		Offset(offset).
 		Find(&models).Error; err != nil {
@@ -174,7 +185,7 @@ func (r *Repository) List(ctx context.Context, limit int, offset int) ([]domain.
 	return out, nil
 }
 
-func (r *Repository) Search(ctx context.Context, query string, limit int) ([]domain.Patient, error) {
+func (r *Repository) Search(ctx context.Context, query string, limit int, includeInactive bool) ([]domain.Patient, error) {
 	q := strings.ToLower(strings.TrimSpace(query))
 	if q == "" {
 		return []domain.Patient{}, nil
@@ -182,6 +193,9 @@ func (r *Repository) Search(ctx context.Context, query string, limit int) ([]dom
 
 	var models []PatientModel
 	tx := r.db.WithContext(ctx).Model(&PatientModel{})
+	if !includeInactive {
+		tx = tx.Where("active = true")
+	}
 
 	if _, err := strconv.Atoi(q); err == nil {
 		tx = tx.Where("dni LIKE ?", q+"%")
@@ -219,6 +233,7 @@ func (m PatientModel) ToDomain() domain.Patient {
 		Phone:         m.Phone,
 		BirthDate:     m.BirthDate,
 		ClinicalNotes: m.ClinicalNotes,
+		Active:        m.Active,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}

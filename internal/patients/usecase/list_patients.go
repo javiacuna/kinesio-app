@@ -15,12 +15,12 @@ func NewListPatientsUseCase(repo ports.Repository) *ListPatientsUseCase {
 	return &ListPatientsUseCase{repo: repo}
 }
 
-func (uc *ListPatientsUseCase) Execute(ctx context.Context, limit int, offset int) ([]domain.Patient, error) {
+func (uc *ListPatientsUseCase) Execute(ctx context.Context, limit int, offset int, includeInactive bool) ([]domain.Patient, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
 	if offset < 0 {
 		offset = 0
 	}
-	return uc.repo.List(ctx, limit, offset)
+	return uc.repo.List(ctx, limit, offset, includeInactive)
 }

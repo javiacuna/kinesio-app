@@ -22,8 +22,9 @@ type registerPatientRepo struct {
 	patient     domain.Patient
 	patients    []domain.Patient
 	found       bool
-	deletedID   string
-	deleteErr   error
+	activeID    string
+	activeValue bool
+	activeErr   error
 }
 
 func (r *registerPatientRepo) Create(ctx context.Context, p domain.Patient) (domain.Patient, error) {
@@ -40,10 +41,11 @@ func (r *registerPatientRepo) Update(ctx context.Context, p domain.Patient) (dom
 	return p, nil
 }
 
-func (r *registerPatientRepo) Delete(ctx context.Context, id string) error {
-	r.deletedID = id
-	if r.deleteErr != nil {
-		return r.deleteErr
+func (r *registerPatientRepo) SetActive(ctx context.Context, id string, active bool) error {
+	r.activeID = id
+	r.activeValue = active
+	if r.activeErr != nil {
+		return r.activeErr
 	}
 	return nil
 }
@@ -60,7 +62,7 @@ func (r *registerPatientRepo) GetByID(ctx context.Context, id string) (domain.Pa
 	return r.patient, r.found, nil
 }
 
-func (r *registerPatientRepo) List(ctx context.Context, limit int, offset int) ([]domain.Patient, error) {
+func (r *registerPatientRepo) List(ctx context.Context, limit int, offset int, includeInactive bool) ([]domain.Patient, error) {
 	if offset > len(r.patients) {
 		return []domain.Patient{}, nil
 	}
@@ -71,7 +73,7 @@ func (r *registerPatientRepo) List(ctx context.Context, limit int, offset int) (
 	return r.patients[offset:end], nil
 }
 
-func (r *registerPatientRepo) Search(ctx context.Context, query string, limit int) ([]domain.Patient, error) {
+func (r *registerPatientRepo) Search(ctx context.Context, query string, limit int, includeInactive bool) ([]domain.Patient, error) {
 	return r.patients, nil
 }
 
@@ -276,7 +278,7 @@ func TestUpdatePatientEndpoint(t *testing.T) {
 			handler := NewHandler(nil, updateUC, nil, nil, nil, nil)
 
 			router := gin.New()
-			router.PUT("/patients/:id", handler.UpdatePatient)
+			router.PUT("/patients/:patient_id", handler.UpdatePatient)
 
 			payload, err := json.Marshal(tt.body)
 			if err != nil {
@@ -399,7 +401,7 @@ func TestDeletePatientEndpoint(t *testing.T) {
 		wantError  string
 	}{
 		{
-			name:       "deletes patient",
+			name:       "archives patient",
 			id:         patientID.String(),
 			repo:       &registerPatientRepo{},
 			wantStatus: http.StatusNoContent,
@@ -414,7 +416,7 @@ func TestDeletePatientEndpoint(t *testing.T) {
 		{
 			name:       "returns not found",
 			id:         patientID.String(),
-			repo:       &registerPatientRepo{deleteErr: domain.ErrNotFound},
+			repo:       &registerPatientRepo{activeErr: domain.ErrNotFound},
 			wantStatus: http.StatusNotFound,
 			wantError:  "not_found",
 		},
@@ -426,7 +428,7 @@ func TestDeletePatientEndpoint(t *testing.T) {
 			handler := NewHandler(nil, nil, deleteUC, nil, nil, nil)
 
 			router := gin.New()
-			router.DELETE("/patients/:id", handler.DeletePatient)
+			router.DELETE("/patients/:patient_id", handler.DeletePatient)
 
 			req := httptest.NewRequest(http.MethodDelete, "/patients/"+tt.id, nil)
 			req.Header.Set("Authorization", "Bearer demo-recepcionista-token")
@@ -442,8 +444,11 @@ func TestDeletePatientEndpoint(t *testing.T) {
 				if rec.Body.Len() != 0 {
 					t.Fatalf("body = %q, want empty body", rec.Body.String())
 				}
-				if tt.repo.deletedID != tt.id {
-					t.Fatalf("deletedID = %q, want %q", tt.repo.deletedID, tt.id)
+				if tt.repo.activeID != tt.id {
+					t.Fatalf("activeID = %q, want %q", tt.repo.activeID, tt.id)
+				}
+				if tt.repo.activeValue {
+					t.Fatalf("activeValue = true, want false")
 				}
 				return
 			}

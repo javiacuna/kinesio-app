@@ -1,0 +1,7 @@
+-- +goose Up
+ALTER TABLE patients
+  ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- +goose Down
+ALTER TABLE patients
+  DROP COLUMN IF EXISTS active;

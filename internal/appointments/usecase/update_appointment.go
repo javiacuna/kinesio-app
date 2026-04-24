@@ -98,6 +98,16 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 		return domain.Appointment{}, errs, domain.ErrValidation
 	}
 
+	if current.Status == domain.StatusScheduled {
+		active, err := uc.repo.IsPatientActive(ctx, current.PatientID)
+		if err != nil {
+			return domain.Appointment{}, nil, err
+		}
+		if !active {
+			return domain.Appointment{}, nil, domain.ErrPatientInactive
+		}
+	}
+
 	shouldValidateOverlap := current.Status == domain.StatusScheduled &&
 		(timeChanged || originalStatus != domain.StatusScheduled)
 

@@ -108,6 +108,8 @@ func (h *Handler) Create(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "overlap"})
 		case errors.Is(err, domain.ErrPatientNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "patient_not_found"})
+		case errors.Is(err, domain.ErrPatientInactive):
+			c.JSON(http.StatusConflict, gin.H{"error": "patient_inactive"})
 		case errors.Is(err, domain.ErrKinesiologistNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "kinesiologist_not_found"})
 		default:
@@ -194,6 +196,10 @@ func (h *Handler) Update(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "overlap"})
 		case errors.Is(err, domain.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		case errors.Is(err, domain.ErrPatientNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "patient_not_found"})
+		case errors.Is(err, domain.ErrPatientInactive):
+			c.JSON(http.StatusConflict, gin.H{"error": "patient_inactive"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		}

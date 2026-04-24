@@ -16,7 +16,7 @@ func NewSearchPatientsUseCase(repo ports.Repository) *SearchPatientsUseCase {
 	return &SearchPatientsUseCase{repo: repo}
 }
 
-func (uc *SearchPatientsUseCase) Execute(ctx context.Context, query string, limit int) ([]domain.Patient, error) {
+func (uc *SearchPatientsUseCase) Execute(ctx context.Context, query string, limit int, includeInactive bool) ([]domain.Patient, error) {
 	q := strings.TrimSpace(query)
 	if q == "" {
 		return []domain.Patient{}, nil
@@ -25,5 +25,5 @@ func (uc *SearchPatientsUseCase) Execute(ctx context.Context, query string, limi
 		limit = 20
 	}
 
-	return uc.repo.Search(ctx, q, limit)
+	return uc.repo.Search(ctx, q, limit, includeInactive)
 }

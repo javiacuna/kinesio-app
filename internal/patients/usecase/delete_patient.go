@@ -24,7 +24,7 @@ func (uc *DeletePatientUseCase) Execute(ctx context.Context, id string) (map[str
 		return map[string]string{"id": "UUID invalido"}, domain.ErrValidation
 	}
 
-	if err := uc.repo.Delete(ctx, trimmedID); err != nil {
+	if err := uc.repo.SetActive(ctx, trimmedID, false); err != nil {
 		return nil, err
 	}
 	return nil, nil

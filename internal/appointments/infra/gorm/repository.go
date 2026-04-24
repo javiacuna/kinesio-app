@@ -89,6 +89,26 @@ func (r *Repository) Update(ctx context.Context, a domain.Appointment) (domain.A
 	return r.read(ctx, a.ID)
 }
 
+func (r *Repository) IsPatientActive(ctx context.Context, patientID uuid.UUID) (bool, error) {
+	var row struct {
+		Active bool
+	}
+	err := r.db.WithContext(ctx).
+		Table("patients").
+		Select("active").
+		Where("id = ?", patientID).
+		First(&row).
+		Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, domain.ErrPatientNotFound
+		}
+		return false, err
+	}
+
+	return row.Active, nil
+}
+
 func (r *Repository) read(ctx context.Context, id uuid.UUID) (domain.Appointment, error) {
 	var m AppointmentModel
 	if err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error; err != nil {

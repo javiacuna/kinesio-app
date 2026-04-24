@@ -20,6 +20,7 @@ type UpdatePatientInput struct {
 	Phone         *string
 	BirthDate     *string
 	ClinicalNotes *string
+	Active        *bool
 }
 
 type UpdatePatientUseCase struct {
@@ -115,6 +116,9 @@ func (uc *UpdatePatientUseCase) Execute(ctx context.Context, in UpdatePatientInp
 	current.Phone = domain.TrimOptionalString(in.Phone)
 	current.BirthDate = birthDatePtr
 	current.ClinicalNotes = domain.TrimOptionalString(in.ClinicalNotes)
+	if in.Active != nil {
+		current.Active = *in.Active
+	}
 
 	updated, err := uc.repo.Update(ctx, current)
 	if err != nil {

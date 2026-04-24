@@ -16,6 +16,7 @@ type Patient struct {
 	Phone         *string
 	BirthDate     *time.Time
 	ClinicalNotes *string
+	Active        bool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -30,6 +31,7 @@ func NewPatient(dni, firstName, lastName, email string, phone *string, birthDate
 		Phone:         TrimOptionalString(phone),
 		BirthDate:     birthDate,
 		ClinicalNotes: TrimOptionalString(notes),
+		Active:        true,
 	}
 }
 

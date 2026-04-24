@@ -36,6 +36,10 @@ import (
 	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
 	matUC "github.com/javiacuna/kinesio-backend/internal/materials/usecase"
+
+	staffHTTP "github.com/javiacuna/kinesio-backend/internal/staff/http"
+	staffRepo "github.com/javiacuna/kinesio-backend/internal/staff/infra/gorm"
+	staffUC "github.com/javiacuna/kinesio-backend/internal/staff/usecase"
 )
 
 type RouterDeps struct {
@@ -67,6 +71,11 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		log.Warn().Err(err).Msg("firebase admin auth client could not be initialized")
 	}
 	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey, firebaseAuthClient)
+
+	staffRepository := staffRepo.New(db)
+	listStaffUC := staffUC.NewListStaffMembersUseCase(staffRepository)
+	saveStaffUC := staffUC.NewSaveStaffMemberUseCase(staffRepository)
+	staffHandler := staffHTTP.NewHandler(listStaffUC, saveStaffUC)
 
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
@@ -131,7 +140,11 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
 	v1.GET("/auth/me", authHandler.Me)
 	v1.GET("/admin/users", authHandler.ListUsers)
+	v1.POST("/admin/users/invite", authHandler.InviteUser)
 	v1.POST("/admin/users/role", authHandler.AssignRole)
+	v1.GET("/staff", staffHandler.List)
+	v1.POST("/staff", staffHandler.Create)
+	v1.PUT("/staff/:id", staffHandler.Update)
 
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)

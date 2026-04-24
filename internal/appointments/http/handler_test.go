@@ -17,11 +17,12 @@ import (
 )
 
 type appointmentRepo struct {
-	overlap      bool
-	createErr    error
-	appointment  domain.Appointment
-	found        bool
-	appointments []domain.Appointment
+	overlap       bool
+	createErr     error
+	appointment   domain.Appointment
+	found         bool
+	appointments  []domain.Appointment
+	patientActive bool
 }
 
 func (r *appointmentRepo) Create(ctx context.Context, a domain.Appointment) (domain.Appointment, error) {
@@ -43,6 +44,13 @@ func (r *appointmentRepo) Update(ctx context.Context, a domain.Appointment) (dom
 	a.UpdatedAt = time.Date(2027, 4, 11, 13, 0, 0, 0, time.UTC)
 	r.appointment = a
 	return a, nil
+}
+
+func (r *appointmentRepo) IsPatientActive(ctx context.Context, patientID uuid.UUID) (bool, error) {
+	if !r.patientActive {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (r *appointmentRepo) HasOverlap(ctx context.Context, kinesiologistID uuid.UUID, startAt, endAt time.Time, excludeID *uuid.UUID) (bool, error) {
@@ -73,7 +81,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 	}{
 		{
 			name: "creates appointment",
-			repo: &appointmentRepo{},
+			repo: &appointmentRepo{patientActive: true},
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
@@ -86,7 +94,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 		},
 		{
 			name: "requires receptionist token",
-			repo: &appointmentRepo{},
+			repo: &appointmentRepo{patientActive: true},
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
@@ -98,7 +106,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 		},
 		{
 			name: "validates ids and time range",
-			repo: &appointmentRepo{},
+			repo: &appointmentRepo{patientActive: true},
 			body: map[string]any{
 				"patient_id":       "bad-patient",
 				"kinesiologist_id": "bad-kine",
@@ -111,7 +119,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 		},
 		{
 			name: "rejects overlap",
-			repo: &appointmentRepo{overlap: true},
+			repo: &appointmentRepo{overlap: true, patientActive: true},
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
@@ -124,7 +132,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 		},
 		{
 			name: "returns patient not found",
-			repo: &appointmentRepo{createErr: domain.ErrPatientNotFound},
+			repo: &appointmentRepo{createErr: domain.ErrPatientNotFound, patientActive: true},
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
@@ -137,7 +145,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 		},
 		{
 			name: "returns kinesiologist not found",
-			repo: &appointmentRepo{createErr: domain.ErrKinesiologistNotFound},
+			repo: &appointmentRepo{createErr: domain.ErrKinesiologistNotFound, patientActive: true},
 			body: map[string]any{
 				"patient_id":       patientID.String(),
 				"kinesiologist_id": kinesiologistID.String(),
@@ -239,7 +247,7 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		{
 			name:   "updates appointment with put",
 			id:     appointmentID.String(),
-			repo:   &appointmentRepo{appointment: existing, found: true},
+			repo:   &appointmentRepo{appointment: existing, found: true, patientActive: true},
 			method: http.MethodPut,
 			body: map[string]any{
 				"start_at": "2027-04-11T15:00:00Z",
@@ -251,7 +259,7 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		{
 			name:   "keeps patch compatibility",
 			id:     appointmentID.String(),
-			repo:   &appointmentRepo{appointment: existing, found: true},
+			repo:   &appointmentRepo{appointment: existing, found: true, patientActive: true},
 			method: http.MethodPatch,
 			body: map[string]any{
 				"notes": "Actualizado",
@@ -261,7 +269,7 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		{
 			name:   "validates invalid id",
 			id:     "not-a-uuid",
-			repo:   &appointmentRepo{appointment: existing, found: true},
+			repo:   &appointmentRepo{appointment: existing, found: true, patientActive: true},
 			method: http.MethodPut,
 			body: map[string]any{
 				"notes": "Nada",
@@ -283,7 +291,7 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		{
 			name:   "rejects overlap when rescheduling",
 			id:     appointmentID.String(),
-			repo:   &appointmentRepo{appointment: existing, found: true, overlap: true},
+			repo:   &appointmentRepo{appointment: existing, found: true, overlap: true, patientActive: true},
 			method: http.MethodPut,
 			body: map[string]any{
 				"start_at": "2027-04-11T15:00:00Z",
@@ -295,7 +303,7 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 		{
 			name:   "rejects overlap when reactivating cancelled appointment",
 			id:     appointmentID.String(),
-			repo:   &appointmentRepo{appointment: cancelled, found: true, overlap: true},
+			repo:   &appointmentRepo{appointment: cancelled, found: true, overlap: true, patientActive: true},
 			method: http.MethodPut,
 			body: map[string]any{
 				"status": "scheduled",
@@ -376,7 +384,7 @@ func TestCancelAppointmentEndpoint(t *testing.T) {
 		{
 			name: "cancels appointment",
 			id:   appointmentID.String(),
-			repo: &appointmentRepo{appointment: existing, found: true},
+			repo: &appointmentRepo{appointment: existing, found: true, patientActive: true},
 			body: map[string]any{
 				"reason": "Paciente aviso",
 			},
@@ -385,7 +393,7 @@ func TestCancelAppointmentEndpoint(t *testing.T) {
 		{
 			name:       "validates invalid id",
 			id:         "not-a-uuid",
-			repo:       &appointmentRepo{appointment: existing, found: true},
+			repo:       &appointmentRepo{appointment: existing, found: true, patientActive: true},
 			body:       map[string]any{},
 			wantStatus: http.StatusBadRequest,
 			wantError:  "validation_error",

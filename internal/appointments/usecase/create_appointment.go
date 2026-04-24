@@ -57,6 +57,14 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 		return domain.Appointment{}, errs, domain.ErrValidation
 	}
 
+	active, err := uc.repo.IsPatientActive(ctx, pid)
+	if err != nil {
+		return domain.Appointment{}, nil, err
+	}
+	if !active {
+		return domain.Appointment{}, nil, domain.ErrPatientInactive
+	}
+
 	overlap, err := uc.repo.HasOverlap(ctx, kid, startAt.UTC(), endAt.UTC(), nil)
 	if err != nil {
 		return domain.Appointment{}, nil, err

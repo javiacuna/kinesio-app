@@ -21,5 +21,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw e;
   }
 
-  return (await res.json()) as T;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  return JSON.parse(text) as T;
 }
