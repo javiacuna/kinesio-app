@@ -7,6 +7,7 @@ import { formatLocalTime } from "@/shared/time/format";
 type Props = {
   date: string; // YYYY-MM-DD (solo para mostrar / precarga)
   appointments: Appointment[];
+  canManageAppointments?: boolean;
 
   onPickSlot: (hhmm: string) => void;
 
@@ -14,7 +15,14 @@ type Props = {
   onReschedule: (appt: Appointment) => void;
 };
 
-export function AgendaGrid({ date, appointments, onPickSlot, onCancel, onReschedule }: Props) {
+export function AgendaGrid({
+  date,
+  appointments,
+  canManageAppointments = true,
+  onPickSlot,
+  onCancel,
+  onReschedule,
+}: Props) {
   const slots = useMemo(() => generateSlots("08:00", "20:00", 15), []);
 
   // Indexar turnos por inicio local HH:MM (para encontrar rápido)
@@ -94,7 +102,7 @@ export function AgendaGrid({ date, appointments, onPickSlot, onCancel, onResched
                     <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
                       Cancelado
                     </span>
-                  ) : (
+                  ) : canManageAppointments ? (
                     <>
                       <button
                         type="button"
@@ -111,6 +119,10 @@ export function AgendaGrid({ date, appointments, onPickSlot, onCancel, onResched
                         Cancelar
                       </button>
                     </>
+                  ) : (
+                    <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
+                      Programado
+                    </span>
                   )}
                 </div>
               </div>
@@ -121,13 +133,17 @@ export function AgendaGrid({ date, appointments, onPickSlot, onCancel, onResched
           return (
             <div key={hhmm} className="flex items-center justify-between border rounded-lg p-2">
               <div className="text-sm font-mono">{hhmm}</div>
-              <button
-                type="button"
-                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
-                onClick={() => onPickSlot(hhmm)}
-              >
-                Crear acá
-              </button>
+              {canManageAppointments ? (
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                  onClick={() => onPickSlot(hhmm)}
+                >
+                  Crear acá
+                </button>
+              ) : (
+                <span className="text-sm text-gray-600">Libre</span>
+              )}
             </div>
           );
         })}

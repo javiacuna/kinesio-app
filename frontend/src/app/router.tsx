@@ -6,10 +6,12 @@ import AgendaPage from "../pages/AgendaPage";
 import LoginPage from "../pages/LoginPage";
 import PatientPortalPage from "../pages/PatientPortalPage";
 import PatientsPage from "../pages/PatientsPage";
+import UnauthorizedPage from "../pages/UnauthorizedPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <RoleRedirect /> },
   { path: "/login", element: <LoginPage /> },
+  { path: "/unauthorized", element: <UnauthorizedPage /> },
   {
     element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
     children: [

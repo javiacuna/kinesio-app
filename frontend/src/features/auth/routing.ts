@@ -5,10 +5,10 @@ export function homePathForRole(role?: AuthRole | "") {
     case "paciente":
       return "/portal";
     case "kinesiologo":
-      return "/agenda";
     case "recepcionista":
     case "admin":
-    default:
       return "/agenda";
+    default:
+      return "/unauthorized";
   }
 }

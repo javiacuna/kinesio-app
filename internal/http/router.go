@@ -78,6 +78,10 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	searchPatients := patientsUC.NewSearchPatientsUseCase(patientRepo)
 	patientHandler := patientsHTTP.NewHandler(registerPatientUC, updatePatientUC, deletePatientUC, getPatientByIDUC, listPatientsUC, searchPatients)
 
+	kRepo := kineRepo.New(db)
+	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
+	kHandler := kineHTTP.NewHandler(listKUC)
+
 	apptRepo := appointmentsRepo.New(db)
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
@@ -94,11 +98,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		cancelApptUC,
 		getApptByIDUC,
 		listByPatientUC,
+		kRepo,
 	)
-
-	kRepo := kineRepo.New(db)
-	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
-	kHandler := kineHTTP.NewHandler(listKUC)
 
 	planRepo := exercisePlanGorm.NewRepository(db)
 	planCreateUC := exercisePlanUC.NewCreatePlanUseCase(planRepo)

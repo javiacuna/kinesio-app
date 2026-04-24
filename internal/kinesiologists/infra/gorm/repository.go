@@ -44,3 +44,28 @@ func (r *Repository) List(ctx context.Context, onlyActive bool) ([]domain.Kinesi
 	}
 	return out, nil
 }
+
+func (r *Repository) FindByEmail(ctx context.Context, email string) (domain.Kinesiologist, bool, error) {
+	var m KinesiologistModel
+	err := r.db.WithContext(ctx).
+		Where("lower(email) = ?", domain.NormalizeEmail(email)).
+		First(&m).
+		Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return domain.Kinesiologist{}, false, nil
+		}
+		return domain.Kinesiologist{}, false, err
+	}
+
+	return domain.Kinesiologist{
+		ID:            m.ID,
+		FirstName:     m.FirstName,
+		LastName:      m.LastName,
+		Email:         m.Email,
+		LicenseNumber: m.LicenseNumber,
+		Active:        m.Active,
+		CreatedAt:     m.CreatedAt,
+		UpdatedAt:     m.UpdatedAt,
+	}, true, nil
+}

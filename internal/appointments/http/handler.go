@@ -3,11 +3,13 @@ package http
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/domain"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
+	kinePorts "github.com/javiacuna/kinesio-backend/internal/kinesiologists/ports"
 )
 
 type Handler struct {
@@ -17,6 +19,7 @@ type Handler struct {
 	cancel        *usecase.CancelAppointmentUseCase
 	getByID       *usecase.GetAppointmentByIDUseCase
 	listByPatient *usecase.ListAppointmentsByPatientUseCase
+	kinesios      kinePorts.Repository
 }
 
 func NewHandler(
@@ -26,7 +29,13 @@ func NewHandler(
 	cancel *usecase.CancelAppointmentUseCase,
 	getByID *usecase.GetAppointmentByIDUseCase,
 	listByPatient *usecase.ListAppointmentsByPatientUseCase,
+	kinesios ...kinePorts.Repository,
 ) *Handler {
+	var kineRepo kinePorts.Repository
+	if len(kinesios) > 0 {
+		kineRepo = kinesios[0]
+	}
+
 	return &Handler{
 		create:        create,
 		listDay:       listDay,
@@ -34,6 +43,7 @@ func NewHandler(
 		cancel:        cancel,
 		getByID:       getByID,
 		listByPatient: listByPatient,
+		kinesios:      kineRepo,
 	}
 }
 
@@ -113,6 +123,30 @@ func (h *Handler) ListDay(c *gin.Context) {
 	// Para agenda normalmente también debería estar autenticado; lo dejamos abierto si querés.
 	kid := c.Query("kinesiologist_id")
 	date := c.Query("date")
+
+	if user, ok := middleware.CurrentUser(c); ok && strings.EqualFold(user.Role, "kinesiologo") {
+		if h.kinesios == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+
+		kinesiologist, found, err := h.kinesios.FindByEmail(c.Request.Context(), user.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+		if !found || !kinesiologist.Active {
+			c.JSON(http.StatusForbidden, gin.H{"error": "kinesiologist_profile_not_found"})
+			return
+		}
+
+		ownID := kinesiologist.ID.String()
+		if strings.TrimSpace(kid) != "" && strings.TrimSpace(kid) != ownID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+		kid = ownID
+	}
 
 	items, details, err := h.listDay.Execute(c.Request.Context(), kid, date)
 	if err != nil {

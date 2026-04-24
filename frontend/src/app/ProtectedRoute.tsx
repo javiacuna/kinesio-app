@@ -24,7 +24,8 @@ export function ProtectedRoute({ roles }: ProtectedRouteProps) {
   }
 
   if (roles?.length && user?.role !== "admin" && !roles.includes(user?.role as AuthRole)) {
-    return <Navigate to={homePathForRole(user?.role)} replace />;
+    const fallbackPath = homePathForRole(user?.role);
+    return <Navigate to={fallbackPath === location.pathname ? "/unauthorized" : fallbackPath} replace />;
   }
 
   return <Outlet />;

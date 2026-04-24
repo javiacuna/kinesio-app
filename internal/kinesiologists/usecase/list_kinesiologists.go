@@ -18,3 +18,7 @@ func NewListKinesiologistsUseCase(repo ports.Repository) *ListKinesiologistsUseC
 func (uc *ListKinesiologistsUseCase) Execute(ctx context.Context, onlyActive bool) ([]domain.Kinesiologist, error) {
 	return uc.repo.List(ctx, onlyActive)
 }
+
+func (uc *ListKinesiologistsUseCase) FindByEmail(ctx context.Context, email string) (domain.Kinesiologist, bool, error) {
+	return uc.repo.FindByEmail(ctx, email)
+}

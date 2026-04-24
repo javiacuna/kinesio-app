@@ -28,6 +28,8 @@ function isOverlapError(error: unknown) {
 
 export default function AgendaPage() {
   const { user } = useAuth();
+  const isKinesiologist = user?.role === "kinesiologo";
+  const canManageAppointments = user?.role === "admin" || user?.role === "recepcionista";
   // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
@@ -54,6 +56,21 @@ export default function AgendaPage() {
   });
 
   const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
+  const selectedKinesiologist = useMemo(
+    () => kinesios.find((k) => k.id === kinesiologistId),
+    [kinesiologistId, kinesios],
+  );
+
+  useEffect(() => {
+    if (!isKinesiologist || !user?.email || kinesios.length === 0) return;
+
+    const ownProfile =
+      kinesios.find((k) => k.email.toLowerCase() === user.email.toLowerCase()) ?? kinesios[0];
+
+    if (ownProfile && ownProfile.id !== kinesiologistId) {
+      setKinesiologistId(ownProfile.id);
+    }
+  }, [isKinesiologist, kinesiologistId, kinesios, user?.email]);
 
   const canLoadAgenda = Boolean(kinesiologistId);
 
@@ -102,7 +119,9 @@ export default function AgendaPage() {
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Agenda</h1>
-            <p className="text-sm text-gray-600">Agenda diaria y creación de turnos.</p>
+            <p className="text-sm text-gray-600">
+              {isKinesiologist ? "Mis turnos del día." : "Agenda diaria y creación de turnos."}
+            </p>
           </div>
           {(user?.role === "admin" || user?.role === "recepcionista") && (
             <Link className="text-sm underline" to="/patients">
@@ -126,18 +145,28 @@ export default function AgendaPage() {
 
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Kinesiólogo</label>
-              <select
-                className="mt-1 w-full border rounded-lg p-2"
-                value={kinesiologistId}
-                onChange={(e) => setKinesiologistId(e.target.value)}
-              >
-                <option value="">Seleccionar…</option>
-                {kinesios.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.last_name}, {k.first_name}
-                  </option>
-                ))}
-              </select>
+              {isKinesiologist ? (
+                <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">
+                  {selectedKinesiologist
+                    ? `${selectedKinesiologist.last_name}, ${selectedKinesiologist.first_name}`
+                    : kinesioQ.isLoading
+                      ? "Cargando tu agenda..."
+                      : "No se encontró tu perfil de kinesiólogo activo."}
+                </div>
+              ) : (
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={kinesiologistId}
+                  onChange={(e) => setKinesiologistId(e.target.value)}
+                >
+                  <option value="">Seleccionar…</option>
+                  {kinesios.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.last_name}, {k.first_name}
+                    </option>
+                  ))}
+                </select>
+              )}
 
               {kinesioQ.isError && (
                 <p className="text-sm text-red-600 mt-1">
@@ -149,6 +178,7 @@ export default function AgendaPage() {
         </section>
 
         {/* Crear turno */}
+        {canManageAppointments && (
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Crear turno</h2>
 
@@ -245,12 +275,19 @@ export default function AgendaPage() {
             </div>
           )}
         </section>
+        )}
 
         {/* Agenda del día */}
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Turnos del día</h2>
 
-          {!canLoadAgenda && <p className="text-sm text-gray-600">Seleccioná un kinesiólogo.</p>}
+          {!canLoadAgenda && (
+            <p className="text-sm text-gray-600">
+              {isKinesiologist
+                ? "No se encontró un perfil de kinesiólogo activo asociado a tu email."
+                : "Seleccioná un kinesiólogo."}
+            </p>
+          )}
 
           {agendaQ.isLoading && <p className="text-sm text-gray-600">Cargando…</p>}
           {agendaQ.isError && <p className="text-sm text-red-600">Error: {String(agendaQ.error?.message)}</p>}
@@ -260,6 +297,7 @@ export default function AgendaPage() {
               <AgendaGrid
                 date={date}
                 appointments={agendaQ.data}
+                canManageAppointments={canManageAppointments}
                 onPickSlot={(hhmm) => {
                   setApptDate(date);
                   setStartTime(hhmm);
@@ -311,9 +349,11 @@ export default function AgendaPage() {
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+                        {canManageAppointments && (
+                          <div className="text-xs text-gray-500 font-mono">{a.id}</div>
+                        )}
 
-                        {a.status !== "cancelled" ? (
+                        {canManageAppointments && a.status !== "cancelled" ? (
                           <button
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
                             disabled={cancelM.isPending || rescheduleM.isPending}
@@ -324,39 +364,45 @@ export default function AgendaPage() {
                           >
                             {cancelM.isPending ? "Cancelando…" : "Cancelar"}
                           </button>
-                        ) : (
+                        ) : a.status === "cancelled" ? (
                           <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
                             Cancelado
                           </span>
+                        ) : (
+                          <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
+                            Programado
+                          </span>
                         )}
 
-                        <button
-                          className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                          disabled={rescheduleM.isPending || cancelM.isPending}
-                          onClick={() => {
-                            const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
-                            if (!newDate) return;
+                        {canManageAppointments && (
+                          <button
+                            className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                            disabled={rescheduleM.isPending || cancelM.isPending}
+                            onClick={() => {
+                              const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
+                              if (!newDate) return;
 
-                            const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
-                            if (!newStart) return;
+                              const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
+                              if (!newStart) return;
 
-                            const dur = window.prompt("Duración en minutos:", "45");
-                            if (!dur) return;
+                              const dur = window.prompt("Duración en minutos:", "45");
+                              if (!dur) return;
 
-                            const durationMin = Number(dur);
-                            if (!Number.isFinite(durationMin) || durationMin <= 0) return;
+                              const durationMin = Number(dur);
+                              if (!Number.isFinite(durationMin) || durationMin <= 0) return;
 
-                            const endTime = addMinutesToHHmm(newStart, durationMin);
+                              const endTime = addMinutesToHHmm(newStart, durationMin);
 
-                            rescheduleM.mutate({
-                              id: a.id,
-                              start_at: localDateTimeToUTC(newDate, newStart),
-                              end_at: localDateTimeToUTC(newDate, endTime),
-                            });
-                          }}
-                        >
-                          {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
-                        </button>
+                              rescheduleM.mutate({
+                                id: a.id,
+                                start_at: localDateTimeToUTC(newDate, newStart),
+                                end_at: localDateTimeToUTC(newDate, endTime),
+                              });
+                            }}
+                          >
+                            {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))

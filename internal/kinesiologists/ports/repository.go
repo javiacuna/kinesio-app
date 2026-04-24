@@ -8,4 +8,5 @@ import (
 
 type Repository interface {
 	List(ctx context.Context, onlyActive bool) ([]domain.Kinesiologist, error)
+	FindByEmail(ctx context.Context, email string) (domain.Kinesiologist, bool, error)
 }
