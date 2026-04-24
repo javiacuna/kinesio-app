@@ -10,6 +10,39 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinesio -d kinesio"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kinesio_api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: kinesio
+      DB_USER: kinesio
+      DB_PASSWORD: kinesio
+      DB_SSLMODE: disable
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: host=db port=5432 user=kinesio password=kinesio dbname=kinesio sslmode=disable
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - type: bind
+        source: ${GOOGLE_APPLICATION_CREDENTIALS}
+        target: /run/secrets/firebase-service-account.json
+        read_only: true
 
 volumes:
   db_data:

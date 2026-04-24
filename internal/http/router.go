@@ -131,28 +131,29 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)
-	v1.PUT("/patients/:id", patientHandler.UpdatePatient)
-	v1.DELETE("/patients/:id", patientHandler.DeletePatient)
-	v1.GET("/patients/:id", patientHandler.GetPatientByID)
 	v1.GET("/patients", patientHandler.Search)
+	v1.POST("/patients/:patient_id/plans", planHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/evolutions", evoHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/evolutions", evoHandler.ListByPatient)
+	v1.GET("/patients/:patient_id/material-loans", matHandler.ListLoansByPatient)
+	v1.PUT("/patients/:patient_id", patientHandler.UpdatePatient)
+	v1.DELETE("/patients/:patient_id", patientHandler.DeletePatient)
+	v1.GET("/patients/:patient_id", patientHandler.GetPatientByID)
 
 	v1.POST("/appointments", apptHandler.Create)
 	v1.GET("/appointments", apptHandler.ListDay)
+	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 	v1.PUT("/appointments/:id", apptHandler.Update)
 	v1.PATCH("/appointments/:id", apptHandler.Update)
 	v1.DELETE("/appointments/:id", apptHandler.Cancel)
 	v1.GET("/appointments/:id", apptHandler.GetByID)
-	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 
 	v1.GET("/kinesiologists", kHandler.List)
 
 	v1.POST("/plans", planHandler.Create)
-	v1.POST("/patients/:patient_id/plans", planHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
 	v1.GET("/plans/:plan_id", planHandler.GetByID)
 
-	v1.POST("/patients/:patient_id/evolutions", evoHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/evolutions", evoHandler.ListByPatient)
 	v1.GET("/evolutions/:evolution_id", evoHandler.GetByID)
 
 	v1.POST("/materials", matHandler.CreateMaterial)
@@ -160,8 +161,6 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/material-loans", matHandler.LoanMaterial)
 	v1.POST("/material-loans/:loan_id/return", matHandler.ReturnLoan)
-
-	v1.GET("/patients/:patient_id/material-loans", matHandler.ListLoansByPatient)
 
 	_ = db
 

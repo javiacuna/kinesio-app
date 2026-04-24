@@ -107,7 +107,7 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 	}
 
 	out, validation, err := h.update.Execute(c.Request.Context(), usecase.UpdatePatientInput{
-		ID:            c.Param("id"),
+		ID:            c.Param("patient_id"),
 		DNI:           req.DNI,
 		FirstName:     req.FirstName,
 		LastName:      req.LastName,
@@ -146,7 +146,7 @@ func (h *Handler) DeletePatient(c *gin.Context) {
 		return
 	}
 
-	validation, err := h.delete.Execute(c.Request.Context(), c.Param("id"))
+	validation, err := h.delete.Execute(c.Request.Context(), c.Param("patient_id"))
 	if err != nil {
 		switch {
 		case errors.Is(err, domain.ErrValidation):
@@ -190,7 +190,7 @@ func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
 func (h *Handler) GetPatientByID(c *gin.Context) {
 	// Por ahora lo dejo SIN auth (útil para debug y para frontend).
 	// Lo cerramos por rol en el siguiente paso.
-	id := c.Param("id")
+	id := c.Param("patient_id")
 
 	p, found, err := h.getByID.Execute(c.Request.Context(), id)
 	if err != nil {

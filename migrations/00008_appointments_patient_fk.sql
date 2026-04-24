@@ -1,4 +1,5 @@
 -- +goose Up
+-- +goose StatementBegin
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -13,6 +14,7 @@ BEGIN
       NOT VALID;
   END IF;
 END $$;
+-- +goose StatementEnd
 
 -- +goose Down
 ALTER TABLE appointments

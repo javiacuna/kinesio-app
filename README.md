@@ -38,6 +38,22 @@ API:
 - Health: `GET http://localhost:8080/health`
 - Version: `GET http://localhost:8080/version`
 
+### Levantar DB + API con Docker
+
+Si querés correr Postgres y la API juntos con Docker:
+
+```bash
+docker compose up --build
+```
+
+La API va a:
+- esperar a que Postgres esté saludable,
+- correr las migraciones automáticamente,
+- levantar en `http://localhost:8080`.
+
+Para Firebase, `docker-compose.yml` monta el archivo indicado en `GOOGLE_APPLICATION_CREDENTIALS`
+como credencial dentro del contenedor.
+
 ### Firebase Auth
 
 Para usar autenticación real con Firebase:
