@@ -30,6 +30,13 @@ export type PatientEvolution = {
   updated_at: string;
 };
 
+export type CreatePatientEvolutionInput = {
+  kinesiologist_id: string;
+  appointment_id?: string | null;
+  pain_level?: number | null;
+  notes: string;
+};
+
 export type MaterialLoan = {
   id: string;
   material_id: string;
@@ -48,6 +55,13 @@ export function listPatientPlans(patientId: string) {
 export function listPatientEvolutions(patientId: string, limit = 50) {
   const qs = new URLSearchParams({ limit: String(limit) });
   return apiFetch<PatientEvolution[]>(`/api/v1/patients/${patientId}/evolutions?${qs.toString()}`);
+}
+
+export function createPatientEvolution(patientId: string, input: CreatePatientEvolutionInput) {
+  return apiFetch<PatientEvolution>(`/api/v1/patients/${patientId}/evolutions`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function listPatientMaterialLoans(patientId: string, activeOnly = false) {

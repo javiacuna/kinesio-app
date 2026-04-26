@@ -1,13 +1,15 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { inviteUserAccess } from "@/features/auth/adminApi";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { listPatientAppointments } from "@/features/appointments/api";
+import { listKinesiologists } from "@/features/kinesiologists/api";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
 import {
+  createPatientEvolution,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
@@ -29,8 +31,13 @@ export default function PatientDetailPage() {
   const { patientId = "" } = useParams();
   const { user } = useAuth();
   const canManagePatient = user?.role === "admin" || user?.role === "recepcionista";
+  const canCreateEvolution = user?.role === "admin" || user?.role === "kinesiologo";
   const backPath = user?.role === "kinesiologo" ? "/agenda" : "/patients";
   const range = useMemo(() => historyRange(), []);
+  const [evolutionKinesiologistId, setEvolutionKinesiologistId] = useState("");
+  const [evolutionAppointmentId, setEvolutionAppointmentId] = useState("");
+  const [painLevel, setPainLevel] = useState("");
+  const [evolutionNotes, setEvolutionNotes] = useState("");
 
   const patientQ = useQuery({
     queryKey: ["patients", "detail", patientId],
@@ -62,6 +69,12 @@ export default function PatientDetailPage() {
     enabled: Boolean(patientId),
   });
 
+  const kinesiologistsQ = useQuery({
+    queryKey: ["kinesiologists", "patient-detail"],
+    queryFn: () => listKinesiologists(),
+    enabled: canCreateEvolution,
+  });
+
   const archiveM = useMutation({
     mutationFn: archivePatient,
     onSuccess: () => patientQ.refetch(),
@@ -88,11 +101,78 @@ export default function PatientDetailPage() {
     mutationFn: (email: string) => inviteUserAccess({ email, role: "paciente" }),
   });
 
+  const createEvolutionM = useMutation({
+    mutationFn: () =>
+      createPatientEvolution(patientId, {
+        kinesiologist_id: evolutionKinesiologistId,
+        appointment_id: evolutionAppointmentId || null,
+        pain_level: painLevel === "" ? null : Number(painLevel),
+        notes: evolutionNotes,
+      }),
+    onSuccess: () => {
+      setEvolutionAppointmentId("");
+      setPainLevel("");
+      setEvolutionNotes("");
+      evolutionsQ.refetch();
+    },
+  });
+
   const patient = patientQ.data;
   const appointments = appointmentsQ.data ?? [];
   const plans = plansQ.data ?? [];
   const evolutions = evolutionsQ.data ?? [];
   const loans = loansQ.data ?? [];
+  const kinesiologists = kinesiologistsQ.data ?? [];
+  const upcomingScheduledAppointments = appointments.filter(
+    (appointment) => appointment.status !== "cancelled",
+  );
+  const timeline = useMemo(
+    () =>
+      [
+        ...appointments.map((appointment) => ({
+          id: `appointment:${appointment.id}`,
+          at: appointment.start_at,
+          kind: "Turno",
+          title:
+            appointment.status === "cancelled"
+              ? "Turno cancelado"
+              : "Turno programado",
+          detail: `${formatLocalTime(appointment.start_at)} a ${formatLocalTime(appointment.end_at)}${appointment.notes ? ` · ${appointment.notes}` : ""}`,
+        })),
+        ...evolutions.map((evolution) => ({
+          id: `evolution:${evolution.id}`,
+          at: evolution.created_at,
+          kind: "Evolución",
+          title: evolution.pain_level != null ? `Dolor ${evolution.pain_level}/10` : "Evolución clínica",
+          detail: evolution.notes,
+        })),
+        ...plans.map((plan) => ({
+          id: `plan:${plan.id}`,
+          at: plan.created_at,
+          kind: "Plan",
+          title: `${plan.frequency} · ${plan.duration_weeks} semanas`,
+          detail: `${plan.items.length} ejercicios · estado ${plan.status}`,
+        })),
+        ...loans.map((loan) => ({
+          id: `loan:${loan.id}`,
+          at: loan.loaned_at,
+          kind: "Material",
+          title: loan.returned_at ? "Material devuelto" : "Material prestado",
+          detail: `Cantidad ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
+        })),
+      ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
+    [appointments, evolutions, loans, plans],
+  );
+
+  useEffect(() => {
+    if (evolutionKinesiologistId || kinesiologists.length === 0) return;
+
+    const ownProfile =
+      user?.email
+        ? kinesiologists.find((kinesiologist) => kinesiologist.email.toLowerCase() === user.email.toLowerCase())
+        : undefined;
+    setEvolutionKinesiologistId((ownProfile ?? kinesiologists[0]).id);
+  }, [evolutionKinesiologistId, kinesiologists, user?.email]);
 
   return (
     <main>
@@ -172,6 +252,114 @@ export default function PatientDetailPage() {
             )}
           </section>
         )}
+
+        {canCreateEvolution && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Registrar evolución</h2>
+              <p className="text-sm text-gray-600">Nueva nota clínica asociada a este paciente.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">Kinesiólogo</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={evolutionKinesiologistId}
+                  onChange={(event) => setEvolutionKinesiologistId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {kinesiologists.map((kinesiologist) => (
+                    <option key={kinesiologist.id} value={kinesiologist.id}>
+                      {kinesiologist.last_name}, {kinesiologist.first_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Dolor</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={painLevel}
+                  onChange={(event) => setPainLevel(event.target.value)}
+                >
+                  <option value="">Sin registrar</option>
+                  {Array.from({ length: 11 }, (_, value) => (
+                    <option key={value} value={value}>
+                      {value}/10
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Turno asociado</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={evolutionAppointmentId}
+                  onChange={(event) => setEvolutionAppointmentId(event.target.value)}
+                >
+                  <option value="">Sin asociar</option>
+                  {upcomingScheduledAppointments.map((appointment) => (
+                    <option key={appointment.id} value={appointment.id}>
+                      {formatLocalDateTime(appointment.start_at)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Notas</label>
+                <textarea
+                  className="mt-1 w-full border rounded-lg p-2 min-h-28"
+                  value={evolutionNotes}
+                  onChange={(event) => setEvolutionNotes(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              disabled={!evolutionKinesiologistId || !evolutionNotes.trim() || createEvolutionM.isPending}
+              onClick={() => createEvolutionM.mutate()}
+            >
+              {createEvolutionM.isPending ? "Guardando..." : "Guardar evolución"}
+            </button>
+
+            {createEvolutionM.isError && (
+              <p className="text-sm text-red-600">No se pudo guardar la evolución.</p>
+            )}
+            {createEvolutionM.isSuccess && (
+              <p className="text-sm text-green-700">Evolución registrada.</p>
+            )}
+          </section>
+        )}
+
+        <section className="bg-white rounded-xl shadow p-4 space-y-3">
+          <h2 className="text-lg font-semibold">Timeline clínico</h2>
+          {timeline.length === 0 ? (
+            <p className="text-sm text-gray-600">Sin actividad registrada.</p>
+          ) : (
+            <div className="divide-y">
+              {timeline.map((item) => (
+                <div key={item.id} className="py-3 grid grid-cols-1 md:grid-cols-[160px_120px_1fr] gap-2">
+                  <div className="text-sm text-gray-600">{formatLocalDateTime(item.at)}</div>
+                  <div>
+                    <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
+                      {item.kind}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-medium">{item.title}</div>
+                    <div className="text-sm text-gray-600">{item.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Turnos</h2>
