@@ -29,6 +29,10 @@ export function updatePatient(input: UpdatePatientInput) {
   });
 }
 
+export function getPatient(id: string) {
+  return apiFetch<Patient>(`/api/v1/patients/${id}`);
+}
+
 export function archivePatient(id: string) {
   return apiFetch<void>(`/api/v1/patients/${id}`, {
     method: "DELETE",

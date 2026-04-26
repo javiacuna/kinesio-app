@@ -435,7 +435,12 @@ export default function AgendaPage() {
                         <div className="font-medium">
                           {formatLocalTime(a.start_at)} → {formatLocalTime(a.end_at)}
                         </div>
-                        <div className="text-sm text-gray-600">Paciente: {a.patient_id}</div>
+                        <div className="text-sm text-gray-600">
+                          Paciente:{" "}
+                          <Link className="underline" to={`/patients/${a.patient_id}`}>
+                            {a.patient_id}
+                          </Link>
+                        </div>
                         <div className="text-sm text-gray-600">Estado: {a.status}</div>
                         {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
                       </div>

@@ -257,6 +257,12 @@ export default function PatientsPage() {
                     >
                       Usar en Agenda
                     </button>
+                    <Link
+                      className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                      to={`/patients/${patient.id}`}
+                    >
+                      Ver detalle
+                    </Link>
                     {user?.role === "admin" && (
                       <button
                         type="button"

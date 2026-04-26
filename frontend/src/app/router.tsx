@@ -5,6 +5,7 @@ import { RoleRedirect } from "./RoleRedirect";
 import AgendaPage from "../pages/AgendaPage";
 import LoginPage from "../pages/LoginPage";
 import PatientPortalPage from "../pages/PatientPortalPage";
+import PatientDetailPage from "../pages/PatientDetailPage";
 import PatientsPage from "../pages/PatientsPage";
 import StaffPage from "../pages/StaffPage";
 import UnauthorizedPage from "../pages/UnauthorizedPage";
@@ -37,6 +38,15 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [{ path: "/patients", element: <PatientsPage /> }],
+      },
+    ],
+  },
+  {
+    element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
+    children: [
+      {
+        element: <AppShell />,
+        children: [{ path: "/patients/:patientId", element: <PatientDetailPage /> }],
       },
     ],
   },
