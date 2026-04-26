@@ -41,6 +41,14 @@ function validationDetail(error: unknown, field: string) {
   return (error as any)?.body?.details?.[field] as string | undefined;
 }
 
+function isOutsideWorkingHours(startHHmm: string, durationMin: number, workStart?: string, workEnd?: string) {
+  const start = startHHmm;
+  const end = addMinutesToHHmm(startHHmm, durationMin);
+  const from = workStart || "08:00";
+  const to = workEnd || "20:00";
+  return start < from || end > to || end <= start;
+}
+
 export default function AgendaPage() {
   const { user } = useAuth();
   const isKinesiologist = user?.role === "kinesiologo";
@@ -150,6 +158,21 @@ export default function AgendaPage() {
     const newDurationMin = Number(dur);
     if (!Number.isFinite(newDurationMin) || newDurationMin <= 0) return;
 
+    if (
+      selectedKinesiologist &&
+      isOutsideWorkingHours(
+        newStart,
+        newDurationMin,
+        selectedKinesiologist.work_start_time,
+        selectedKinesiologist.work_end_time,
+      )
+    ) {
+      window.alert(
+        `El turno debe estar dentro del horario de ${selectedKinesiologist.work_start_time} a ${selectedKinesiologist.work_end_time}.`,
+      );
+      return;
+    }
+
     const endTime = addMinutesToHHmm(newStart, newDurationMin);
 
     rescheduleM.mutate({
@@ -164,6 +187,14 @@ export default function AgendaPage() {
   const hasCreateInactivePatient = isInactivePatientError(createM.error);
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
   const isCreateInPast = isPastLocalDateTime(apptDate, startTime);
+  const isCreateOutsideWorkingHours = selectedKinesiologist
+    ? isOutsideWorkingHours(
+        startTime,
+        durationMin,
+        selectedKinesiologist.work_start_time,
+        selectedKinesiologist.work_end_time,
+      )
+    : false;
   const createValidationMessage = validationDetail(createM.error, "start_at");
   const rescheduleValidationMessage = validationDetail(rescheduleM.error, "start_at");
 
@@ -225,6 +256,11 @@ export default function AgendaPage() {
               {kinesioQ.isError && (
                 <p className="text-sm text-red-600 mt-1">
                   Error: {String(kinesioQ.error?.message)}
+                </p>
+              )}
+              {selectedKinesiologist && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
                 </p>
               )}
             </div>
@@ -308,7 +344,7 @@ export default function AgendaPage() {
 
           <button
             className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            disabled={!patientId.trim() || !kinesiologistId || isCreateInPast || createM.isPending}
+            disabled={!patientId.trim() || !kinesiologistId || isCreateInPast || isCreateOutsideWorkingHours || createM.isPending}
             onClick={create}
           >
             {createM.isPending ? "Creando…" : "Crear turno"}
@@ -317,6 +353,12 @@ export default function AgendaPage() {
           {isCreateInPast && (
             <p className="text-sm text-red-600">
               No se pueden crear turnos en horarios pasados.
+            </p>
+          )}
+
+          {isCreateOutsideWorkingHours && selectedKinesiologist && (
+            <p className="text-sm text-red-600">
+              El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
             </p>
           )}
 
@@ -364,6 +406,8 @@ export default function AgendaPage() {
                 date={date}
                 appointments={agendaQ.data}
                 canManageAppointments={canManageAppointments}
+                workStartTime={selectedKinesiologist?.work_start_time}
+                workEndTime={selectedKinesiologist?.work_end_time}
                 onPickSlot={(hhmm) => {
                   setApptDate(date);
                   setStartTime(hhmm);

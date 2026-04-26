@@ -4,5 +4,7 @@ export type Kinesiologist = {
   last_name: string;
   email: string;
   license_number?: string | null;
+  work_start_time: string;
+  work_end_time: string;
   active: boolean;
 };

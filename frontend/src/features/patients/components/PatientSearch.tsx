@@ -28,7 +28,7 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
     enabled,
   });
 
-  const items = useMemo(() => q.data ?? [], [q.data]);
+  const items = useMemo(() => (q.data ?? []).filter((patient) => patient.active), [q.data]);
 
   return (
     <div className="relative">

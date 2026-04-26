@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ type SaveKinesiologistInput struct {
 	LastName      string
 	Email         string
 	LicenseNumber *string
+	WorkStartTime string
+	WorkEndTime   string
 	Active        bool
 }
 
@@ -56,6 +59,8 @@ func buildKinesiologist(in SaveKinesiologistInput) (domain.Kinesiologist, map[st
 	firstName := strings.TrimSpace(in.FirstName)
 	lastName := strings.TrimSpace(in.LastName)
 	email := domain.NormalizeEmail(in.Email)
+	workStartTime := defaultWorkTime(in.WorkStartTime, "08:00")
+	workEndTime := defaultWorkTime(in.WorkEndTime, "20:00")
 
 	if firstName == "" {
 		errs["first_name"] = "Campo obligatorio"
@@ -68,6 +73,29 @@ func buildKinesiologist(in SaveKinesiologistInput) (domain.Kinesiologist, map[st
 	} else if !strings.Contains(email, "@") {
 		errs["email"] = "Formato invalido"
 	}
+	if !isHHmm(workStartTime) {
+		errs["work_start_time"] = "Formato invalido"
+	}
+	if !isHHmm(workEndTime) {
+		errs["work_end_time"] = "Formato invalido"
+	}
+	if isHHmm(workStartTime) && isHHmm(workEndTime) && workStartTime >= workEndTime {
+		errs["work_end_time"] = "Debe ser mayor al horario de inicio"
+	}
 
-	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, in.Active), errs
+	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, workStartTime, workEndTime, in.Active), errs
+}
+
+var hhmmPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+
+func defaultWorkTime(value string, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func isHHmm(value string) bool {
+	return hhmmPattern.MatchString(strings.TrimSpace(value))
 }

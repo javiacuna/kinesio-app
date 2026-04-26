@@ -1,7 +1,117 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/AuthProvider";
+import {
+  cancelAppointment,
+  createAppointment,
+  listPatientAppointments,
+} from "@/features/appointments/api";
+import { listKinesiologists } from "@/features/kinesiologists/api";
+import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
+import { addMinutesToHHmm, localDateTimeToUTC } from "@/shared/time/rfc3339";
+
+function appointmentRange() {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+
+  const to = new Date(from);
+  to.setDate(to.getDate() + 180);
+  to.setHours(23, 59, 59, 999);
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+  };
+}
+
+function todayISO() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function isPastLocalDateTime(dateISO: string, timeHHmm: string) {
+  if (!dateISO || !timeHHmm) return false;
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const [hh, mm] = timeHHmm.split(":").map(Number);
+  return new Date(y, m - 1, d, hh, mm, 0, 0).getTime() <= Date.now();
+}
+
+function isOverlapError(error: unknown) {
+  return (error as any)?.status === 409 || (error as any)?.message === "overlap";
+}
+
+function isOutsideWorkingHours(startHHmm: string, durationMin: number, workStart?: string, workEnd?: string) {
+  const end = addMinutesToHHmm(startHHmm, durationMin);
+  const from = workStart || "08:00";
+  const to = workEnd || "20:00";
+  return startHHmm < from || end > to || end <= startHHmm;
+}
 
 export default function PatientPortalPage() {
   const { user } = useAuth();
+  const range = useMemo(() => appointmentRange(), []);
+  const [kinesiologistId, setKinesiologistId] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [startTime, setStartTime] = useState("09:00");
+  const [durationMin, setDurationMin] = useState(45);
+  const [notes, setNotes] = useState("");
+
+  const appointmentsQ = useQuery({
+    queryKey: ["appointments", "patient", range.from, range.to],
+    queryFn: () => listPatientAppointments(range),
+  });
+
+  const kinesiologistsQ = useQuery({
+    queryKey: ["kinesiologists"],
+    queryFn: () => listKinesiologists(),
+  });
+
+  const kinesiologists = kinesiologistsQ.data ?? [];
+  const appointments = appointmentsQ.data ?? [];
+  const selectedKinesiologist = kinesiologists.find((kinesiologist) => kinesiologist.id === kinesiologistId);
+  const isCreateInPast = isPastLocalDateTime(date, startTime);
+  const isCreateOutsideWorkingHours = selectedKinesiologist
+    ? isOutsideWorkingHours(
+        startTime,
+        durationMin,
+        selectedKinesiologist.work_start_time,
+        selectedKinesiologist.work_end_time,
+      )
+    : false;
+
+  useEffect(() => {
+    if (!kinesiologistId && kinesiologists.length > 0) {
+      setKinesiologistId(kinesiologists[0].id);
+    }
+  }, [kinesiologistId, kinesiologists]);
+
+  const createM = useMutation({
+    mutationFn: createAppointment,
+    onSuccess: () => {
+      setNotes("");
+      appointmentsQ.refetch();
+    },
+  });
+
+  const cancelM = useMutation({
+    mutationFn: cancelAppointment,
+    onSuccess: () => appointmentsQ.refetch(),
+  });
+
+  function create() {
+    if (!kinesiologistId || isCreateInPast || isCreateOutsideWorkingHours) return;
+
+    const endTime = addMinutesToHHmm(startTime, durationMin);
+    createM.mutate({
+      kinesiologist_id: kinesiologistId,
+      start_at: localDateTimeToUTC(date, startTime),
+      end_at: localDateTimeToUTC(date, endTime),
+      notes: notes.trim() ? notes.trim() : undefined,
+    });
+  }
 
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-6">
@@ -10,11 +120,172 @@ export default function PatientPortalPage() {
         <p className="text-sm text-gray-600">{user?.email}</p>
       </header>
 
+      <section className="bg-white border rounded-lg p-4 space-y-4">
+        <h2 className="text-lg font-semibold">Nuevo turno</h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="md:col-span-2">
+            <label className="text-sm font-medium">Kinesiólogo</label>
+            <select
+              className="mt-1 w-full border rounded-lg p-2"
+              value={kinesiologistId}
+              onChange={(e) => setKinesiologistId(e.target.value)}
+            >
+              <option value="">Seleccionar...</option>
+              {kinesiologists.map((kinesiologist) => (
+                <option key={kinesiologist.id} value={kinesiologist.id}>
+                  {kinesiologist.last_name}, {kinesiologist.first_name}
+                </option>
+              ))}
+            </select>
+            {kinesiologistsQ.isError && (
+              <p className="text-sm text-red-600 mt-1">No se pudieron cargar los kinesiólogos.</p>
+            )}
+            {selectedKinesiologist && (
+              <p className="text-sm text-gray-600 mt-2">
+                Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Fecha</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="date"
+              min={todayISO()}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Hora</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Duración</label>
+            <select
+              className="mt-1 w-full border rounded-lg p-2"
+              value={durationMin}
+              onChange={(e) => setDurationMin(Number(e.target.value))}
+            >
+              <option value={30}>30 min</option>
+              <option value={45}>45 min</option>
+              <option value={60}>60 min</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Notas</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <button
+          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+          disabled={!kinesiologistId || isCreateInPast || isCreateOutsideWorkingHours || createM.isPending}
+          onClick={create}
+        >
+          {createM.isPending ? "Reservando..." : "Reservar turno"}
+        </button>
+
+        {isCreateInPast && (
+          <p className="text-sm text-red-600">No se pueden reservar turnos en horarios pasados.</p>
+        )}
+
+        {isCreateOutsideWorkingHours && selectedKinesiologist && (
+          <p className="text-sm text-red-600">
+            El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+          </p>
+        )}
+
+        {createM.isError && (
+          <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
+            {isOverlapError(createM.error)
+              ? "Ese horario ya no está disponible para el kinesiólogo seleccionado."
+              : `No se pudo reservar el turno: ${(createM.error as any)?.message}`}
+          </div>
+        )}
+      </section>
+
       <section className="bg-white border rounded-lg p-4">
-        <h2 className="text-lg font-semibold">Seguimiento</h2>
-        <p className="text-sm text-gray-600 mt-2">
-          Tus turnos, planes y evolución van a estar disponibles acá.
-        </p>
+        <h2 className="text-lg font-semibold">Mis turnos</h2>
+
+        {appointmentsQ.isLoading && (
+          <p className="text-sm text-gray-600 mt-2">Cargando turnos...</p>
+        )}
+
+        {appointmentsQ.isError && (
+          <p className="text-sm text-red-600 mt-2">
+            No se pudieron cargar tus turnos.
+          </p>
+        )}
+
+        {appointmentsQ.isSuccess && appointments.length === 0 && (
+          <p className="text-sm text-gray-600 mt-2">No tenés turnos próximos agendados.</p>
+        )}
+
+        {appointments.length > 0 && (
+          <div className="mt-3 divide-y">
+            {appointments.map((appointment) => (
+              <article key={appointment.id} className="py-3 flex items-start justify-between gap-4">
+                <div>
+                  <div className="font-medium">
+                    {formatLocalDateTime(appointment.start_at)}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {formatLocalTime(appointment.start_at)} a {formatLocalTime(appointment.end_at)}
+                  </div>
+                  {appointment.notes && (
+                    <div className="text-sm text-gray-600 mt-1">Notas: {appointment.notes}</div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span
+                    className={
+                      appointment.status === "cancelled"
+                        ? "text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700"
+                        : "text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700"
+                    }
+                  >
+                    {appointment.status === "cancelled" ? "Cancelado" : "Programado"}
+                  </span>
+
+                  {appointment.status !== "cancelled" && (
+                    <button
+                      className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                      disabled={cancelM.isPending}
+                      onClick={() => {
+                        const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
+                        cancelM.mutate({ id: appointment.id, reason });
+                      }}
+                    >
+                      {cancelM.isPending ? "Cancelando..." : "Cancelar"}
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+
+        {cancelM.isError && (
+          <p className="text-sm text-red-600 mt-2">
+            No se pudo cancelar el turno: {(cancelM.error as any)?.message}
+          </p>
+        )}
       </section>
     </main>
   );

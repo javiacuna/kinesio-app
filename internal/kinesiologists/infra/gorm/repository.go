@@ -28,6 +28,8 @@ func (r *Repository) Create(ctx context.Context, k domain.Kinesiologist) (domain
 		LastName:      k.LastName,
 		Email:         k.Email,
 		LicenseNumber: k.LicenseNumber,
+		WorkStartTime: k.WorkStartTime,
+		WorkEndTime:   k.WorkEndTime,
 		Active:        k.Active,
 	}
 
@@ -44,12 +46,14 @@ func (r *Repository) Create(ctx context.Context, k domain.Kinesiologist) (domain
 func (r *Repository) Update(ctx context.Context, k domain.Kinesiologist) (domain.Kinesiologist, error) {
 	updatedAt := time.Now().UTC()
 	updates := map[string]any{
-		"first_name":     k.FirstName,
-		"last_name":      k.LastName,
-		"email":          k.Email,
-		"license_number": k.LicenseNumber,
-		"active":         k.Active,
-		"updated_at":     updatedAt,
+		"first_name":      k.FirstName,
+		"last_name":       k.LastName,
+		"email":           k.Email,
+		"license_number":  k.LicenseNumber,
+		"work_start_time": k.WorkStartTime,
+		"work_end_time":   k.WorkEndTime,
+		"active":          k.Active,
+		"updated_at":      updatedAt,
 	}
 
 	tx := r.db.WithContext(ctx).Model(&KinesiologistModel{}).Where("id = ?", k.ID).Updates(updates)
@@ -133,6 +137,8 @@ func toDomain(m KinesiologistModel) domain.Kinesiologist {
 		LastName:      m.LastName,
 		Email:         m.Email,
 		LicenseNumber: m.LicenseNumber,
+		WorkStartTime: m.WorkStartTime,
+		WorkEndTime:   m.WorkEndTime,
 		Active:        m.Active,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,

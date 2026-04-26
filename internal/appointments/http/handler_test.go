@@ -14,6 +14,9 @@ import (
 
 	"github.com/javiacuna/kinesio-backend/internal/appointments/domain"
 	"github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
+	kineDomain "github.com/javiacuna/kinesio-backend/internal/kinesiologists/domain"
+	patientDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
 )
 
 type appointmentRepo struct {
@@ -23,6 +26,7 @@ type appointmentRepo struct {
 	found         bool
 	appointments  []domain.Appointment
 	patientActive bool
+	listPatientID uuid.UUID
 }
 
 func (r *appointmentRepo) Create(ctx context.Context, a domain.Appointment) (domain.Appointment, error) {
@@ -62,7 +66,54 @@ func (r *appointmentRepo) ListByKinesiologistAndRange(ctx context.Context, kines
 }
 
 func (r *appointmentRepo) ListByPatientAndRange(ctx context.Context, patientID uuid.UUID, from time.Time, to time.Time) ([]domain.Appointment, error) {
-	return nil, nil
+	r.listPatientID = patientID
+	return r.appointments, nil
+}
+
+type appointmentPatientRepo struct {
+	patients []patientDomain.Patient
+}
+
+func (r *appointmentPatientRepo) Search(ctx context.Context, query string, limit int, includeInactive bool) ([]patientDomain.Patient, error) {
+	return r.patients, nil
+}
+
+type appointmentKinesiologistRepo struct {
+	kinesiologist kineDomain.Kinesiologist
+	found         bool
+}
+
+func (r *appointmentKinesiologistRepo) Create(ctx context.Context, k kineDomain.Kinesiologist) (kineDomain.Kinesiologist, error) {
+	return k, nil
+}
+
+func (r *appointmentKinesiologistRepo) Update(ctx context.Context, k kineDomain.Kinesiologist) (kineDomain.Kinesiologist, error) {
+	return k, nil
+}
+
+func (r *appointmentKinesiologistRepo) List(ctx context.Context, onlyActive bool) ([]kineDomain.Kinesiologist, error) {
+	return []kineDomain.Kinesiologist{r.kinesiologist}, nil
+}
+
+func (r *appointmentKinesiologistRepo) FindByEmail(ctx context.Context, email string) (kineDomain.Kinesiologist, bool, error) {
+	return r.kinesiologist, r.found, nil
+}
+
+func (r *appointmentKinesiologistRepo) GetByID(ctx context.Context, id string) (kineDomain.Kinesiologist, bool, error) {
+	return r.kinesiologist, r.found, nil
+}
+
+func testKinesiologist(id uuid.UUID) *appointmentKinesiologistRepo {
+	return &appointmentKinesiologistRepo{
+		kinesiologist: kineDomain.Kinesiologist{
+			ID:            id,
+			Email:         "kine@example.com",
+			WorkStartTime: "08:00",
+			WorkEndTime:   "20:00",
+			Active:        true,
+		},
+		found: true,
+	}
 }
 
 func TestCreateAppointmentEndpoint(t *testing.T) {
@@ -161,7 +212,7 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			createUC := usecase.NewCreateAppointmentUseCase(tt.repo)
-			handler := NewHandler(createUC, nil, nil, nil, nil, nil)
+			handler := NewHandler(createUC, nil, nil, nil, nil, nil, testKinesiologist(kinesiologistID))
 
 			router := gin.New()
 			router.POST("/appointments", handler.Create)
@@ -210,6 +261,99 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			}
 			if got["notes"] != "Primera visita" {
 				t.Fatalf("notes = %v, want trimmed notes", got["notes"])
+			}
+		})
+	}
+}
+
+func TestCreateAppointmentEndpointForPatientUsesOwnProfile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	patientID := uuid.New()
+	otherPatientID := uuid.New()
+	kinesiologistID := uuid.New()
+	repo := &appointmentRepo{patientActive: true}
+	patients := &appointmentPatientRepo{
+		patients: []patientDomain.Patient{
+			{
+				ID:     patientID,
+				Email:  "javi.emiliano@gmail.com",
+				Active: true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		body       map[string]any
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name: "creates appointment without patient id",
+			body: map[string]any{
+				"kinesiologist_id": kinesiologistID.String(),
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
+			},
+			wantStatus: http.StatusCreated,
+		},
+		{
+			name: "rejects another patient id",
+			body: map[string]any{
+				"patient_id":       otherPatientID.String(),
+				"kinesiologist_id": kinesiologistID.String(),
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
+			},
+			wantStatus: http.StatusForbidden,
+			wantError:  "forbidden",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			createUC := usecase.NewCreateAppointmentUseCase(repo)
+			handler := NewHandler(createUC, nil, nil, nil, nil, nil, testKinesiologist(kinesiologistID), patients)
+
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set(middleware.AuthUserKey, middleware.AuthUser{
+					Email: "javi.emiliano@gmail.com",
+					Role:  "paciente",
+				})
+				c.Next()
+			})
+			router.POST("/appointments", handler.Create)
+
+			payload, err := json.Marshal(tt.body)
+			if err != nil {
+				t.Fatalf("marshal body: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/appointments", bytes.NewReader(payload))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+
+			var got map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+
+			if tt.wantError != "" {
+				if got["error"] != tt.wantError {
+					t.Fatalf("error = %v, want %q", got["error"], tt.wantError)
+				}
+				return
+			}
+			if got["patient_id"] != patientID.String() {
+				t.Fatalf("patient_id = %v, want %s", got["patient_id"], patientID)
 			}
 		})
 	}
@@ -316,7 +460,8 @@ func TestUpdateAppointmentEndpoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			updateUC := usecase.NewUpdateAppointmentUseCase(tt.repo)
-			handler := NewHandler(nil, nil, updateUC, nil, nil, nil)
+			getUC := usecase.NewGetAppointmentByIDUseCase(tt.repo)
+			handler := NewHandler(nil, nil, updateUC, nil, getUC, nil, testKinesiologist(kinesiologistID))
 
 			router := gin.New()
 			router.PUT("/appointments/:id", handler.Update)
@@ -454,6 +599,104 @@ func TestCancelAppointmentEndpoint(t *testing.T) {
 	}
 }
 
+func TestCancelAppointmentEndpointForPatientRequiresOwnAppointment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	appointmentID := uuid.New()
+	patientID := uuid.New()
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
+	patients := &appointmentPatientRepo{
+		patients: []patientDomain.Patient{
+			{
+				ID:     patientID,
+				Email:  "javi.emiliano@gmail.com",
+				Active: true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		appointment domain.Appointment
+		wantStatus  int
+		wantError   string
+	}{
+		{
+			name: "cancels own appointment",
+			appointment: domain.Appointment{
+				ID:              appointmentID,
+				PatientID:       patientID,
+				KinesiologistID: uuid.New(),
+				StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+				EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
+				Status:          domain.StatusScheduled,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "rejects another patient appointment",
+			appointment: domain.Appointment{
+				ID:              appointmentID,
+				PatientID:       uuid.New(),
+				KinesiologistID: uuid.New(),
+				StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+				EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
+				Status:          domain.StatusScheduled,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+			wantStatus: http.StatusForbidden,
+			wantError:  "forbidden",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &appointmentRepo{appointment: tt.appointment, found: true, patientActive: true}
+			getUC := usecase.NewGetAppointmentByIDUseCase(repo)
+			cancelUC := usecase.NewCancelAppointmentUseCase(repo)
+			handler := NewHandler(nil, nil, nil, cancelUC, getUC, nil, patients)
+
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set(middleware.AuthUserKey, middleware.AuthUser{
+					Email: "javi.emiliano@gmail.com",
+					Role:  "paciente",
+				})
+				c.Next()
+			})
+			router.DELETE("/appointments/:id", handler.Cancel)
+
+			req := httptest.NewRequest(http.MethodDelete, "/appointments/"+appointmentID.String(), bytes.NewReader([]byte(`{}`)))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+
+			var got map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+
+			if tt.wantError != "" {
+				if got["error"] != tt.wantError {
+					t.Fatalf("error = %v, want %q", got["error"], tt.wantError)
+				}
+				return
+			}
+			if got["status"] != string(domain.StatusCancelled) {
+				t.Fatalf("status = %v, want cancelled", got["status"])
+			}
+		})
+	}
+}
+
 func TestListAppointmentsEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -533,5 +776,91 @@ func TestListAppointmentsEndpoint(t *testing.T) {
 				t.Fatalf("id = %v, want %s", got[0]["id"], appointmentID.String())
 			}
 		})
+	}
+}
+
+func TestListAppointmentsByPatientEndpointUsesLoggedPatientEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	appointmentID := uuid.New()
+	patientID := uuid.New()
+	otherPatientID := uuid.New()
+	kinesiologistID := uuid.New()
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
+	repo := &appointmentRepo{
+		appointments: []domain.Appointment{
+			{
+				ID:              appointmentID,
+				PatientID:       patientID,
+				KinesiologistID: kinesiologistID,
+				StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+				EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
+				Status:          domain.StatusScheduled,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+			},
+		},
+	}
+	patients := &appointmentPatientRepo{
+		patients: []patientDomain.Patient{
+			{
+				ID:     patientID,
+				Email:  "javi.emiliano@gmail.com",
+				Active: true,
+			},
+		},
+	}
+
+	listUC := usecase.NewListAppointmentsByPatientUseCase(repo)
+	handler := NewHandler(nil, nil, nil, nil, nil, listUC, patients)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthUserKey, middleware.AuthUser{
+			Email: "javi.emiliano@gmail.com",
+			Role:  "paciente",
+		})
+		c.Next()
+	})
+	router.GET("/appointments/patient", handler.ListByPatient)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/appointments/patient?patient_id="+otherPatientID.String()+"&from=2027-04-01T00:00:00Z&to=2027-04-30T23:59:59Z",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(
+		http.MethodGet,
+		"/appointments/patient?from=2027-04-01T00:00:00Z&to=2027-04-30T23:59:59Z",
+		nil,
+	)
+	rec = httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if repo.listPatientID != patientID {
+		t.Fatalf("patient id = %s, want %s", repo.listPatientID, patientID)
+	}
+
+	var got []map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if got[0]["id"] != appointmentID.String() {
+		t.Fatalf("id = %v, want %s", got[0]["id"], appointmentID.String())
 	}
 }

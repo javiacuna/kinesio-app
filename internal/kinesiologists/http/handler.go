@@ -25,6 +25,8 @@ type saveReq struct {
 	LastName      string  `json:"last_name"`
 	Email         string  `json:"email"`
 	LicenseNumber *string `json:"license_number,omitempty"`
+	WorkStartTime string  `json:"work_start_time"`
+	WorkEndTime   string  `json:"work_end_time"`
 	Active        bool    `json:"active"`
 }
 
@@ -34,6 +36,8 @@ type resp struct {
 	LastName      string  `json:"last_name"`
 	Email         string  `json:"email"`
 	LicenseNumber *string `json:"license_number,omitempty"`
+	WorkStartTime string  `json:"work_start_time"`
+	WorkEndTime   string  `json:"work_end_time"`
 	Active        bool    `json:"active"`
 }
 
@@ -89,6 +93,8 @@ func (h *Handler) Create(c *gin.Context) {
 		LastName:      req.LastName,
 		Email:         req.Email,
 		LicenseNumber: req.LicenseNumber,
+		WorkStartTime: req.WorkStartTime,
+		WorkEndTime:   req.WorkEndTime,
 		Active:        req.Active,
 	})
 	if err != nil {
@@ -117,6 +123,8 @@ func (h *Handler) Update(c *gin.Context) {
 		LastName:      req.LastName,
 		Email:         req.Email,
 		LicenseNumber: req.LicenseNumber,
+		WorkStartTime: req.WorkStartTime,
+		WorkEndTime:   req.WorkEndTime,
 		Active:        req.Active,
 	})
 	if err != nil {
@@ -147,6 +155,8 @@ func toResp(k domain.Kinesiologist) resp {
 		LastName:      k.LastName,
 		Email:         k.Email,
 		LicenseNumber: k.LicenseNumber,
+		WorkStartTime: k.WorkStartTime,
+		WorkEndTime:   k.WorkEndTime,
 		Active:        k.Active,
 	}
 }

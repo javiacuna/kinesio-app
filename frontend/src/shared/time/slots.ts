@@ -11,7 +11,7 @@ export function generateSlots(startHHmm = "08:00", endHHmm = "20:00", stepMin = 
   const end = hhmmToMinutes(endHHmm);
 
   const out: string[] = [];
-  for (let t = start; t <= end; t += stepMin) {
+  for (let t = start; t < end; t += stepMin) {
     out.push(minutesToHHmm(t));
   }
   return out;

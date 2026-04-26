@@ -12,6 +12,8 @@ type KinesiologistModel struct {
 	LastName      string    `gorm:"column:last_name;not null"`
 	Email         string    `gorm:"column:email;not null;uniqueIndex:ux_kinesiologists_email,expression:lower(email)"`
 	LicenseNumber *string   `gorm:"column:license_number"`
+	WorkStartTime string    `gorm:"column:work_start_time;not null"`
+	WorkEndTime   string    `gorm:"column:work_end_time;not null"`
 	Active        bool      `gorm:"column:active;not null"`
 	CreatedAt     time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;autoUpdateTime"`

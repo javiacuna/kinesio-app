@@ -109,6 +109,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		getApptByIDUC,
 		listByPatientUC,
 		kRepo,
+		patientRepo,
 	)
 
 	planRepo := exercisePlanGorm.NewRepository(db)

@@ -8,6 +8,8 @@ type Props = {
   date: string; // YYYY-MM-DD (solo para mostrar / precarga)
   appointments: Appointment[];
   canManageAppointments?: boolean;
+  workStartTime?: string;
+  workEndTime?: string;
 
   onPickSlot: (hhmm: string) => void;
 
@@ -19,11 +21,16 @@ export function AgendaGrid({
   date,
   appointments,
   canManageAppointments = true,
+  workStartTime = "08:00",
+  workEndTime = "20:00",
   onPickSlot,
   onCancel,
   onReschedule,
 }: Props) {
-  const slots = useMemo(() => generateSlots("08:00", "20:00", 15), []);
+  const slots = useMemo(
+    () => generateSlots(workStartTime || "08:00", workEndTime || "20:00", 15),
+    [workEndTime, workStartTime],
+  );
 
   // Indexar turnos por inicio local HH:MM (para encontrar rápido)
   const byStart = useMemo(() => {
@@ -55,7 +62,9 @@ export function AgendaGrid({
     <section className="bg-white rounded-xl shadow p-4 space-y-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">Grilla horaria</h2>
-        <div className="text-sm text-gray-600">{date}</div>
+        <div className="text-sm text-gray-600">
+          {date} · {workStartTime} a {workEndTime}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2">

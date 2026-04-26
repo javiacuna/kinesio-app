@@ -6,8 +6,13 @@ export function listAppointmentsDay(params: { date: string; kinesiologist_id: st
   return apiFetch<Appointment[]>(`/api/v1/appointments?${q}`);
 }
 
+export function listPatientAppointments(params: { from: string; to: string; patient_id?: string }) {
+  const q = new URLSearchParams(params).toString();
+  return apiFetch<Appointment[]>(`/api/v1/appointments/patient?${q}`);
+}
+
 export type CreateAppointmentInput = {
-  patient_id: string;
+  patient_id?: string;
   kinesiologist_id: string;
   start_at: string;
   end_at: string;
