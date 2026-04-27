@@ -18,12 +18,18 @@ import (
 
 type exercisePlanRepo struct {
 	created  domain.ExercisePlan
+	updated  domain.ExercisePlan
 	listed   []domain.ExercisePlan
 	listedID uuid.UUID
 }
 
 func (r *exercisePlanRepo) Create(ctx context.Context, p domain.ExercisePlan) (domain.ExercisePlan, error) {
 	r.created = p
+	return p, nil
+}
+
+func (r *exercisePlanRepo) Update(ctx context.Context, p domain.ExercisePlan) (domain.ExercisePlan, error) {
+	r.updated = p
 	return p, nil
 }
 

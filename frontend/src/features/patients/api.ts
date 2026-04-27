@@ -18,6 +18,8 @@ export function createPatient(input: CreatePatientInput) {
 export type UpdatePatientInput = CreatePatientInput & {
   id: string;
   phone?: string | null;
+  birth_date?: string | null;
+  clinical_notes?: string | null;
   active?: boolean;
 };
 

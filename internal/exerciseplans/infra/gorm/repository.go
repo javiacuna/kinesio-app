@@ -32,6 +32,49 @@ func (r *Repository) Create(ctx context.Context, p domain.ExercisePlan) (domain.
 	return out, nil
 }
 
+func (r *Repository) Update(ctx context.Context, p domain.ExercisePlan) (domain.ExercisePlan, error) {
+	m := toModel(p)
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current ExercisePlanModel
+		if err := tx.First(&current, "id = ?", m.ID).Error; err != nil {
+			return err
+		}
+
+		current.KinesiologistID = m.KinesiologistID
+		current.Frequency = m.Frequency
+		current.DurationWeeks = m.DurationWeeks
+		current.Observations = m.Observations
+		current.Status = m.Status
+		current.UpdatedAt = m.UpdatedAt
+
+		if err := tx.Save(&current).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&ExercisePlanItemModel{}, "plan_id = ?", m.ID).Error; err != nil {
+			return err
+		}
+		if len(m.Items) > 0 {
+			if err := tx.Create(&m.Items).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return domain.ExercisePlan{}, domain.ErrNotFound
+		}
+		return domain.ExercisePlan{}, err
+	}
+
+	out, _, err := r.GetByID(ctx, p.ID)
+	if err != nil {
+		return domain.ExercisePlan{}, err
+	}
+	return out, nil
+}
+
 func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.ExercisePlan, bool, error) {
 	var m ExercisePlanModel
 	err := r.db.WithContext(ctx).

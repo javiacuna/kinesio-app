@@ -8,6 +8,7 @@ import (
 
 type Repository interface {
 	Create(ctx context.Context, p ExercisePlan) (ExercisePlan, error)
+	Update(ctx context.Context, p ExercisePlan) (ExercisePlan, error)
 	GetByID(ctx context.Context, id uuid.UUID) (ExercisePlan, bool, error)
 	ListByPatient(ctx context.Context, patientID uuid.UUID) ([]ExercisePlan, error)
 }

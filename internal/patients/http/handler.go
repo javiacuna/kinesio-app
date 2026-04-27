@@ -97,7 +97,7 @@ func (h *Handler) RegisterPatient(c *gin.Context) {
 }
 
 func (h *Handler) UpdatePatient(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}

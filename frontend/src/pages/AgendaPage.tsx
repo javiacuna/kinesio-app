@@ -13,6 +13,7 @@ import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { AgendaGrid } from "@/features/appointments/components/AgendaGrid";
+import type { Appointment } from "@/features/appointments/types";
 
 function todayISO() {
   const d = new Date();
@@ -49,6 +50,18 @@ function isOutsideWorkingHours(startHHmm: string, durationMin: number, workStart
   return start < from || end > to || end <= start;
 }
 
+function localDateISO(iso: string) {
+  const d = new Date(iso);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function durationMinutes(startISO: string, endISO: string) {
+  return Math.max(15, Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 60000));
+}
+
 export default function AgendaPage() {
   const { user } = useAuth();
   const isKinesiologist = user?.role === "kinesiologo";
@@ -63,6 +76,11 @@ export default function AgendaPage() {
   const [startTime, setStartTime] = useState("09:00");
   const [durationMin, setDurationMin] = useState(45);
   const [notes, setNotes] = useState("");
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editDate, setEditDate] = useState(todayISO());
+  const [editStartTime, setEditStartTime] = useState("09:00");
+  const [editDurationMin, setEditDurationMin] = useState(45);
+  const [editNotes, setEditNotes] = useState("");
 
   useEffect(() => {
     const last = localStorage.getItem("last_patient_id");
@@ -120,9 +138,12 @@ export default function AgendaPage() {
   });
 
   const rescheduleM = useMutation({
-    mutationFn: (args: { id: string; start_at: string; end_at: string }) =>
-      updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at }),
-    onSuccess: () => agendaQ.refetch(),
+    mutationFn: (args: { id: string; start_at: string; end_at: string; notes?: string }) =>
+      updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at, notes: args.notes }),
+    onSuccess: () => {
+      setEditingAppointment(null);
+      agendaQ.refetch();
+    },
   });
 
 
@@ -140,45 +161,24 @@ export default function AgendaPage() {
     });
   }
 
-  function promptReschedule(appt: { id: string }) {
-    const newDate = window.prompt("Nueva fecha (YYYY-MM-DD):", date);
-    if (!newDate) return;
+  function openEditAppointment(appt: Appointment) {
+    setEditingAppointment(appt);
+    setEditDate(localDateISO(appt.start_at));
+    setEditStartTime(formatLocalTime(appt.start_at));
+    setEditDurationMin(durationMinutes(appt.start_at, appt.end_at));
+    setEditNotes(appt.notes ?? "");
+    rescheduleM.reset();
+  }
 
-    const newStart = window.prompt("Nueva hora inicio (HH:MM):", "09:00");
-    if (!newStart) return;
+  function submitEditAppointment() {
+    if (!editingAppointment || isEditInPast || isEditOutsideWorkingHours) return;
 
-    if (isPastLocalDateTime(newDate, newStart)) {
-      window.alert("No se pueden reprogramar turnos en horarios pasados.");
-      return;
-    }
-
-    const dur = window.prompt("Duración en minutos:", "45");
-    if (!dur) return;
-
-    const newDurationMin = Number(dur);
-    if (!Number.isFinite(newDurationMin) || newDurationMin <= 0) return;
-
-    if (
-      selectedKinesiologist &&
-      isOutsideWorkingHours(
-        newStart,
-        newDurationMin,
-        selectedKinesiologist.work_start_time,
-        selectedKinesiologist.work_end_time,
-      )
-    ) {
-      window.alert(
-        `El turno debe estar dentro del horario de ${selectedKinesiologist.work_start_time} a ${selectedKinesiologist.work_end_time}.`,
-      );
-      return;
-    }
-
-    const endTime = addMinutesToHHmm(newStart, newDurationMin);
-
+    const endTime = addMinutesToHHmm(editStartTime, editDurationMin);
     rescheduleM.mutate({
-      id: appt.id,
-      start_at: localDateTimeToUTC(newDate, newStart),
-      end_at: localDateTimeToUTC(newDate, endTime),
+      id: editingAppointment.id,
+      start_at: localDateTimeToUTC(editDate, editStartTime),
+      end_at: localDateTimeToUTC(editDate, endTime),
+      notes: editNotes.trim() ? editNotes.trim() : undefined,
     });
   }
 
@@ -197,6 +197,15 @@ export default function AgendaPage() {
     : false;
   const createValidationMessage = validationDetail(createM.error, "start_at");
   const rescheduleValidationMessage = validationDetail(rescheduleM.error, "start_at");
+  const isEditInPast = isPastLocalDateTime(editDate, editStartTime);
+  const isEditOutsideWorkingHours = selectedKinesiologist
+    ? isOutsideWorkingHours(
+        editStartTime,
+        editDurationMin,
+        selectedKinesiologist.work_start_time,
+        selectedKinesiologist.work_end_time,
+      )
+    : false;
 
   return (
     <main>
@@ -420,7 +429,7 @@ export default function AgendaPage() {
                   cancelM.mutate({ id: appt.id, reason });
                 }}
                 onReschedule={(appt) => {
-                  promptReschedule(appt);
+                  openEditAppointment(appt);
                 }}
               />
 
@@ -476,7 +485,7 @@ export default function AgendaPage() {
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
                             disabled={rescheduleM.isPending || cancelM.isPending}
                             onClick={() => {
-                              promptReschedule(a);
+                              openEditAppointment(a);
                             }}
                           >
                             {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
@@ -513,6 +522,124 @@ export default function AgendaPage() {
           )}
         </section>
       </div>
+
+      {editingAppointment && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-xl space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Modificar turno</h2>
+                <p className="text-sm text-gray-600">
+                  Paciente: <span className="font-mono">{editingAppointment.patient_id}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                onClick={() => setEditingAppointment(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Fecha</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  min={todayISO()}
+                  value={editDate}
+                  onChange={(event) => setEditDate(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Hora inicio</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="time"
+                  value={editStartTime}
+                  onChange={(event) => setEditStartTime(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Duración</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editDurationMin}
+                  onChange={(event) => setEditDurationMin(Number(event.target.value))}
+                >
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>60 min</option>
+                  <option value={90}>90 min</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Notas</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editNotes}
+                  onChange={(event) => setEditNotes(event.target.value)}
+                />
+              </div>
+            </div>
+
+            {selectedKinesiologist && (
+              <p className="text-sm text-gray-600">
+                Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+              </p>
+            )}
+
+            {isEditInPast && (
+              <p className="text-sm text-red-600">No se pueden reprogramar turnos en horarios pasados.</p>
+            )}
+
+            {isEditOutsideWorkingHours && selectedKinesiologist && (
+              <p className="text-sm text-red-600">
+                El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+              </p>
+            )}
+
+            {rescheduleM.isError && (
+              <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
+                {hasRescheduleOverlap ? (
+                  <>
+                    <div className="font-medium">Solapamiento al reprogramar</div>
+                    <div>El kinesiólogo ya tiene un turno activo en ese horario.</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium">Error al modificar</div>
+                    <div>{rescheduleValidationMessage ?? String((rescheduleM.error as any)?.message)}</div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+                onClick={() => setEditingAppointment(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={isEditInPast || isEditOutsideWorkingHours || rescheduleM.isPending}
+                onClick={submitEditAppointment}
+              >
+                {rescheduleM.isPending ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

@@ -9,11 +9,22 @@ import { listKinesiologists } from "@/features/kinesiologists/api";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
 import {
+  type ExercisePlan,
+  createPatientPlan,
   createPatientEvolution,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
+  updatePatientPlan,
 } from "@/features/patients/detailApi";
+
+type PlanItemForm = {
+  name: string;
+  estimated_minutes: number;
+  sets: string;
+  reps: string;
+  description: string;
+};
 
 function historyRange() {
   const from = new Date();
@@ -31,13 +42,26 @@ export default function PatientDetailPage() {
   const { patientId = "" } = useParams();
   const { user } = useAuth();
   const canManagePatient = user?.role === "admin" || user?.role === "recepcionista";
+  const canEditClinical = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canCreateEvolution = user?.role === "admin" || user?.role === "kinesiologo";
   const backPath = user?.role === "kinesiologo" ? "/agenda" : "/patients";
   const range = useMemo(() => historyRange(), []);
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [clinicalNotes, setClinicalNotes] = useState("");
   const [evolutionKinesiologistId, setEvolutionKinesiologistId] = useState("");
   const [evolutionAppointmentId, setEvolutionAppointmentId] = useState("");
   const [painLevel, setPainLevel] = useState("");
   const [evolutionNotes, setEvolutionNotes] = useState("");
+  const [planKinesiologistId, setPlanKinesiologistId] = useState("");
+  const [planFrequency, setPlanFrequency] = useState<"daily" | "weekly">("weekly");
+  const [planStatus, setPlanStatus] = useState<"active" | "closed">("active");
+  const [planDurationWeeks, setPlanDurationWeeks] = useState(4);
+  const [planObservations, setPlanObservations] = useState("");
+  const [editingPlanId, setEditingPlanId] = useState("");
+  const [planItems, setPlanItems] = useState<PlanItemForm[]>([
+    { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
+  ]);
 
   const patientQ = useQuery({
     queryKey: ["patients", "detail", patientId],
@@ -91,6 +115,8 @@ export default function PatientDetailPage() {
         last_name: patient.last_name,
         email: patient.email,
         phone: patient.phone ?? null,
+        birth_date: patient.birth_date ?? null,
+        clinical_notes: patient.clinical_notes ?? null,
         active: true,
       });
     },
@@ -99,6 +125,25 @@ export default function PatientDetailPage() {
 
   const inviteM = useMutation({
     mutationFn: (email: string) => inviteUserAccess({ email, role: "paciente" }),
+  });
+
+  const updateClinicalM = useMutation({
+    mutationFn: async () => {
+      const patient = patientQ.data;
+      if (!patient) return;
+      await updatePatient({
+        id: patient.id,
+        dni: patient.dni,
+        first_name: patient.first_name,
+        last_name: patient.last_name,
+        email: patient.email,
+        phone: phone.trim() || null,
+        birth_date: birthDate || null,
+        clinical_notes: clinicalNotes.trim() || null,
+        active: patient.active,
+      });
+    },
+    onSuccess: () => patientQ.refetch(),
   });
 
   const createEvolutionM = useMutation({
@@ -114,6 +159,42 @@ export default function PatientDetailPage() {
       setPainLevel("");
       setEvolutionNotes("");
       evolutionsQ.refetch();
+    },
+  });
+
+  const savePlanM = useMutation({
+    mutationFn: () =>
+      editingPlanId
+        ? updatePatientPlan(editingPlanId, {
+            kinesiologist_id: planKinesiologistId,
+            frequency: planFrequency,
+            duration_weeks: planDurationWeeks,
+            observations: planObservations.trim() || null,
+            status: planStatus,
+            items: planItems.map((item) => ({
+              name: item.name.trim(),
+              estimated_minutes: Number(item.estimated_minutes),
+              sets: item.sets === "" ? null : Number(item.sets),
+              reps: item.reps === "" ? null : Number(item.reps),
+              description: item.description.trim() || null,
+            })),
+          })
+        : createPatientPlan(patientId, {
+        kinesiologist_id: planKinesiologistId,
+        frequency: planFrequency,
+        duration_weeks: planDurationWeeks,
+        observations: planObservations.trim() || null,
+        items: planItems.map((item) => ({
+          name: item.name.trim(),
+          estimated_minutes: Number(item.estimated_minutes),
+          sets: item.sets === "" ? null : Number(item.sets),
+          reps: item.reps === "" ? null : Number(item.reps),
+          description: item.description.trim() || null,
+        })),
+      }),
+    onSuccess: () => {
+      resetPlanForm();
+      plansQ.refetch();
     },
   });
 
@@ -173,6 +254,55 @@ export default function PatientDetailPage() {
         : undefined;
     setEvolutionKinesiologistId((ownProfile ?? kinesiologists[0]).id);
   }, [evolutionKinesiologistId, kinesiologists, user?.email]);
+
+  useEffect(() => {
+    if (planKinesiologistId || kinesiologists.length === 0) return;
+
+    const ownProfile =
+      user?.email
+        ? kinesiologists.find((kinesiologist) => kinesiologist.email.toLowerCase() === user.email.toLowerCase())
+        : undefined;
+    setPlanKinesiologistId((ownProfile ?? kinesiologists[0]).id);
+  }, [kinesiologists, planKinesiologistId, user?.email]);
+
+  useEffect(() => {
+    if (!patient) return;
+    setPhone(patient.phone ?? "");
+    setBirthDate(patient.birth_date ?? "");
+    setClinicalNotes(patient.clinical_notes ?? "");
+  }, [patient]);
+
+  const hasValidPlanItems = planItems.every((item) => item.name.trim() && Number(item.estimated_minutes) > 0);
+
+  function resetPlanForm() {
+    setEditingPlanId("");
+    setPlanFrequency("weekly");
+    setPlanStatus("active");
+    setPlanDurationWeeks(4);
+    setPlanObservations("");
+    setPlanItems([{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }]);
+  }
+
+  function loadPlanForEdit(plan: ExercisePlan) {
+    setEditingPlanId(plan.id);
+    setPlanKinesiologistId(plan.kinesiologist_id);
+    setPlanFrequency(plan.frequency === "daily" ? "daily" : "weekly");
+    setPlanStatus(plan.status === "closed" ? "closed" : "active");
+    setPlanDurationWeeks(plan.duration_weeks);
+    setPlanObservations(plan.observations ?? "");
+    setPlanItems(
+      plan.items.length > 0
+        ? plan.items.map((item) => ({
+            name: item.name,
+            estimated_minutes: item.estimated_minutes,
+            sets: item.sets == null ? "" : String(item.sets),
+            reps: item.reps == null ? "" : String(item.reps),
+            description: item.description ?? "",
+          }))
+        : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }],
+    );
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   return (
     <main>
@@ -249,6 +379,62 @@ export default function PatientDetailPage() {
             {inviteM.isSuccess && <p className="text-sm text-green-700">Invitación enviada.</p>}
             {(archiveM.isError || reactivateM.isError || inviteM.isError) && (
               <p className="text-sm text-red-600">No se pudo completar la acción.</p>
+            )}
+          </section>
+        )}
+
+        {patient && canEditClinical && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Historia clínica</h2>
+              <p className="text-sm text-gray-600">Resumen clínico y datos útiles para el seguimiento.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Teléfono</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Fecha de nacimiento</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  value={birthDate}
+                  onChange={(event) => setBirthDate(event.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">Resumen clínico</label>
+                <textarea
+                  className="mt-1 w-full border rounded-lg p-2 min-h-36"
+                  value={clinicalNotes}
+                  onChange={(event) => setClinicalNotes(event.target.value)}
+                  placeholder="Motivo de consulta, diagnóstico, antecedentes, objetivos, alertas o contraindicaciones."
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              disabled={updateClinicalM.isPending}
+              onClick={() => updateClinicalM.mutate()}
+            >
+              {updateClinicalM.isPending ? "Guardando..." : "Guardar historia clínica"}
+            </button>
+
+            {updateClinicalM.isError && (
+              <p className="text-sm text-red-600">No se pudo guardar la historia clínica.</p>
+            )}
+            {updateClinicalM.isSuccess && (
+              <p className="text-sm text-green-700">Historia clínica actualizada.</p>
             )}
           </section>
         )}
@@ -337,6 +523,217 @@ export default function PatientDetailPage() {
           </section>
         )}
 
+        {canCreateEvolution && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {editingPlanId ? "Editar plan de ejercicios" : "Crear plan de ejercicios"}
+              </h2>
+              <p className="text-sm text-gray-600">Plan con ejercicios para seguimiento del paciente.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Kinesiólogo</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={planKinesiologistId}
+                  onChange={(event) => setPlanKinesiologistId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {kinesiologists.map((kinesiologist) => (
+                    <option key={kinesiologist.id} value={kinesiologist.id}>
+                      {kinesiologist.last_name}, {kinesiologist.first_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Frecuencia</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={planFrequency}
+                  onChange={(event) => setPlanFrequency(event.target.value as "daily" | "weekly")}
+                >
+                  <option value="weekly">Semanal</option>
+                  <option value="daily">Diaria</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Duración</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="number"
+                  min={1}
+                  value={planDurationWeeks}
+                  onChange={(event) => setPlanDurationWeeks(Number(event.target.value))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Unidad</label>
+                <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">semanas</div>
+              </div>
+
+              {editingPlanId && (
+                <div>
+                  <label className="text-sm font-medium">Estado</label>
+                  <select
+                    className="mt-1 w-full border rounded-lg p-2"
+                    value={planStatus}
+                    onChange={(event) => setPlanStatus(event.target.value as "active" | "closed")}
+                  >
+                    <option value="active">Activo</option>
+                    <option value="closed">Cerrado</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Observaciones</label>
+                <textarea
+                  className="mt-1 w-full border rounded-lg p-2 min-h-20"
+                  value={planObservations}
+                  onChange={(event) => setPlanObservations(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Ejercicios</h3>
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                  onClick={() =>
+                    setPlanItems((current) => [
+                      ...current,
+                      { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
+                    ])
+                  }
+                >
+                  Agregar ejercicio
+                </button>
+              </div>
+
+              {planItems.map((item, index) => (
+                <div key={index} className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium">Nombre</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      value={item.name}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, name: event.target.value } : it)),
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Minutos</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      type="number"
+                      min={1}
+                      value={item.estimated_minutes}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) =>
+                            i === index ? { ...it, estimated_minutes: Number(event.target.value) } : it,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 disabled:opacity-50"
+                      disabled={planItems.length === 1}
+                      onClick={() => setPlanItems((current) => current.filter((_, i) => i !== index))}
+                    >
+                      Quitar
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Series</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      type="number"
+                      min={1}
+                      value={item.sets}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, sets: event.target.value } : it)),
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Repeticiones</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      type="number"
+                      min={1}
+                      value={item.reps}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, reps: event.target.value } : it)),
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium">Descripción</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      value={item.description}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, description: event.target.value } : it)),
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              disabled={!planKinesiologistId || !hasValidPlanItems || planDurationWeeks <= 0 || savePlanM.isPending}
+              onClick={() => savePlanM.mutate()}
+            >
+              {savePlanM.isPending ? "Guardando..." : editingPlanId ? "Guardar cambios" : "Crear plan"}
+            </button>
+            {editingPlanId && (
+              <button
+                type="button"
+                className="ml-2 px-4 py-2 rounded-lg border hover:bg-gray-50"
+                onClick={resetPlanForm}
+              >
+                Cancelar edición
+              </button>
+            )}
+
+            {savePlanM.isError && (
+              <p className="text-sm text-red-600">No se pudo guardar el plan.</p>
+            )}
+            {savePlanM.isSuccess && (
+              <p className="text-sm text-green-700">Plan guardado.</p>
+            )}
+          </section>
+        )}
+
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">Timeline clínico</h2>
           {timeline.length === 0 ? (
@@ -403,10 +800,40 @@ export default function PatientDetailPage() {
           <Panel title="Planes" isLoading={plansQ.isLoading} isError={plansQ.isError} empty={plans.length === 0}>
             {plans.map((plan) => (
               <div key={plan.id} className="py-3 border-b last:border-b-0">
-                <div className="font-medium">{plan.frequency} · {plan.duration_weeks} semanas</div>
-                <div className="text-sm text-gray-600">Estado: {plan.status}</div>
-                <div className="text-sm text-gray-600">Ejercicios: {plan.items.length}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium">
+                      {plan.frequency === "daily" ? "Diario" : "Semanal"} · {plan.duration_weeks} semanas
+                    </div>
+                    <div className="text-sm text-gray-600">Estado: {plan.status === "closed" ? "Cerrado" : "Activo"}</div>
+                    <div className="text-sm text-gray-600">Ejercicios: {plan.items.length}</div>
+                  </div>
+                  {canCreateEvolution && (
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                      onClick={() => loadPlanForEdit(plan)}
+                    >
+                      Editar
+                    </button>
+                  )}
+                </div>
                 {plan.observations && <p className="text-sm text-gray-700 mt-1">{plan.observations}</p>}
+                {plan.items.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {plan.items.map((item) => (
+                      <div key={item.id} className="rounded-lg border p-2">
+                        <div className="text-sm font-medium">{item.name}</div>
+                        <div className="text-sm text-gray-600">
+                          {item.estimated_minutes} min
+                          {item.sets ? ` · ${item.sets} series` : ""}
+                          {item.reps ? ` · ${item.reps} repeticiones` : ""}
+                        </div>
+                        {item.description && <p className="text-sm text-gray-700 mt-1">{item.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </Panel>

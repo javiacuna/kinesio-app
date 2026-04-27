@@ -7,6 +7,7 @@ import {
   listPatientAppointments,
 } from "@/features/appointments/api";
 import { listKinesiologists } from "@/features/kinesiologists/api";
+import { listMyPatientPlans } from "@/features/patients/detailApi";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { addMinutesToHHmm, localDateTimeToUTC } from "@/shared/time/rfc3339";
 
@@ -64,6 +65,11 @@ export default function PatientPortalPage() {
     queryFn: () => listPatientAppointments(range),
   });
 
+  const plansQ = useQuery({
+    queryKey: ["patients", "me", "plans"],
+    queryFn: () => listMyPatientPlans(),
+  });
+
   const kinesiologistsQ = useQuery({
     queryKey: ["kinesiologists"],
     queryFn: () => listKinesiologists(),
@@ -71,6 +77,7 @@ export default function PatientPortalPage() {
 
   const kinesiologists = kinesiologistsQ.data ?? [];
   const appointments = appointmentsQ.data ?? [];
+  const plans = plansQ.data ?? [];
   const selectedKinesiologist = kinesiologists.find((kinesiologist) => kinesiologist.id === kinesiologistId);
   const isCreateInPast = isPastLocalDateTime(date, startTime);
   const isCreateOutsideWorkingHours = selectedKinesiologist
@@ -215,6 +222,57 @@ export default function PatientPortalPage() {
             {isOverlapError(createM.error)
               ? "Ese horario ya no está disponible para el kinesiólogo seleccionado."
               : `No se pudo reservar el turno: ${(createM.error as any)?.message}`}
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white border rounded-lg p-4">
+        <h2 className="text-lg font-semibold">Mis planes</h2>
+
+        {plansQ.isLoading && (
+          <p className="text-sm text-gray-600 mt-2">Cargando planes...</p>
+        )}
+
+        {plansQ.isError && (
+          <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus planes.</p>
+        )}
+
+        {plansQ.isSuccess && plans.length === 0 && (
+          <p className="text-sm text-gray-600 mt-2">No tenés planes de ejercicios.</p>
+        )}
+
+        {plans.length > 0 && (
+          <div className="mt-3 divide-y">
+            {plans.map((plan) => (
+              <article key={plan.id} className="py-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="font-medium">
+                    {plan.frequency === "daily" ? "Diario" : "Semanal"} · {plan.duration_weeks} semanas
+                  </div>
+                  <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700 w-fit">
+                    {plan.status === "closed" ? "Cerrado" : "Activo"}
+                  </span>
+                </div>
+                {plan.observations && (
+                  <p className="text-sm text-gray-700 mt-2">{plan.observations}</p>
+                )}
+                <div className="mt-3 space-y-2">
+                  {plan.items.map((item) => (
+                    <div key={item.id} className="rounded-lg border p-3">
+                      <div className="font-medium">{item.name}</div>
+                      <div className="text-sm text-gray-600">
+                        {item.estimated_minutes} min
+                        {item.sets ? ` · ${item.sets} series` : ""}
+                        {item.reps ? ` · ${item.reps} repeticiones` : ""}
+                      </div>
+                      {item.description && (
+                        <p className="text-sm text-gray-700 mt-1">{item.description}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </section>

@@ -116,7 +116,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	planCreateUC := exercisePlanUC.NewCreatePlanUseCase(planRepo)
 	planListUC := exercisePlanUC.NewListPlansByPatientUseCase(planRepo)
 	planGetUC := exercisePlanUC.NewGetPlanByIDUseCase(planRepo)
-	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC)
+	planUpdateUC := exercisePlanUC.NewUpdatePlanUseCase(planRepo)
+	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC, planUpdateUC, patientRepo)
 
 	evoRepo := evoGorm.NewRepository(db)
 	evoCreateUC := evoUC.NewCreateEvolutionUseCase(evoRepo)
@@ -173,6 +174,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/plans", planHandler.Create)
 	v1.GET("/plans/:plan_id", planHandler.GetByID)
+	v1.PUT("/plans/:plan_id", planHandler.Update)
+	v1.PATCH("/plans/:plan_id", planHandler.Update)
 
 	v1.GET("/evolutions/:evolution_id", evoHandler.GetByID)
 

@@ -11,6 +11,9 @@ export type ExercisePlan = {
   items: Array<{
     id: string;
     name: string;
+    description?: string | null;
+    video_url?: string | null;
+    guide_url?: string | null;
     estimated_minutes: number;
     sets?: number | null;
     reps?: number | null;
@@ -37,6 +40,24 @@ export type CreatePatientEvolutionInput = {
   notes: string;
 };
 
+export type CreateExercisePlanInput = {
+  kinesiologist_id: string;
+  frequency: "daily" | "weekly";
+  duration_weeks: number;
+  observations?: string | null;
+  items: Array<{
+    name: string;
+    estimated_minutes: number;
+    sets?: number | null;
+    reps?: number | null;
+    description?: string | null;
+  }>;
+};
+
+export type UpdateExercisePlanInput = CreateExercisePlanInput & {
+  status: "active" | "closed";
+};
+
 export type MaterialLoan = {
   id: string;
   material_id: string;
@@ -52,6 +73,10 @@ export function listPatientPlans(patientId: string) {
   return apiFetch<ExercisePlan[]>(`/api/v1/patients/${patientId}/plans`);
 }
 
+export function listMyPatientPlans() {
+  return apiFetch<ExercisePlan[]>("/api/v1/patients/me/plans");
+}
+
 export function listPatientEvolutions(patientId: string, limit = 50) {
   const qs = new URLSearchParams({ limit: String(limit) });
   return apiFetch<PatientEvolution[]>(`/api/v1/patients/${patientId}/evolutions?${qs.toString()}`);
@@ -60,6 +85,20 @@ export function listPatientEvolutions(patientId: string, limit = 50) {
 export function createPatientEvolution(patientId: string, input: CreatePatientEvolutionInput) {
   return apiFetch<PatientEvolution>(`/api/v1/patients/${patientId}/evolutions`, {
     method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function createPatientPlan(patientId: string, input: CreateExercisePlanInput) {
+  return apiFetch<ExercisePlan>(`/api/v1/patients/${patientId}/plans`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePatientPlan(planId: string, input: UpdateExercisePlanInput) {
+  return apiFetch<ExercisePlan>(`/api/v1/plans/${planId}`, {
+    method: "PUT",
     body: JSON.stringify(input),
   });
 }
