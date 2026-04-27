@@ -10,12 +10,16 @@ import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
 import {
   type ExercisePlan,
+  type PatientAttachment,
   createPatientPlan,
   createPatientEvolution,
+  downloadPatientAttachment,
+  listPatientAttachments,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
   updatePatientPlan,
+  uploadPatientAttachment,
 } from "@/features/patients/detailApi";
 
 type PlanItemForm = {
@@ -59,6 +63,8 @@ export default function PatientDetailPage() {
   const [planDurationWeeks, setPlanDurationWeeks] = useState(4);
   const [planObservations, setPlanObservations] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentNotes, setAttachmentNotes] = useState("");
   const [planItems, setPlanItems] = useState<PlanItemForm[]>([
     { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
   ]);
@@ -91,6 +97,12 @@ export default function PatientDetailPage() {
     queryKey: ["patients", "material-loans", patientId],
     queryFn: () => listPatientMaterialLoans(patientId),
     enabled: Boolean(patientId),
+  });
+
+  const attachmentsQ = useQuery({
+    queryKey: ["patients", "attachments", patientId],
+    queryFn: () => listPatientAttachments(patientId),
+    enabled: Boolean(patientId) && canEditClinical,
   });
 
   const kinesiologistsQ = useQuery({
@@ -198,11 +210,24 @@ export default function PatientDetailPage() {
     },
   });
 
+  const uploadAttachmentM = useMutation({
+    mutationFn: () => {
+      if (!attachmentFile) throw new Error("file_required");
+      return uploadPatientAttachment(patientId, attachmentFile, attachmentNotes);
+    },
+    onSuccess: () => {
+      setAttachmentFile(null);
+      setAttachmentNotes("");
+      attachmentsQ.refetch();
+    },
+  });
+
   const patient = patientQ.data;
   const appointments = appointmentsQ.data ?? [];
   const plans = plansQ.data ?? [];
   const evolutions = evolutionsQ.data ?? [];
   const loans = loansQ.data ?? [];
+  const attachments = attachmentsQ.data ?? [];
   const kinesiologists = kinesiologistsQ.data ?? [];
   const upcomingScheduledAppointments = appointments.filter(
     (appointment) => appointment.status !== "cancelled",
@@ -241,8 +266,15 @@ export default function PatientDetailPage() {
           title: loan.returned_at ? "Material devuelto" : "Material prestado",
           detail: `Cantidad ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
         })),
+        ...attachments.map((attachment) => ({
+          id: `attachment:${attachment.id}`,
+          at: attachment.created_at,
+          kind: "Archivo",
+          title: attachment.file_name,
+          detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · subido por ${attachment.uploaded_by_email}` : ""}`,
+        })),
       ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
-    [appointments, evolutions, loans, plans],
+    [appointments, attachments, evolutions, loans, plans],
   );
 
   useEffect(() => {
@@ -302,6 +334,13 @@ export default function PatientDetailPage() {
         : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }],
     );
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function openAttachment(attachment: PatientAttachment) {
+    const blob = await downloadPatientAttachment(attachment);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   return (
@@ -435,6 +474,94 @@ export default function PatientDetailPage() {
             )}
             {updateClinicalM.isSuccess && (
               <p className="text-sm text-green-700">Historia clínica actualizada.</p>
+            )}
+            {patient.clinical_notes_updated_at && (
+              <p className="text-sm text-gray-600">
+                Última edición clínica: {formatLocalDateTime(patient.clinical_notes_updated_at)}
+                {patient.clinical_notes_updated_by_email ? ` · ${patient.clinical_notes_updated_by_email}` : ""}
+                {patient.clinical_notes_updated_by_role ? ` (${patient.clinical_notes_updated_by_role})` : ""}
+              </p>
+            )}
+          </section>
+        )}
+
+        {patient && canEditClinical && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Estudios y archivos</h2>
+              <p className="text-sm text-gray-600">Imágenes, videos y PDFs asociados al paciente.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-3">
+              <div>
+                <label className="text-sm font-medium">Archivo</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="file"
+                  accept="image/*,video/*,application/pdf"
+                  onChange={(event) => setAttachmentFile(event.target.files?.[0] ?? null)}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Nota</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={attachmentNotes}
+                  onChange={(event) => setAttachmentNotes(event.target.value)}
+                  placeholder="Ej: Resonancia lumbar, control postural, video de marcha."
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              disabled={!attachmentFile || uploadAttachmentM.isPending}
+              onClick={() => uploadAttachmentM.mutate()}
+            >
+              {uploadAttachmentM.isPending ? "Subiendo..." : "Adjuntar archivo"}
+            </button>
+
+            {uploadAttachmentM.isError && (
+              <p className="text-sm text-red-600">No se pudo subir el archivo.</p>
+            )}
+            {uploadAttachmentM.isSuccess && (
+              <p className="text-sm text-green-700">Archivo adjuntado.</p>
+            )}
+
+            {attachmentsQ.isLoading && <p className="text-sm text-gray-600">Cargando archivos...</p>}
+            {attachmentsQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los archivos.</p>}
+            {!attachmentsQ.isLoading && !attachmentsQ.isError && attachments.length === 0 && (
+              <p className="text-sm text-gray-600">Sin archivos adjuntos.</p>
+            )}
+            {attachments.length > 0 && (
+              <div className="divide-y">
+                {attachments.map((attachment) => (
+                  <div key={attachment.id} className="py-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="font-medium">{attachment.file_name}</div>
+                      <div className="text-sm text-gray-600">
+                        {attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
+                        {formatLocalDateTime(attachment.created_at)}
+                      </div>
+                      {attachment.uploaded_by_email && (
+                        <div className="text-sm text-gray-600">
+                          Subido por {attachment.uploaded_by_email}
+                          {attachment.uploaded_by_role ? ` (${attachment.uploaded_by_role})` : ""}
+                        </div>
+                      )}
+                      {attachment.notes && <p className="text-sm text-gray-700 mt-1">{attachment.notes}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                      onClick={() => openAttachment(attachment)}
+                    >
+                      Ver archivo
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         )}
@@ -807,6 +934,14 @@ export default function PatientDetailPage() {
                     </div>
                     <div className="text-sm text-gray-600">Estado: {plan.status === "closed" ? "Cerrado" : "Activo"}</div>
                     <div className="text-sm text-gray-600">Ejercicios: {plan.items.length}</div>
+                    <div className="text-sm text-gray-600">
+                      Creado: {formatLocalDateTime(plan.created_at)}
+                      {plan.created_by_email ? ` · ${plan.created_by_email}` : ""}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Última edición: {formatLocalDateTime(plan.updated_at)}
+                      {plan.updated_by_email ? ` · ${plan.updated_by_email}` : ""}
+                    </div>
                   </div>
                   {canCreateEvolution && (
                     <button

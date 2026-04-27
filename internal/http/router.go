@@ -37,6 +37,9 @@ import (
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
 	matUC "github.com/javiacuna/kinesio-backend/internal/materials/usecase"
 
+	attachmentsHTTP "github.com/javiacuna/kinesio-backend/internal/patientattachments/http"
+	attachmentsGorm "github.com/javiacuna/kinesio-backend/internal/patientattachments/infra/gorm"
+
 	staffHTTP "github.com/javiacuna/kinesio-backend/internal/staff/http"
 	staffRepo "github.com/javiacuna/kinesio-backend/internal/staff/infra/gorm"
 	staffUC "github.com/javiacuna/kinesio-backend/internal/staff/usecase"
@@ -133,6 +136,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	matListLoansUC := matUC.NewListLoansByPatientUseCase(matRepo)
 	matHandler := matHTTP.NewHandler(matCreateUC, matListUC, matLoanUC, matReturnUC, matListLoansUC)
 
+	attachmentRepo := attachmentsGorm.NewRepository(db)
+	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -156,6 +162,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.POST("/patients/:patient_id/evolutions", evoHandler.CreateForPatient)
 	v1.GET("/patients/:patient_id/evolutions", evoHandler.ListByPatient)
 	v1.GET("/patients/:patient_id/material-loans", matHandler.ListLoansByPatient)
+	v1.GET("/patients/:patient_id/attachments", attachmentHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/attachments", attachmentHandler.Upload)
 	v1.PUT("/patients/:patient_id", patientHandler.UpdatePatient)
 	v1.DELETE("/patients/:patient_id", patientHandler.DeletePatient)
 	v1.GET("/patients/:patient_id", patientHandler.GetPatientByID)
@@ -184,6 +192,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/material-loans", matHandler.LoanMaterial)
 	v1.POST("/material-loans/:loan_id/return", matHandler.ReturnLoan)
+	v1.GET("/patient-attachments/:attachment_id/download", attachmentHandler.Download)
 
 	_ = db
 

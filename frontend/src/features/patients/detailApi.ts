@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/api/http";
+import { apiFetch, apiFetchBlob } from "@/shared/api/http";
 
 export type ExercisePlan = {
   id: string;
@@ -20,6 +20,10 @@ export type ExercisePlan = {
   }>;
   created_at: string;
   updated_at: string;
+  created_by_email?: string | null;
+  created_by_role?: string | null;
+  updated_by_email?: string | null;
+  updated_by_role?: string | null;
 };
 
 export type PatientEvolution = {
@@ -69,6 +73,20 @@ export type MaterialLoan = {
   returned_at?: string | null;
 };
 
+export type PatientAttachment = {
+  id: string;
+  patient_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  kind: "image" | "video" | "pdf" | string;
+  notes?: string | null;
+  uploaded_by_email?: string | null;
+  uploaded_by_role?: string | null;
+  download_url: string;
+  created_at: string;
+};
+
 export function listPatientPlans(patientId: string) {
   return apiFetch<ExercisePlan[]>(`/api/v1/patients/${patientId}/plans`);
 }
@@ -106,4 +124,23 @@ export function updatePatientPlan(planId: string, input: UpdateExercisePlanInput
 export function listPatientMaterialLoans(patientId: string, activeOnly = false) {
   const qs = new URLSearchParams({ active: String(activeOnly) });
   return apiFetch<MaterialLoan[]>(`/api/v1/patients/${patientId}/material-loans?${qs.toString()}`);
+}
+
+export function listPatientAttachments(patientId: string) {
+  return apiFetch<PatientAttachment[]>(`/api/v1/patients/${patientId}/attachments`);
+}
+
+export function uploadPatientAttachment(patientId: string, file: File, notes?: string) {
+  const body = new FormData();
+  body.append("file", file);
+  if (notes?.trim()) body.append("notes", notes.trim());
+
+  return apiFetch<PatientAttachment>(`/api/v1/patients/${patientId}/attachments`, {
+    method: "POST",
+    body,
+  });
+}
+
+export function downloadPatientAttachment(attachment: PatientAttachment) {
+  return apiFetchBlob(attachment.download_url);
 }

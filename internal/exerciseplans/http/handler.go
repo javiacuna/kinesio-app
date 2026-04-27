@@ -90,6 +90,8 @@ func (h *Handler) create(c *gin.Context, patientID string, req createPlanRequest
 		DurationWeeks:   req.DurationWeeks,
 		Observations:    req.Observations,
 		Items:           req.Items,
+		ActorEmail:      actorEmail(c),
+		ActorRole:       actorRole(c),
 	})
 	if err != nil {
 		if errors.Is(err, domain.ErrValidation) {
@@ -154,6 +156,8 @@ func (h *Handler) Update(c *gin.Context) {
 		Observations:    req.Observations,
 		Status:          req.Status,
 		Items:           req.Items,
+		ActorEmail:      actorEmail(c),
+		ActorRole:       actorRole(c),
 	})
 	if err != nil {
 		switch {
@@ -226,4 +230,24 @@ func (h *Handler) patientIDForCurrentPatient(c *gin.Context, requestedPatientID 
 func (h *Handler) isCurrentPatient(c *gin.Context) bool {
 	user, ok := middleware.CurrentUser(c)
 	return ok && strings.EqualFold(user.Role, "paciente")
+}
+
+func actorEmail(c *gin.Context) string {
+	if user, ok := middleware.CurrentUser(c); ok {
+		return user.Email
+	}
+	if middleware.HasRole(c, "recepcionista") {
+		return "demo@local"
+	}
+	return ""
+}
+
+func actorRole(c *gin.Context) string {
+	if user, ok := middleware.CurrentUser(c); ok {
+		return user.Role
+	}
+	if middleware.HasRole(c, "recepcionista") {
+		return "recepcionista"
+	}
+	return ""
 }

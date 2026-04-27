@@ -33,6 +33,11 @@ type ExercisePlan struct {
 	Items     []ExercisePlanItem
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	CreatedByEmail *string
+	CreatedByRole  *string
+	UpdatedByEmail *string
+	UpdatedByRole  *string
 }
 
 type ExercisePlanItem struct {

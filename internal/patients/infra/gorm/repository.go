@@ -51,15 +51,18 @@ func (r *Repository) Create(ctx context.Context, p domain.Patient) (domain.Patie
 func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patient, error) {
 	updatedAt := time.Now().UTC()
 	updates := map[string]any{
-		"dni":            p.DNI,
-		"first_name":     p.FirstName,
-		"last_name":      p.LastName,
-		"email":          p.Email,
-		"phone":          p.Phone,
-		"birth_date":     p.BirthDate,
-		"clinical_notes": p.ClinicalNotes,
-		"active":         p.Active,
-		"updated_at":     updatedAt,
+		"dni":                             p.DNI,
+		"first_name":                      p.FirstName,
+		"last_name":                       p.LastName,
+		"email":                           p.Email,
+		"phone":                           p.Phone,
+		"birth_date":                      p.BirthDate,
+		"clinical_notes":                  p.ClinicalNotes,
+		"clinical_notes_updated_by_email": p.ClinicalNotesUpdatedByEmail,
+		"clinical_notes_updated_by_role":  p.ClinicalNotesUpdatedByRole,
+		"clinical_notes_updated_at":       p.ClinicalNotesUpdatedAt,
+		"active":                          p.Active,
+		"updated_at":                      updatedAt,
 	}
 
 	tx := r.db.WithContext(ctx).Model(&PatientModel{}).Where("id = ?", p.ID).Updates(updates)
@@ -73,7 +76,20 @@ func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patie
 		return domain.Patient{}, domain.ErrNotFound
 	}
 
-	p.UpdatedAt = updatedAt
+	return r.GetUpdated(ctx, p.ID.String(), updatedAt)
+}
+
+func (r *Repository) GetUpdated(ctx context.Context, id string, fallbackUpdatedAt time.Time) (domain.Patient, error) {
+	p, found, err := r.GetByID(ctx, id)
+	if err != nil {
+		return domain.Patient{}, err
+	}
+	if !found {
+		return domain.Patient{}, domain.ErrNotFound
+	}
+	if p.UpdatedAt.IsZero() {
+		p.UpdatedAt = fallbackUpdatedAt
+	}
 	return p, nil
 }
 
@@ -143,17 +159,20 @@ func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bo
 	}
 
 	p := domain.Patient{
-		ID:            m.ID,
-		DNI:           m.DNI,
-		FirstName:     m.FirstName,
-		LastName:      m.LastName,
-		Email:         m.Email,
-		Phone:         m.Phone,
-		BirthDate:     m.BirthDate,
-		ClinicalNotes: m.ClinicalNotes,
-		Active:        m.Active,
-		CreatedAt:     m.CreatedAt,
-		UpdatedAt:     m.UpdatedAt,
+		ID:                          m.ID,
+		DNI:                         m.DNI,
+		FirstName:                   m.FirstName,
+		LastName:                    m.LastName,
+		Email:                       m.Email,
+		Phone:                       m.Phone,
+		BirthDate:                   m.BirthDate,
+		ClinicalNotes:               m.ClinicalNotes,
+		ClinicalNotesUpdatedByEmail: m.ClinicalNotesUpdatedByEmail,
+		ClinicalNotesUpdatedByRole:  m.ClinicalNotesUpdatedByRole,
+		ClinicalNotesUpdatedAt:      m.ClinicalNotesUpdatedAt,
+		Active:                      m.Active,
+		CreatedAt:                   m.CreatedAt,
+		UpdatedAt:                   m.UpdatedAt,
 	}
 	return p, true, nil
 }
@@ -225,16 +244,19 @@ func (r *Repository) Search(ctx context.Context, query string, limit int, includ
 
 func (m PatientModel) ToDomain() domain.Patient {
 	return domain.Patient{
-		ID:            m.ID,
-		DNI:           m.DNI,
-		FirstName:     m.FirstName,
-		LastName:      m.LastName,
-		Email:         m.Email,
-		Phone:         m.Phone,
-		BirthDate:     m.BirthDate,
-		ClinicalNotes: m.ClinicalNotes,
-		Active:        m.Active,
-		CreatedAt:     m.CreatedAt,
-		UpdatedAt:     m.UpdatedAt,
+		ID:                          m.ID,
+		DNI:                         m.DNI,
+		FirstName:                   m.FirstName,
+		LastName:                    m.LastName,
+		Email:                       m.Email,
+		Phone:                       m.Phone,
+		BirthDate:                   m.BirthDate,
+		ClinicalNotes:               m.ClinicalNotes,
+		ClinicalNotesUpdatedByEmail: m.ClinicalNotesUpdatedByEmail,
+		ClinicalNotesUpdatedByRole:  m.ClinicalNotesUpdatedByRole,
+		ClinicalNotesUpdatedAt:      m.ClinicalNotesUpdatedAt,
+		Active:                      m.Active,
+		CreatedAt:                   m.CreatedAt,
+		UpdatedAt:                   m.UpdatedAt,
 	}
 }

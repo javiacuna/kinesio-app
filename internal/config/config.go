@@ -22,6 +22,8 @@ type Config struct {
 	FirebaseProjectID       string
 	FirebaseWebAPIKey       string
 	FirebaseCredentialsFile string
+
+	PatientFilesDir string
 }
 
 func MustLoad() Config {
@@ -38,6 +40,7 @@ func MustLoad() Config {
 		FirebaseProjectID:       getenv("FIREBASE_PROJECT_ID", ""),
 		FirebaseWebAPIKey:       getenv("FIREBASE_WEB_API_KEY", ""),
 		FirebaseCredentialsFile: getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+		PatientFilesDir:         getenv("PATIENT_FILES_DIR", "uploads/patient-attachments"),
 	}
 
 	// Validaciones mínimas

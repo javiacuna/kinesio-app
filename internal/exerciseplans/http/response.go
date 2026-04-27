@@ -28,6 +28,10 @@ type planResponse struct {
 	Items           []planItemResponse `json:"items"`
 	CreatedAt       string             `json:"created_at"`
 	UpdatedAt       string             `json:"updated_at"`
+	CreatedByEmail  *string            `json:"created_by_email,omitempty"`
+	CreatedByRole   *string            `json:"created_by_role,omitempty"`
+	UpdatedByEmail  *string            `json:"updated_by_email,omitempty"`
+	UpdatedByRole   *string            `json:"updated_by_role,omitempty"`
 }
 
 func toResponse(p domain.ExercisePlan) planResponse {
@@ -55,5 +59,9 @@ func toResponse(p domain.ExercisePlan) planResponse {
 		Items:           items,
 		CreatedAt:       p.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:       p.UpdatedAt.UTC().Format(time.RFC3339),
+		CreatedByEmail:  p.CreatedByEmail,
+		CreatedByRole:   p.CreatedByRole,
+		UpdatedByEmail:  p.UpdatedByEmail,
+		UpdatedByRole:   p.UpdatedByRole,
 	}
 }

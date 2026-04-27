@@ -40,17 +40,20 @@ type registerPatientRequest struct {
 }
 
 type patientResponse struct {
-	ID            string  `json:"id"`
-	DNI           string  `json:"dni"`
-	FirstName     string  `json:"first_name"`
-	LastName      string  `json:"last_name"`
-	Email         string  `json:"email"`
-	Phone         *string `json:"phone,omitempty"`
-	BirthDate     *string `json:"birth_date,omitempty"`
-	ClinicalNotes *string `json:"clinical_notes,omitempty"`
-	Active        bool    `json:"active"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	ID                          string  `json:"id"`
+	DNI                         string  `json:"dni"`
+	FirstName                   string  `json:"first_name"`
+	LastName                    string  `json:"last_name"`
+	Email                       string  `json:"email"`
+	Phone                       *string `json:"phone,omitempty"`
+	BirthDate                   *string `json:"birth_date,omitempty"`
+	ClinicalNotes               *string `json:"clinical_notes,omitempty"`
+	ClinicalNotesUpdatedByEmail *string `json:"clinical_notes_updated_by_email,omitempty"`
+	ClinicalNotesUpdatedByRole  *string `json:"clinical_notes_updated_by_role,omitempty"`
+	ClinicalNotesUpdatedAt      *string `json:"clinical_notes_updated_at,omitempty"`
+	Active                      bool    `json:"active"`
+	CreatedAt                   string  `json:"created_at"`
+	UpdatedAt                   string  `json:"updated_at"`
 }
 
 func (h *Handler) RegisterPatient(c *gin.Context) {
@@ -118,6 +121,8 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 		BirthDate:     req.BirthDate,
 		ClinicalNotes: req.ClinicalNotes,
 		Active:        req.Active,
+		ActorEmail:    actorEmail(c),
+		ActorRole:     actorRole(c),
 	})
 
 	if err != nil {
@@ -173,23 +178,51 @@ func toResponse(p domain.Patient) patientResponse {
 		s := p.BirthDate.Format("2006-01-02")
 		birth = &s
 	}
+	var clinicalNotesUpdatedAt *string
+	if p.ClinicalNotesUpdatedAt != nil {
+		s := p.ClinicalNotesUpdatedAt.UTC().Format(timeRFC3339())
+		clinicalNotesUpdatedAt = &s
+	}
 
 	return patientResponse{
-		ID:            p.ID.String(),
-		DNI:           p.DNI,
-		FirstName:     p.FirstName,
-		LastName:      p.LastName,
-		Email:         p.Email,
-		Phone:         p.Phone,
-		BirthDate:     birth,
-		ClinicalNotes: p.ClinicalNotes,
-		Active:        p.Active,
-		CreatedAt:     p.CreatedAt.UTC().Format(timeRFC3339()),
-		UpdatedAt:     p.UpdatedAt.UTC().Format(timeRFC3339()),
+		ID:                          p.ID.String(),
+		DNI:                         p.DNI,
+		FirstName:                   p.FirstName,
+		LastName:                    p.LastName,
+		Email:                       p.Email,
+		Phone:                       p.Phone,
+		BirthDate:                   birth,
+		ClinicalNotes:               p.ClinicalNotes,
+		ClinicalNotesUpdatedByEmail: p.ClinicalNotesUpdatedByEmail,
+		ClinicalNotesUpdatedByRole:  p.ClinicalNotesUpdatedByRole,
+		ClinicalNotesUpdatedAt:      clinicalNotesUpdatedAt,
+		Active:                      p.Active,
+		CreatedAt:                   p.CreatedAt.UTC().Format(timeRFC3339()),
+		UpdatedAt:                   p.UpdatedAt.UTC().Format(timeRFC3339()),
 	}
 }
 
 func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
+
+func actorEmail(c *gin.Context) string {
+	if user, ok := middleware.CurrentUser(c); ok {
+		return user.Email
+	}
+	if middleware.HasRole(c, "recepcionista") {
+		return "demo@local"
+	}
+	return ""
+}
+
+func actorRole(c *gin.Context) string {
+	if user, ok := middleware.CurrentUser(c); ok {
+		return user.Role
+	}
+	if middleware.HasRole(c, "recepcionista") {
+		return "recepcionista"
+	}
+	return ""
+}
 
 func (h *Handler) GetPatientByID(c *gin.Context) {
 	// Por ahora lo dejo SIN auth (útil para debug y para frontend).

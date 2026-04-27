@@ -21,6 +21,8 @@ type UpdatePatientInput struct {
 	BirthDate     *string
 	ClinicalNotes *string
 	Active        *bool
+	ActorEmail    string
+	ActorRole     string
 }
 
 type UpdatePatientUseCase struct {
@@ -115,7 +117,14 @@ func (uc *UpdatePatientUseCase) Execute(ctx context.Context, in UpdatePatientInp
 	current.Email = strings.ToLower(in.Email)
 	current.Phone = domain.TrimOptionalString(in.Phone)
 	current.BirthDate = birthDatePtr
-	current.ClinicalNotes = domain.TrimOptionalString(in.ClinicalNotes)
+	nextClinicalNotes := domain.TrimOptionalString(in.ClinicalNotes)
+	if optionalStringValue(current.ClinicalNotes) != optionalStringValue(nextClinicalNotes) {
+		now := time.Now().UTC()
+		current.ClinicalNotesUpdatedAt = &now
+		current.ClinicalNotesUpdatedByEmail = domain.TrimOptionalString(&in.ActorEmail)
+		current.ClinicalNotesUpdatedByRole = domain.TrimOptionalString(&in.ActorRole)
+	}
+	current.ClinicalNotes = nextClinicalNotes
 	if in.Active != nil {
 		current.Active = *in.Active
 	}
@@ -126,4 +135,11 @@ func (uc *UpdatePatientUseCase) Execute(ctx context.Context, in UpdatePatientInp
 	}
 
 	return updated, nil, nil
+}
+
+func optionalStringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

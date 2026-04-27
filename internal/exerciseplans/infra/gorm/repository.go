@@ -46,6 +46,8 @@ func (r *Repository) Update(ctx context.Context, p domain.ExercisePlan) (domain.
 		current.DurationWeeks = m.DurationWeeks
 		current.Observations = m.Observations
 		current.Status = m.Status
+		current.UpdatedByEmail = m.UpdatedByEmail
+		current.UpdatedByRole = m.UpdatedByRole
 		current.UpdatedAt = m.UpdatedAt
 
 		if err := tx.Save(&current).Error; err != nil {
@@ -117,6 +119,10 @@ func toModel(p domain.ExercisePlan) ExercisePlanModel {
 		Status:          string(p.Status),
 		CreatedAt:       p.CreatedAt,
 		UpdatedAt:       p.UpdatedAt,
+		CreatedByEmail:  p.CreatedByEmail,
+		CreatedByRole:   p.CreatedByRole,
+		UpdatedByEmail:  p.UpdatedByEmail,
+		UpdatedByRole:   p.UpdatedByRole,
 		Items:           make([]ExercisePlanItemModel, 0, len(p.Items)),
 	}
 	for _, it := range p.Items {
@@ -148,6 +154,10 @@ func toDomain(m ExercisePlanModel) domain.ExercisePlan {
 		Status:          domain.PlanStatus(m.Status),
 		CreatedAt:       m.CreatedAt,
 		UpdatedAt:       m.UpdatedAt,
+		CreatedByEmail:  m.CreatedByEmail,
+		CreatedByRole:   m.CreatedByRole,
+		UpdatedByEmail:  m.UpdatedByEmail,
+		UpdatedByRole:   m.UpdatedByRole,
 		Items:           make([]domain.ExercisePlanItem, 0, len(m.Items)),
 	}
 	for _, it := range m.Items {

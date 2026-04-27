@@ -36,6 +36,7 @@ services:
       GOOSE_DRIVER: postgres
       GOOSE_DBSTRING: host=db port=5432 user=kinesio password=kinesio dbname=kinesio sslmode=disable
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
+      PATIENT_FILES_DIR: /app/uploads/patient-attachments
     ports:
       - "8080:8080"
     volumes:
@@ -43,6 +44,9 @@ services:
         source: ${GOOGLE_APPLICATION_CREDENTIALS}
         target: /run/secrets/firebase-service-account.json
         read_only: true
+      - type: bind
+        source: ./uploads
+        target: /app/uploads
 
 volumes:
   db_data:

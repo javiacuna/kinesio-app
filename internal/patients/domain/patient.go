@@ -8,17 +8,20 @@ import (
 )
 
 type Patient struct {
-	ID            uuid.UUID
-	DNI           string
-	FirstName     string
-	LastName      string
-	Email         string
-	Phone         *string
-	BirthDate     *time.Time
-	ClinicalNotes *string
-	Active        bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                          uuid.UUID
+	DNI                         string
+	FirstName                   string
+	LastName                    string
+	Email                       string
+	Phone                       *string
+	BirthDate                   *time.Time
+	ClinicalNotes               *string
+	ClinicalNotesUpdatedByEmail *string
+	ClinicalNotesUpdatedByRole  *string
+	ClinicalNotesUpdatedAt      *time.Time
+	Active                      bool
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
 }
 
 func NewPatient(dni, firstName, lastName, email string, phone *string, birthDate *time.Time, notes *string) Patient {

@@ -19,6 +19,8 @@ type UpdatePlanInput struct {
 	Observations    *string               `json:"observations"`
 	Status          string                `json:"status"`
 	Items           []CreatePlanItemInput `json:"items"`
+	ActorEmail      string                `json:"-"`
+	ActorRole       string                `json:"-"`
 }
 
 type UpdatePlanUseCase struct {
@@ -92,6 +94,10 @@ func (uc *UpdatePlanUseCase) Execute(ctx context.Context, id string, in UpdatePl
 		Items:           make([]domain.ExercisePlanItem, 0, len(in.Items)),
 		CreatedAt:       current.CreatedAt,
 		UpdatedAt:       now,
+		CreatedByEmail:  current.CreatedByEmail,
+		CreatedByRole:   current.CreatedByRole,
+		UpdatedByEmail:  trimOptionalString(in.ActorEmail),
+		UpdatedByRole:   trimOptionalString(in.ActorRole),
 	}
 
 	for _, it := range in.Items {

@@ -28,6 +28,8 @@ type CreatePlanInput struct {
 	DurationWeeks   int                   `json:"duration_weeks"` // >=1
 	Observations    *string               `json:"observations"`
 	Items           []CreatePlanItemInput `json:"items"`
+	ActorEmail      string                `json:"-"`
+	ActorRole       string                `json:"-"`
 }
 
 type CreatePlanUseCase struct {
@@ -87,6 +89,10 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, in CreatePlanInput) (d
 		Items:           make([]domain.ExercisePlanItem, 0, len(in.Items)),
 		CreatedAt:       now,
 		UpdatedAt:       now,
+		CreatedByEmail:  trimOptionalString(in.ActorEmail),
+		CreatedByRole:   trimOptionalString(in.ActorRole),
+		UpdatedByEmail:  trimOptionalString(in.ActorEmail),
+		UpdatedByRole:   trimOptionalString(in.ActorRole),
 	}
 
 	for _, it := range in.Items {
@@ -112,4 +118,12 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, in CreatePlanInput) (d
 		return domain.ExercisePlan{}, nil, err
 	}
 	return out, nil, nil
+}
+
+func trimOptionalString(value string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	return &value
 }

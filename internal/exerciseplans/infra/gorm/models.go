@@ -12,6 +12,10 @@ type ExercisePlanModel struct {
 	Status          string `gorm:"not null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+	CreatedByEmail  *string
+	CreatedByRole   *string
+	UpdatedByEmail  *string
+	UpdatedByRole   *string
 
 	Items []ExercisePlanItemModel `gorm:"foreignKey:PlanID;constraint:OnDelete:CASCADE"`
 }
