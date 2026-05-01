@@ -80,9 +80,14 @@ export type PatientAttachment = {
   content_type: string;
   size_bytes: number;
   kind: "image" | "video" | "pdf" | string;
+  category: string;
+  patient_visible: boolean;
   notes?: string | null;
   uploaded_by_email?: string | null;
   uploaded_by_role?: string | null;
+  updated_by_email?: string | null;
+  updated_by_role?: string | null;
+  updated_at?: string | null;
   download_url: string;
   created_at: string;
 };
@@ -130,14 +135,40 @@ export function listPatientAttachments(patientId: string) {
   return apiFetch<PatientAttachment[]>(`/api/v1/patients/${patientId}/attachments`);
 }
 
-export function uploadPatientAttachment(patientId: string, file: File, notes?: string) {
+export function listMyPatientAttachments() {
+  return apiFetch<PatientAttachment[]>("/api/v1/patients/me/attachments");
+}
+
+export function uploadPatientAttachment(
+  patientId: string,
+  file: File,
+  input?: { notes?: string; category?: string; patient_visible?: boolean },
+) {
   const body = new FormData();
   body.append("file", file);
-  if (notes?.trim()) body.append("notes", notes.trim());
+  if (input?.notes?.trim()) body.append("notes", input.notes.trim());
+  if (input?.category) body.append("category", input.category);
+  body.append("patient_visible", String(Boolean(input?.patient_visible)));
 
   return apiFetch<PatientAttachment>(`/api/v1/patients/${patientId}/attachments`, {
     method: "POST",
     body,
+  });
+}
+
+export function updatePatientAttachment(
+  attachmentId: string,
+  input: { file_name: string; notes?: string | null; category: string; patient_visible: boolean },
+) {
+  return apiFetch<PatientAttachment>(`/api/v1/patient-attachments/${attachmentId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePatientAttachment(attachmentId: string) {
+  return apiFetch<void>(`/api/v1/patient-attachments/${attachmentId}`, {
+    method: "DELETE",
   });
 }
 

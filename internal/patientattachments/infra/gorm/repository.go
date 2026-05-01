@@ -27,11 +27,20 @@ func (r *Repository) Create(ctx context.Context, attachment domain.Attachment) (
 }
 
 func (r *Repository) ListByPatient(ctx context.Context, patientID uuid.UUID) ([]domain.Attachment, error) {
+	return r.listByPatient(ctx, patientID, false)
+}
+
+func (r *Repository) ListVisibleByPatient(ctx context.Context, patientID uuid.UUID) ([]domain.Attachment, error) {
+	return r.listByPatient(ctx, patientID, true)
+}
+
+func (r *Repository) listByPatient(ctx context.Context, patientID uuid.UUID, visibleOnly bool) ([]domain.Attachment, error) {
 	var models []AttachmentModel
-	if err := r.db.WithContext(ctx).
-		Order("created_at desc").
-		Find(&models, "patient_id = ?", patientID.String()).
-		Error; err != nil {
+	tx := r.db.WithContext(ctx).Where("patient_id = ?", patientID.String())
+	if visibleOnly {
+		tx = tx.Where("patient_visible = true")
+	}
+	if err := tx.Order("created_at desc").Find(&models).Error; err != nil {
 		return nil, err
 	}
 
@@ -54,6 +63,49 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.Attachme
 	return toDomain(model), true, nil
 }
 
+func (r *Repository) Update(ctx context.Context, attachment domain.Attachment) (domain.Attachment, error) {
+	updates := map[string]any{
+		"file_name":        attachment.FileName,
+		"category":         attachment.Category,
+		"patient_visible":  attachment.PatientVisible,
+		"notes":            attachment.Notes,
+		"updated_by_email": attachment.UpdatedByEmail,
+		"updated_by_role":  attachment.UpdatedByRole,
+		"updated_at":       attachment.UpdatedAt,
+	}
+
+	tx := r.db.WithContext(ctx).
+		Model(&AttachmentModel{}).
+		Where("id = ?", attachment.ID.String()).
+		Updates(updates)
+	if tx.Error != nil {
+		return domain.Attachment{}, tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return domain.Attachment{}, gorm.ErrRecordNotFound
+	}
+
+	out, found, err := r.GetByID(ctx, attachment.ID)
+	if err != nil {
+		return domain.Attachment{}, err
+	}
+	if !found {
+		return domain.Attachment{}, gorm.ErrRecordNotFound
+	}
+	return out, nil
+}
+
+func (r *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+	tx := r.db.WithContext(ctx).Delete(&AttachmentModel{}, "id = ?", id.String())
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func toModel(attachment domain.Attachment) AttachmentModel {
 	return AttachmentModel{
 		ID:              attachment.ID.String(),
@@ -63,10 +115,15 @@ func toModel(attachment domain.Attachment) AttachmentModel {
 		SizeBytes:       attachment.SizeBytes,
 		StoragePath:     attachment.StoragePath,
 		Kind:            attachment.Kind,
+		Category:        attachment.Category,
+		PatientVisible:  attachment.PatientVisible,
 		Notes:           attachment.Notes,
 		UploadedByEmail: attachment.UploadedByEmail,
 		UploadedByRole:  attachment.UploadedByRole,
 		CreatedAt:       attachment.CreatedAt,
+		UpdatedByEmail:  attachment.UpdatedByEmail,
+		UpdatedByRole:   attachment.UpdatedByRole,
+		UpdatedAt:       attachment.UpdatedAt,
 	}
 }
 
@@ -79,9 +136,14 @@ func toDomain(model AttachmentModel) domain.Attachment {
 		SizeBytes:       model.SizeBytes,
 		StoragePath:     model.StoragePath,
 		Kind:            model.Kind,
+		Category:        model.Category,
+		PatientVisible:  model.PatientVisible,
 		Notes:           model.Notes,
 		UploadedByEmail: model.UploadedByEmail,
 		UploadedByRole:  model.UploadedByRole,
 		CreatedAt:       model.CreatedAt,
+		UpdatedByEmail:  model.UpdatedByEmail,
+		UpdatedByRole:   model.UpdatedByRole,
+		UpdatedAt:       model.UpdatedAt,
 	}
 }

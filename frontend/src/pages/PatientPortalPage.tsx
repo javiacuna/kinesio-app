@@ -7,7 +7,12 @@ import {
   listPatientAppointments,
 } from "@/features/appointments/api";
 import { listKinesiologists } from "@/features/kinesiologists/api";
-import { listMyPatientPlans } from "@/features/patients/detailApi";
+import {
+  type PatientAttachment,
+  downloadPatientAttachment,
+  listMyPatientAttachments,
+  listMyPatientPlans,
+} from "@/features/patients/detailApi";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { addMinutesToHHmm, localDateTimeToUTC } from "@/shared/time/rfc3339";
 
@@ -70,6 +75,11 @@ export default function PatientPortalPage() {
     queryFn: () => listMyPatientPlans(),
   });
 
+  const attachmentsQ = useQuery({
+    queryKey: ["patients", "me", "attachments"],
+    queryFn: () => listMyPatientAttachments(),
+  });
+
   const kinesiologistsQ = useQuery({
     queryKey: ["kinesiologists"],
     queryFn: () => listKinesiologists(),
@@ -78,6 +88,7 @@ export default function PatientPortalPage() {
   const kinesiologists = kinesiologistsQ.data ?? [];
   const appointments = appointmentsQ.data ?? [];
   const plans = plansQ.data ?? [];
+  const attachments = attachmentsQ.data ?? [];
   const selectedKinesiologist = kinesiologists.find((kinesiologist) => kinesiologist.id === kinesiologistId);
   const isCreateInPast = isPastLocalDateTime(date, startTime);
   const isCreateOutsideWorkingHours = selectedKinesiologist
@@ -118,6 +129,13 @@ export default function PatientPortalPage() {
       end_at: localDateTimeToUTC(date, endTime),
       notes: notes.trim() ? notes.trim() : undefined,
     });
+  }
+
+  async function openAttachment(attachment: PatientAttachment) {
+    const blob = await downloadPatientAttachment(attachment);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   return (
@@ -271,6 +289,45 @@ export default function PatientPortalPage() {
                     </div>
                   ))}
                 </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="bg-white border rounded-lg p-4">
+        <h2 className="text-lg font-semibold">Mis estudios</h2>
+
+        {attachmentsQ.isLoading && (
+          <p className="text-sm text-gray-600 mt-2">Cargando estudios...</p>
+        )}
+
+        {attachmentsQ.isError && (
+          <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus estudios.</p>
+        )}
+
+        {attachmentsQ.isSuccess && attachments.length === 0 && (
+          <p className="text-sm text-gray-600 mt-2">No tenés estudios compartidos.</p>
+        )}
+
+        {attachments.length > 0 && (
+          <div className="mt-3 divide-y">
+            {attachments.map((attachment) => (
+              <article key={attachment.id} className="py-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="font-medium">{attachment.file_name}</div>
+                  <div className="text-sm text-gray-600">
+                    {attachment.category || attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
+                    {formatLocalDateTime(attachment.created_at)}
+                  </div>
+                  {attachment.notes && <p className="text-sm text-gray-700 mt-1">{attachment.notes}</p>}
+                </div>
+                <button
+                  className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
+                  onClick={() => openAttachment(attachment)}
+                >
+                  Ver archivo
+                </button>
               </article>
             ))}
           </div>

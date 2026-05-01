@@ -13,11 +13,13 @@ import {
   type PatientAttachment,
   createPatientPlan,
   createPatientEvolution,
+  deletePatientAttachment,
   downloadPatientAttachment,
   listPatientAttachments,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
+  updatePatientAttachment,
   updatePatientPlan,
   uploadPatientAttachment,
 } from "@/features/patients/detailApi";
@@ -29,6 +31,17 @@ type PlanItemForm = {
   reps: string;
   description: string;
 };
+
+const attachmentCategories = [
+  { value: "otro", label: "Otro" },
+  { value: "radiografia", label: "Radiografía" },
+  { value: "resonancia", label: "Resonancia" },
+  { value: "ecografia", label: "Ecografía" },
+  { value: "laboratorio", label: "Laboratorio" },
+  { value: "foto", label: "Foto" },
+  { value: "video", label: "Video" },
+  { value: "documento", label: "Documento" },
+];
 
 function historyRange() {
   const from = new Date();
@@ -65,6 +78,8 @@ export default function PatientDetailPage() {
   const [editingPlanId, setEditingPlanId] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentNotes, setAttachmentNotes] = useState("");
+  const [attachmentCategory, setAttachmentCategory] = useState("otro");
+  const [attachmentPatientVisible, setAttachmentPatientVisible] = useState(false);
   const [planItems, setPlanItems] = useState<PlanItemForm[]>([
     { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
   ]);
@@ -213,13 +228,35 @@ export default function PatientDetailPage() {
   const uploadAttachmentM = useMutation({
     mutationFn: () => {
       if (!attachmentFile) throw new Error("file_required");
-      return uploadPatientAttachment(patientId, attachmentFile, attachmentNotes);
+      return uploadPatientAttachment(patientId, attachmentFile, {
+        notes: attachmentNotes,
+        category: attachmentCategory,
+        patient_visible: attachmentPatientVisible,
+      });
     },
     onSuccess: () => {
       setAttachmentFile(null);
       setAttachmentNotes("");
+      setAttachmentCategory("otro");
+      setAttachmentPatientVisible(false);
       attachmentsQ.refetch();
     },
+  });
+
+  const updateAttachmentM = useMutation({
+    mutationFn: (attachment: PatientAttachment) =>
+      updatePatientAttachment(attachment.id, {
+        file_name: attachment.file_name,
+        notes: attachment.notes ?? null,
+        category: attachment.category || "otro",
+        patient_visible: attachment.patient_visible,
+      }),
+    onSuccess: () => attachmentsQ.refetch(),
+  });
+
+  const deleteAttachmentM = useMutation({
+    mutationFn: (attachmentId: string) => deletePatientAttachment(attachmentId),
+    onSuccess: () => attachmentsQ.refetch(),
   });
 
   const patient = patientQ.data;
@@ -341,6 +378,39 @@ export default function PatientDetailPage() {
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener,noreferrer");
     window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  function editAttachment(attachment: PatientAttachment) {
+    const fileName = window.prompt("Nombre del archivo", attachment.file_name);
+    if (fileName == null) return;
+
+    const notes = window.prompt("Nota del archivo", attachment.notes ?? "");
+    if (notes == null) return;
+
+    const category = window.prompt(
+      "Categoría: radiografia, resonancia, ecografia, laboratorio, foto, video, documento u otro",
+      attachment.category || "otro",
+    );
+    if (category == null) return;
+
+    const patientVisibleAnswer = window.prompt(
+      "Visible para paciente en portal: si/no",
+      attachment.patient_visible ? "si" : "no",
+    );
+    if (patientVisibleAnswer == null) return;
+    const patientVisible = ["si", "sí", "s", "yes", "true"].includes(patientVisibleAnswer.trim().toLowerCase());
+    updateAttachmentM.mutate({
+      ...attachment,
+      file_name: fileName,
+      notes: notes.trim() || null,
+      category,
+      patient_visible: patientVisible,
+    });
+  }
+
+  function deleteAttachment(attachment: PatientAttachment) {
+    if (!window.confirm(`¿Borrar ${attachment.file_name}?`)) return;
+    deleteAttachmentM.mutate(attachment.id);
   }
 
   return (
@@ -492,7 +562,7 @@ export default function PatientDetailPage() {
               <p className="text-sm text-gray-600">Imágenes, videos y PDFs asociados al paciente.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
                 <label className="text-sm font-medium">Archivo</label>
                 <input
@@ -503,6 +573,20 @@ export default function PatientDetailPage() {
                 />
               </div>
               <div>
+                <label className="text-sm font-medium">Categoría</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={attachmentCategory}
+                  onChange={(event) => setAttachmentCategory(event.target.value)}
+                >
+                  {attachmentCategories.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className="text-sm font-medium">Nota</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
@@ -511,6 +595,14 @@ export default function PatientDetailPage() {
                   placeholder="Ej: Resonancia lumbar, control postural, video de marcha."
                 />
               </div>
+              <label className="flex items-center gap-2 text-sm font-medium md:self-end md:pb-3">
+                <input
+                  type="checkbox"
+                  checked={attachmentPatientVisible}
+                  onChange={(event) => setAttachmentPatientVisible(event.target.checked)}
+                />
+                Visible para paciente
+              </label>
             </div>
 
             <button
@@ -541,8 +633,11 @@ export default function PatientDetailPage() {
                     <div>
                       <div className="font-medium">{attachment.file_name}</div>
                       <div className="text-sm text-gray-600">
-                        {attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
+                        {attachment.category || "otro"} · {attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
                         {formatLocalDateTime(attachment.created_at)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {attachment.patient_visible ? "Visible en portal paciente" : "Solo equipo"}
                       </div>
                       {attachment.uploaded_by_email && (
                         <div className="text-sm text-gray-600">
@@ -550,18 +645,45 @@ export default function PatientDetailPage() {
                           {attachment.uploaded_by_role ? ` (${attachment.uploaded_by_role})` : ""}
                         </div>
                       )}
+                      {attachment.updated_at && (
+                        <div className="text-sm text-gray-600">
+                          Editado: {formatLocalDateTime(attachment.updated_at)}
+                          {attachment.updated_by_email ? ` · ${attachment.updated_by_email}` : ""}
+                        </div>
+                      )}
                       {attachment.notes && <p className="text-sm text-gray-700 mt-1">{attachment.notes}</p>}
                     </div>
-                    <button
-                      type="button"
-                      className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-                      onClick={() => openAttachment(attachment)}
-                    >
-                      Ver archivo
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                        onClick={() => openAttachment(attachment)}
+                      >
+                        Ver archivo
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 disabled:opacity-50"
+                        disabled={updateAttachmentM.isPending}
+                        onClick={() => editAttachment(attachment)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-lg border text-sm hover:bg-red-50 disabled:opacity-50"
+                        disabled={deleteAttachmentM.isPending}
+                        onClick={() => deleteAttachment(attachment)}
+                      >
+                        Borrar
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
+            )}
+            {(updateAttachmentM.isError || deleteAttachmentM.isError) && (
+              <p className="text-sm text-red-600">No se pudo actualizar el archivo.</p>
             )}
           </section>
         )}

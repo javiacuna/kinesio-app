@@ -137,7 +137,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	matHandler := matHTTP.NewHandler(matCreateUC, matListUC, matLoanUC, matReturnUC, matListLoansUC)
 
 	attachmentRepo := attachmentsGorm.NewRepository(db)
-	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir)
+	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir, patientRepo)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -193,6 +193,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.POST("/material-loans", matHandler.LoanMaterial)
 	v1.POST("/material-loans/:loan_id/return", matHandler.ReturnLoan)
 	v1.GET("/patient-attachments/:attachment_id/download", attachmentHandler.Download)
+	v1.PATCH("/patient-attachments/:attachment_id", attachmentHandler.Update)
+	v1.DELETE("/patient-attachments/:attachment_id", attachmentHandler.Delete)
 
 	_ = db
 
