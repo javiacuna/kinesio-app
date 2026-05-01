@@ -365,6 +365,9 @@ export default function PatientPortalPage() {
                   {appointment.notes && (
                     <div className="text-sm text-gray-600 mt-1">Notas: {appointment.notes}</div>
                   )}
+                  {appointment.status === "cancelled" && appointment.cancelled_reason && (
+                    <div className="text-sm text-gray-600 mt-1">Motivo: {appointment.cancelled_reason}</div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

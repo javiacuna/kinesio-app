@@ -6,4 +6,5 @@ export type Appointment = {
   end_at: string;
   status: "scheduled" | "cancelled";
   notes?: string | null;
+  cancelled_reason?: string | null;
 };

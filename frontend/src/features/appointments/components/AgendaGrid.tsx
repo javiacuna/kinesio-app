@@ -106,6 +106,9 @@ export function AgendaGrid({
                     Paciente: {getPatientName(appt.patient_id)}
                   </div>
                   {appt.notes && <div className="text-xs text-gray-600">Notas: {appt.notes}</div>}
+                  {cancelled && appt.cancelled_reason && (
+                    <div className="text-xs text-gray-600">Motivo: {appt.cancelled_reason}</div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

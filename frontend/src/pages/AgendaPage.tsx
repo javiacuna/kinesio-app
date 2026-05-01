@@ -606,6 +606,9 @@ export default function AgendaPage() {
                           </Link>
                         </div>
                         <div className="text-sm text-gray-600">Estado: {statusLabel(a.status)}</div>
+                        {a.status === "cancelled" && a.cancelled_reason && (
+                          <div className="text-sm text-gray-600">Motivo: {a.cancelled_reason}</div>
+                        )}
                         {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
                       </div>
 
@@ -695,6 +698,9 @@ export default function AgendaPage() {
                             <div className="text-sm text-gray-600">
                               {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status)}
                             </div>
+                            {appointment.status === "cancelled" && appointment.cancelled_reason && (
+                              <div className="text-sm text-gray-600">Motivo: {appointment.cancelled_reason}</div>
+                            )}
                             {appointment.notes && <div className="text-sm text-gray-600">Notas: {appointment.notes}</div>}
                           </div>
                           {canManageAppointments && appointment.status !== "cancelled" && (
