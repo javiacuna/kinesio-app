@@ -10,6 +10,7 @@ type Props = {
   canManageAppointments?: boolean;
   workStartTime?: string;
   workEndTime?: string;
+  getPatientName?: (patientId: string) => string;
 
   onPickSlot: (hhmm: string) => void;
 
@@ -26,6 +27,7 @@ export function AgendaGrid({
   onPickSlot,
   onCancel,
   onReschedule,
+  getPatientName = (patientId) => patientId,
 }: Props) {
   const slots = useMemo(
     () => generateSlots(workStartTime || "08:00", workEndTime || "20:00", 15),
@@ -59,7 +61,7 @@ export function AgendaGrid({
   }, [appointments]);
 
   return (
-    <section className="bg-white rounded-xl shadow p-4 space-y-3">
+    <section className="border rounded-lg p-3 space-y-3">
       <div className="flex items-baseline justify-between">
         <h2 className="text-lg font-semibold">Grilla horaria</h2>
         <div className="text-sm text-gray-600">
@@ -101,7 +103,7 @@ export function AgendaGrid({
                     {formatLocalTime(appt.start_at)} → {formatLocalTime(appt.end_at)}
                   </div>
                   <div className="text-sm text-gray-800">
-                    Paciente: <span className="font-mono">{appt.patient_id}</span>
+                    Paciente: {getPatientName(appt.patient_id)}
                   </div>
                   {appt.notes && <div className="text-xs text-gray-600">Notas: {appt.notes}</div>}
                 </div>

@@ -9,11 +9,13 @@ import {
   listAppointmentsDay,
   updateAppointment,
 } from "../features/appointments/api";
+import { listPatients } from "@/features/patients/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { AgendaGrid } from "@/features/appointments/components/AgendaGrid";
 import type { Appointment } from "@/features/appointments/types";
+import type { Patient } from "@/features/patients/types";
 
 function todayISO() {
   const d = new Date();
@@ -62,6 +64,45 @@ function durationMinutes(startISO: string, endISO: string) {
   return Math.max(15, Math.round((new Date(endISO).getTime() - new Date(startISO).getTime()) / 60000));
 }
 
+function addDaysISO(dateISO: string, days: number) {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function weekDaysFor(dateISO: string) {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const mondayOffset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - mondayOffset);
+  const start = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return Array.from({ length: 7 }, (_, index) => addDaysISO(start, index));
+}
+
+function statusLabel(status: Appointment["status"]) {
+  return status === "cancelled" ? "Cancelado" : "Programado";
+}
+
+function patientName(patient?: Patient) {
+  return patient ? `${patient.last_name}, ${patient.first_name}` : "Paciente";
+}
+
+function filterAppointments(
+  appointments: Appointment[],
+  status: "all" | Appointment["status"],
+  patientId?: string,
+) {
+  return appointments.filter((appointment) => {
+    if (status !== "all" && appointment.status !== status) return false;
+    if (patientId && appointment.patient_id !== patientId) return false;
+    return true;
+  });
+}
+
 export default function AgendaPage() {
   const { user } = useAuth();
   const isKinesiologist = user?.role === "kinesiologo";
@@ -69,6 +110,9 @@ export default function AgendaPage() {
   // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+  const [statusFilter, setStatusFilter] = useState<"all" | Appointment["status"]>("all");
+  const [filterPatient, setFilterPatient] = useState<Patient | null>(null);
 
   // Crear turno (inputs UX)
   const [patientId, setPatientId] = useState("");
@@ -81,6 +125,8 @@ export default function AgendaPage() {
   const [editStartTime, setEditStartTime] = useState("09:00");
   const [editDurationMin, setEditDurationMin] = useState(45);
   const [editNotes, setEditNotes] = useState("");
+  const [cancelAppointmentTarget, setCancelAppointmentTarget] = useState<Appointment | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   useEffect(() => {
     const last = localStorage.getItem("last_patient_id");
@@ -96,11 +142,24 @@ export default function AgendaPage() {
     queryFn: () => listKinesiologists(),
   });
 
+  const patientsQ = useQuery({
+    queryKey: ["patients", "agenda", "all"],
+    queryFn: () => listPatients(500, true),
+  });
+
   const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
+  const patients = patientsQ.data ?? [];
+  const patientById = useMemo(
+    () => new Map(patients.map((patient) => [patient.id, patient])),
+    [patients],
+  );
   const selectedKinesiologist = useMemo(
     () => kinesios.find((k) => k.id === kinesiologistId),
     [kinesiologistId, kinesios],
   );
+  const weekDays = useMemo(() => weekDaysFor(date), [date]);
+  const weekStart = weekDays[0] ?? date;
+  const weekEnd = weekDays[6] ?? date;
 
   useEffect(() => {
     if (!isKinesiologist || !user?.email || kinesios.length === 0) return;
@@ -121,6 +180,17 @@ export default function AgendaPage() {
     enabled: canLoadAgenda,
   });
 
+  const weekAgendaQ = useQuery({
+    queryKey: ["appointments", "week", weekStart, kinesiologistId],
+    queryFn: async () => {
+      const results = await Promise.all(
+        weekDays.map((day) => listAppointmentsDay({ date: day, kinesiologist_id: kinesiologistId })),
+      );
+      return weekDays.map((day, index) => ({ day, appointments: results[index] ?? [] }));
+    },
+    enabled: canLoadAgenda && viewMode === "week",
+  });
+
   const createM = useMutation({
     mutationFn: createAppointment,
     onSuccess: () => agendaQ.refetch(),
@@ -134,7 +204,12 @@ export default function AgendaPage() {
 
   const cancelM = useMutation({
     mutationFn: cancelAppointment,
-    onSuccess: () => agendaQ.refetch(),
+    onSuccess: () => {
+      setCancelAppointmentTarget(null);
+      setCancelReason("");
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
   });
 
   const rescheduleM = useMutation({
@@ -143,6 +218,7 @@ export default function AgendaPage() {
     onSuccess: () => {
       setEditingAppointment(null);
       agendaQ.refetch();
+      weekAgendaQ.refetch();
     },
   });
 
@@ -182,6 +258,20 @@ export default function AgendaPage() {
     });
   }
 
+  function openCancelAppointment(appt: Appointment) {
+    setCancelAppointmentTarget(appt);
+    setCancelReason("");
+    cancelM.reset();
+  }
+
+  function submitCancelAppointment() {
+    if (!cancelAppointmentTarget) return;
+    cancelM.mutate({
+      id: cancelAppointmentTarget.id,
+      reason: cancelReason.trim() || undefined,
+    });
+  }
+
   const createErr: any = createM.error;
   const hasCreateOverlap = isOverlapError(createM.error);
   const hasCreateInactivePatient = isInactivePatientError(createM.error);
@@ -206,6 +296,18 @@ export default function AgendaPage() {
         selectedKinesiologist.work_end_time,
       )
     : false;
+  const dayAppointments = useMemo(
+    () => filterAppointments(agendaQ.data ?? [], statusFilter, filterPatient?.id),
+    [agendaQ.data, filterPatient?.id, statusFilter],
+  );
+  const weekAppointments = useMemo(
+    () =>
+      (weekAgendaQ.data ?? []).map((group) => ({
+        ...group,
+        appointments: filterAppointments(group.appointments, statusFilter, filterPatient?.id),
+      })),
+    [filterPatient?.id, statusFilter, weekAgendaQ.data],
+  );
 
   return (
     <main>
@@ -226,15 +328,27 @@ export default function AgendaPage() {
 
         {/* Filtros agenda */}
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-sm font-medium">Fecha (para ver agenda)</label>
+              <label className="text-sm font-medium">Fecha</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Vista</label>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={viewMode}
+                onChange={(event) => setViewMode(event.target.value as "day" | "week")}
+              >
+                <option value="day">Día</option>
+                <option value="week">Semana</option>
+              </select>
             </div>
 
             <div className="md:col-span-2">
@@ -273,6 +387,41 @@ export default function AgendaPage() {
                 </p>
               )}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 items-end">
+            <div>
+              <label className="text-sm font-medium">Estado</label>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as "all" | Appointment["status"])}
+              >
+                <option value="all">Todos</option>
+                <option value="scheduled">Programados</option>
+                <option value="cancelled">Cancelados</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Paciente</label>
+              <PatientSearch
+                valuePatientId={filterPatient?.id ?? ""}
+                onSelect={setFilterPatient}
+                placeholder="Filtrar por paciente..."
+              />
+            </div>
+
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              onClick={() => {
+                setStatusFilter("all");
+                setFilterPatient(null);
+              }}
+            >
+              Limpiar filtros
+            </button>
           </div>
         </section>
 
@@ -394,9 +543,16 @@ export default function AgendaPage() {
         </section>
         )}
 
-        {/* Agenda del día */}
+        {/* Agenda */}
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-semibold">Turnos del día</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">
+              {viewMode === "week" ? "Turnos de la semana" : "Turnos del día"}
+            </h2>
+            <div className="text-sm text-gray-600">
+              {viewMode === "week" ? `${weekStart} a ${weekEnd}` : date}
+            </div>
+          </div>
 
           {!canLoadAgenda && (
             <p className="text-sm text-gray-600">
@@ -409,14 +565,15 @@ export default function AgendaPage() {
           {agendaQ.isLoading && <p className="text-sm text-gray-600">Cargando…</p>}
           {agendaQ.isError && <p className="text-sm text-red-600">Error: {String(agendaQ.error?.message)}</p>}
 
-          {agendaQ.data && (
+          {viewMode === "day" && agendaQ.data && (
             <div className="space-y-4">
               <AgendaGrid
                 date={date}
-                appointments={agendaQ.data}
+                appointments={dayAppointments}
                 canManageAppointments={canManageAppointments}
                 workStartTime={selectedKinesiologist?.work_start_time}
                 workEndTime={selectedKinesiologist?.work_end_time}
+                getPatientName={(id) => patientName(patientById.get(id))}
                 onPickSlot={(hhmm) => {
                   setApptDate(date);
                   setStartTime(hhmm);
@@ -425,20 +582,18 @@ export default function AgendaPage() {
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 onCancel={(appt) => {
-                  const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
-                  cancelM.mutate({ id: appt.id, reason });
+                  openCancelAppointment(appt);
                 }}
                 onReschedule={(appt) => {
                   openEditAppointment(appt);
                 }}
               />
 
-              {/* Tu listado actual (lo dejás por ahora) */}
               <div className="divide-y">
-                {agendaQ.data.length === 0 ? (
+                {dayAppointments.length === 0 ? (
                   <p className="text-sm text-gray-600 py-2">No hay turnos.</p>
                 ) : (
-                  agendaQ.data.map((a) => (
+                  dayAppointments.map((a) => (
                     <div key={a.id} className="py-3 flex items-start justify-between gap-4">
                       <div>
                         <div className="font-medium">
@@ -447,10 +602,10 @@ export default function AgendaPage() {
                         <div className="text-sm text-gray-600">
                           Paciente:{" "}
                           <Link className="underline" to={`/patients/${a.patient_id}`}>
-                            {a.patient_id}
+                            {patientName(patientById.get(a.patient_id))}
                           </Link>
                         </div>
-                        <div className="text-sm text-gray-600">Estado: {a.status}</div>
+                        <div className="text-sm text-gray-600">Estado: {statusLabel(a.status)}</div>
                         {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
                       </div>
 
@@ -464,8 +619,7 @@ export default function AgendaPage() {
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
                             disabled={cancelM.isPending || rescheduleM.isPending}
                             onClick={() => {
-                              const reason = window.prompt("Motivo de cancelación (opcional):") ?? undefined;
-                              cancelM.mutate({ id: a.id, reason });
+                              openCancelAppointment(a);
                             }}
                           >
                             {cancelM.isPending ? "Cancelando…" : "Cancelar"}
@@ -518,6 +672,55 @@ export default function AgendaPage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {viewMode === "week" && (
+            <div className="space-y-3">
+              {weekAgendaQ.isLoading && <p className="text-sm text-gray-600">Cargando semana...</p>}
+              {weekAgendaQ.isError && <p className="text-sm text-red-600">Error: {String(weekAgendaQ.error?.message)}</p>}
+              {weekAppointments.map((group) => (
+                <section key={group.day} className="border rounded-lg p-3">
+                  <div className="font-medium">{group.day}</div>
+                  {group.appointments.length === 0 ? (
+                    <p className="text-sm text-gray-600 mt-2">Sin turnos.</p>
+                  ) : (
+                    <div className="divide-y mt-2">
+                      {group.appointments.map((appointment) => (
+                        <div key={appointment.id} className="py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <div className="font-medium">
+                              {formatLocalTime(appointment.start_at)} → {formatLocalTime(appointment.end_at)}
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status)}
+                            </div>
+                            {appointment.notes && <div className="text-sm text-gray-600">Notas: {appointment.notes}</div>}
+                          </div>
+                          {canManageAppointments && appointment.status !== "cancelled" && (
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                onClick={() => openEditAppointment(appointment)}
+                              >
+                                Reprogramar
+                              </button>
+                              <button
+                                type="button"
+                                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                onClick={() => openCancelAppointment(appointment)}
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              ))}
             </div>
           )}
         </section>
@@ -635,6 +838,62 @@ export default function AgendaPage() {
                 onClick={submitEditAppointment}
               >
                 {rescheduleM.isPending ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {cancelAppointmentTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-lg space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Cancelar turno</h2>
+                <p className="text-sm text-gray-600">
+                  {formatLocalTime(cancelAppointmentTarget.start_at)} a {formatLocalTime(cancelAppointmentTarget.end_at)} ·{" "}
+                  {patientName(patientById.get(cancelAppointmentTarget.patient_id))}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                onClick={() => setCancelAppointmentTarget(null)}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Motivo</label>
+              <textarea
+                className="mt-1 w-full border rounded-lg p-2 min-h-24"
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+              />
+            </div>
+
+            {cancelM.isError && (
+              <p className="text-sm text-red-600">
+                Error al cancelar: {String((cancelM.error as any)?.message)}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+                onClick={() => setCancelAppointmentTarget(null)}
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={cancelM.isPending}
+                onClick={submitCancelAppointment}
+              >
+                {cancelM.isPending ? "Cancelando..." : "Confirmar cancelación"}
               </button>
             </div>
           </section>

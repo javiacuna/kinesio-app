@@ -7,7 +7,7 @@ export function homePathForRole(role?: AuthRole | "") {
     case "kinesiologo":
     case "recepcionista":
     case "admin":
-      return "/agenda";
+      return "/dashboard";
     default:
       return "/unauthorized";
   }

@@ -3,6 +3,7 @@ import { AppShell } from "./AppShell";
 import { ProtectedRoute } from "./ProtectedRoute";
 import { RoleRedirect } from "./RoleRedirect";
 import AgendaPage from "../pages/AgendaPage";
+import DashboardPage from "../pages/DashboardPage";
 import LoginPage from "../pages/LoginPage";
 import PatientPortalPage from "../pages/PatientPortalPage";
 import PatientDetailPage from "../pages/PatientDetailPage";
@@ -20,7 +21,10 @@ export const router = createBrowserRouter([
     children: [
       {
         element: <AppShell />,
-        children: [{ path: "/agenda", element: <AgendaPage /> }],
+        children: [
+          { path: "/dashboard", element: <DashboardPage /> },
+          { path: "/agenda", element: <AgendaPage /> },
+        ],
       },
     ],
   },

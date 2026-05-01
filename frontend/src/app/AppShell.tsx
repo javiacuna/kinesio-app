@@ -14,6 +14,7 @@ export function AppShell() {
   }
 
   const canSeePatients = user?.role === "admin" || user?.role === "recepcionista";
+  const canSeeDashboard = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeStaff = user?.role === "admin";
@@ -30,6 +31,14 @@ export function AppShell() {
           </div>
 
           <nav className="flex flex-wrap items-center gap-2">
+            {canSeeDashboard && (
+              <Link
+                className={navClass(location.pathname === "/dashboard")}
+                to="/dashboard"
+              >
+                Dashboard
+              </Link>
+            )}
             {canSeeAgenda && (
               <Link
                 className={navClass(location.pathname === "/agenda")}
