@@ -130,11 +130,13 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	matRepo := matGorm.NewRepository(db)
 	matCreateUC := matUC.NewCreateMaterialUseCase(matRepo)
+	matUpdateUC := matUC.NewUpdateMaterialUseCase(matRepo)
 	matListUC := matUC.NewListMaterialsUseCase(matRepo)
 	matLoanUC := matUC.NewLoanMaterialUseCase(matRepo)
 	matReturnUC := matUC.NewReturnMaterialUseCase(matRepo)
+	matListAllLoansUC := matUC.NewListLoansUseCase(matRepo)
 	matListLoansUC := matUC.NewListLoansByPatientUseCase(matRepo)
-	matHandler := matHTTP.NewHandler(matCreateUC, matListUC, matLoanUC, matReturnUC, matListLoansUC)
+	matHandler := matHTTP.NewHandler(matCreateUC, matUpdateUC, matListUC, matLoanUC, matReturnUC, matListAllLoansUC, matListLoansUC)
 
 	attachmentRepo := attachmentsGorm.NewRepository(db)
 	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir, patientRepo)
@@ -189,7 +191,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/materials", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.CreateMaterial)
 	v1.GET("/materials", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ListMaterials)
+	v1.PUT("/materials/:material_id", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.UpdateMaterial)
 
+	v1.GET("/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ListLoans)
 	v1.POST("/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.LoanMaterial)
 	v1.POST("/material-loans/:loan_id/return", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ReturnLoan)
 	v1.GET("/patient-attachments/:attachment_id/download", attachmentHandler.Download)

@@ -8,6 +8,7 @@ import PatientPortalPage from "../pages/PatientPortalPage";
 import PatientDetailPage from "../pages/PatientDetailPage";
 import PatientsPage from "../pages/PatientsPage";
 import StaffPage from "../pages/StaffPage";
+import MaterialsPage from "../pages/MaterialsPage";
 import UnauthorizedPage from "../pages/UnauthorizedPage";
 
 export const router = createBrowserRouter([
@@ -47,6 +48,15 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [{ path: "/patients/:patientId", element: <PatientDetailPage /> }],
+      },
+    ],
+  },
+  {
+    element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
+    children: [
+      {
+        element: <AppShell />,
+        children: [{ path: "/materials", element: <MaterialsPage /> }],
       },
     ],
   },

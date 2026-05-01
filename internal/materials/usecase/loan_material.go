@@ -16,6 +16,8 @@ type LoanMaterialInput struct {
 	KinesiologistID string  `json:"kinesiologist_id"`
 	Qty             int     `json:"qty"`
 	Notes           *string `json:"notes,omitempty"`
+	ActorEmail      string  `json:"-"`
+	ActorRole       string  `json:"-"`
 }
 
 type LoanMaterialUseCase struct {
@@ -73,6 +75,8 @@ func (uc *LoanMaterialUseCase) Execute(ctx context.Context, in LoanMaterialInput
 		Notes:           in.Notes,
 		LoanedAt:        now,
 		ReturnedAt:      nil,
+		LoanedByEmail:   trimOptionalString(in.ActorEmail),
+		LoanedByRole:    trimOptionalString(in.ActorRole),
 	}
 
 	// en repo: transacción stock-- + create loan

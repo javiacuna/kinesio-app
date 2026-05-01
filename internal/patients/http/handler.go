@@ -243,7 +243,7 @@ func (h *Handler) GetPatientByID(c *gin.Context) {
 }
 
 func (h *Handler) Search(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}

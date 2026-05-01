@@ -15,6 +15,7 @@ export function AppShell() {
 
   const canSeePatients = user?.role === "admin" || user?.role === "recepcionista";
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
+  const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeStaff = user?.role === "admin";
 
   return (
@@ -51,6 +52,14 @@ export function AppShell() {
                 to="/patients"
               >
                 Pacientes
+              </Link>
+            )}
+            {canSeeMaterials && (
+              <Link
+                className={navClass(location.pathname === "/materials")}
+                to="/materials"
+              >
+                Materiales
               </Link>
             )}
             {canSeeStaff && (

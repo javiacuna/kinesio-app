@@ -40,6 +40,38 @@ func (r *Repository) CreateMaterial(ctx context.Context, m domain.Material) (dom
 	return out, nil
 }
 
+func (r *Repository) UpdateMaterial(ctx context.Context, m domain.Material) (domain.Material, error) {
+	model := toMaterialModel(m)
+	err := r.db.WithContext(ctx).
+		Model(&MaterialModel{}).
+		Where("id = ?", m.ID.String()).
+		Updates(map[string]any{
+			"name":             model.Name,
+			"description":      model.Description,
+			"total_qty":        model.TotalQty,
+			"available_qty":    model.AvailableQty,
+			"updated_at":       model.UpdatedAt,
+			"updated_by_email": model.UpdatedByEmail,
+			"updated_by_role":  model.UpdatedByRole,
+		}).Error
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "ux_materials_name") ||
+			strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+			return domain.Material{}, domain.ErrDuplicateName
+		}
+		return domain.Material{}, err
+	}
+
+	out, found, err := r.GetMaterialByID(ctx, m.ID)
+	if err != nil {
+		return domain.Material{}, err
+	}
+	if !found {
+		return domain.Material{}, domain.ErrNotFound
+	}
+	return out, nil
+}
+
 func (r *Repository) ListMaterials(ctx context.Context, limit int) ([]domain.Material, error) {
 	var ms []MaterialModel
 	if err := r.db.WithContext(ctx).Order("name asc").Limit(limit).Find(&ms).Error; err != nil {
@@ -114,6 +146,24 @@ func (r *Repository) GetLoanByID(ctx context.Context, id uuid.UUID) (domain.Mate
 	return toLoanDomain(m), true, nil
 }
 
+func (r *Repository) ListLoans(ctx context.Context, onlyActive bool, limit int) ([]domain.MaterialLoan, error) {
+	q := r.db.WithContext(ctx).Order("loaned_at desc").Limit(limit)
+	if onlyActive {
+		q = q.Where("returned_at IS NULL")
+	}
+
+	var ms []MaterialLoanModel
+	if err := q.Find(&ms).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.MaterialLoan, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, toLoanDomain(m))
+	}
+	return out, nil
+}
+
 func (r *Repository) ListLoansByPatient(ctx context.Context, patientID uuid.UUID, onlyActive bool, limit int) ([]domain.MaterialLoan, error) {
 	q := r.db.WithContext(ctx).Order("loaned_at desc").Limit(limit).Where("patient_id = ?", patientID.String())
 	if onlyActive {
@@ -132,12 +182,16 @@ func (r *Repository) ListLoansByPatient(ctx context.Context, patientID uuid.UUID
 	return out, nil
 }
 
-func (r *Repository) MarkReturned(ctx context.Context, loanID uuid.UUID, returnedAt time.Time) error {
+func (r *Repository) MarkReturned(ctx context.Context, loanID uuid.UUID, returnedAt time.Time, actorEmail *string, actorRole *string) error {
 	// solo si no estaba returned
 	res := r.db.WithContext(ctx).
 		Model(&MaterialLoanModel{}).
 		Where("id = ? AND returned_at IS NULL", loanID.String()).
-		Update("returned_at", returnedAt)
+		Updates(map[string]any{
+			"returned_at":       returnedAt,
+			"returned_by_email": actorEmail,
+			"returned_by_role":  actorRole,
+		})
 
 	if res.Error != nil {
 		return res.Error
@@ -152,25 +206,33 @@ func (r *Repository) MarkReturned(ctx context.Context, loanID uuid.UUID, returne
 
 func toMaterialModel(m domain.Material) MaterialModel {
 	return MaterialModel{
-		ID:           m.ID.String(),
-		Name:         m.Name,
-		Description:  m.Description,
-		TotalQty:     m.TotalQty,
-		AvailableQty: m.AvailableQty,
-		CreatedAt:    m.CreatedAt,
-		UpdatedAt:    m.UpdatedAt,
+		ID:             m.ID.String(),
+		Name:           m.Name,
+		Description:    m.Description,
+		TotalQty:       m.TotalQty,
+		AvailableQty:   m.AvailableQty,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+		CreatedByEmail: m.CreatedByEmail,
+		CreatedByRole:  m.CreatedByRole,
+		UpdatedByEmail: m.UpdatedByEmail,
+		UpdatedByRole:  m.UpdatedByRole,
 	}
 }
 
 func toMaterialDomain(m MaterialModel) domain.Material {
 	return domain.Material{
-		ID:           uuid.MustParse(m.ID),
-		Name:         m.Name,
-		Description:  m.Description,
-		TotalQty:     m.TotalQty,
-		AvailableQty: m.AvailableQty,
-		CreatedAt:    m.CreatedAt,
-		UpdatedAt:    m.UpdatedAt,
+		ID:             uuid.MustParse(m.ID),
+		Name:           m.Name,
+		Description:    m.Description,
+		TotalQty:       m.TotalQty,
+		AvailableQty:   m.AvailableQty,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+		CreatedByEmail: m.CreatedByEmail,
+		CreatedByRole:  m.CreatedByRole,
+		UpdatedByEmail: m.UpdatedByEmail,
+		UpdatedByRole:  m.UpdatedByRole,
 	}
 }
 
@@ -188,6 +250,10 @@ func toLoanModel(l domain.MaterialLoan) MaterialLoanModel {
 		Notes:           l.Notes,
 		LoanedAt:        l.LoanedAt,
 		ReturnedAt:      returnedAt,
+		LoanedByEmail:   l.LoanedByEmail,
+		LoanedByRole:    l.LoanedByRole,
+		ReturnedByEmail: l.ReturnedByEmail,
+		ReturnedByRole:  l.ReturnedByRole,
 	}
 }
 
@@ -201,5 +267,9 @@ func toLoanDomain(m MaterialLoanModel) domain.MaterialLoan {
 		Notes:           m.Notes,
 		LoanedAt:        m.LoanedAt,
 		ReturnedAt:      m.ReturnedAt,
+		LoanedByEmail:   m.LoanedByEmail,
+		LoanedByRole:    m.LoanedByRole,
+		ReturnedByEmail: m.ReturnedByEmail,
+		ReturnedByRole:  m.ReturnedByRole,
 	}
 }

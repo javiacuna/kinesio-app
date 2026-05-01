@@ -7,13 +7,17 @@ import (
 )
 
 type Material struct {
-	ID           uuid.UUID
-	Name         string
-	Description  *string
-	TotalQty     int
-	AvailableQty int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID             uuid.UUID
+	Name           string
+	Description    *string
+	TotalQty       int
+	AvailableQty   int
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	CreatedByEmail *string
+	CreatedByRole  *string
+	UpdatedByEmail *string
+	UpdatedByRole  *string
 }
 
 type MaterialLoan struct {
@@ -25,4 +29,8 @@ type MaterialLoan struct {
 	Notes           *string
 	LoanedAt        time.Time
 	ReturnedAt      *time.Time
+	LoanedByEmail   *string
+	LoanedByRole    *string
+	ReturnedByEmail *string
+	ReturnedByRole  *string
 }

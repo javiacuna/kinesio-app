@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patients/usecase"
 )
@@ -385,6 +386,32 @@ func TestListPatientsEndpoint(t *testing.T) {
 				t.Fatalf("len = %d, want %d", len(got), tt.wantLen)
 			}
 		})
+	}
+}
+
+func TestSearchPatientsAllowsKinesiologist(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	repo := &registerPatientRepo{patients: []domain.Patient{
+		{ID: uuid.New(), DNI: "11111111", FirstName: "Ana", LastName: "Lopez", Email: "ana@example.com", CreatedAt: now, UpdatedAt: now},
+	}}
+	handler := NewHandler(nil, nil, nil, nil, usecase.NewListPatientsUseCase(repo), usecase.NewSearchPatientsUseCase(repo))
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(middleware.AuthUserKey, middleware.AuthUser{UID: "kin", Email: "kin@example.com", Role: "kinesiologo"})
+		c.Next()
+	})
+	router.GET("/patients", handler.Search)
+
+	req := httptest.NewRequest(http.MethodGet, "/patients?query=ana", nil)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
 	}
 }
 
