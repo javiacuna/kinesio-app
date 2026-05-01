@@ -1,16 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
+import { requestPasswordReset } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
 
-export default function LoginPage() {
-  const { loginWithEmail, isAuthenticated, user } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+export default function ForgotPasswordPage() {
+  const { isAuthenticated, user } = useAuth();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSent, setIsSent] = useState(false);
+  const [error, setError] = useState("");
 
   if (isAuthenticated) {
     return <Navigate to={homePathForRole(user?.role)} replace />;
@@ -19,15 +18,14 @@ export default function LoginPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setIsSent(false);
     setIsSubmitting(true);
 
     try {
-      const me = await loginWithEmail({ email, password });
-      const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname;
-      navigate(from && from !== "/login" ? from : homePathForRole(me.role), { replace: true });
-    } catch (err) {
-      const message = (err as Error)?.message;
-      setError(message === "invalid_credentials" ? "Email o contraseña incorrectos." : "No se pudo iniciar sesión.");
+      await requestPasswordReset({ email });
+      setIsSent(true);
+    } catch {
+      setError("No se pudo iniciar la recuperación.");
     } finally {
       setIsSubmitting(false);
     }
@@ -37,8 +35,8 @@ export default function LoginPage() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-10">
       <section className="w-full max-w-sm bg-white border rounded-lg p-6 shadow-sm">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold">Ingresar</h1>
-          <p className="text-sm text-gray-600 mt-1">Ingresá con tu email y contraseña.</p>
+          <h1 className="text-2xl font-semibold">Recuperar contraseña</h1>
+          <p className="text-sm text-gray-600 mt-1">Ingresá tu email y te enviamos instrucciones.</p>
         </div>
 
         <form className="space-y-4" onSubmit={submit}>
@@ -57,20 +55,11 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label className="text-sm font-medium" htmlFor="password">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              className="mt-1 w-full border rounded-lg p-2"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </div>
+          {isSent && (
+            <div className="border border-green-200 bg-green-50 rounded-lg p-3 text-sm text-green-700">
+              Si existe una cuenta con ese email, enviamos las instrucciones.
+            </div>
+          )}
 
           {error && (
             <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
@@ -83,13 +72,13 @@ export default function LoginPage() {
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "Ingresando..." : "Ingresar"}
+            {isSubmitting ? "Enviando..." : "Enviar instrucciones"}
           </button>
         </form>
 
         <div className="mt-4 text-center">
-          <Link className="text-sm underline" to="/forgot-password">
-            Olvidé mi contraseña
+          <Link className="text-sm underline" to="/login">
+            Volver al login
           </Link>
         </div>
       </section>

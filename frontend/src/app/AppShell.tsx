@@ -79,6 +79,12 @@ export function AppShell() {
                 Equipo
               </Link>
             )}
+            <Link
+              className={navClass(location.pathname === "/profile")}
+              to="/profile"
+            >
+              Mi perfil
+            </Link>
             <button
               type="button"
               className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"

@@ -57,12 +57,27 @@ type firebaseLoginResponse struct {
 	Email        string `json:"email"`
 }
 
+type firebaseUpdatePasswordRequest struct {
+	IDToken           string `json:"idToken"`
+	Password          string `json:"password"`
+	ReturnSecureToken bool   `json:"returnSecureToken"`
+}
+
 type loginResponse struct {
 	IDToken      string `json:"id_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    string `json:"expires_in"`
 	UID          string `json:"uid"`
 	Email        string `json:"email"`
+}
+
+type passwordResetRequest struct {
+	Email string `json:"email"`
+}
+
+type changePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 type assignRoleRequest struct {
@@ -175,6 +190,80 @@ func (h *Handler) Login(c *gin.Context) {
 		UID:          fbResp.LocalID,
 		Email:        fbResp.Email,
 	})
+}
+
+func (h *Handler) RequestPasswordReset(c *gin.Context) {
+	if h.apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "firebase_api_key_not_configured"})
+		return
+	}
+
+	var req passwordResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_email"})
+		return
+	}
+
+	// Por seguridad devolvemos OK aunque Firebase indique que no existe el email.
+	if err := h.sendPasswordResetEmail(c.Request.Context(), email); err != nil {
+		c.JSON(http.StatusOK, gin.H{"email_sent": true})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"email_sent": true})
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	if h.apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "firebase_api_key_not_configured"})
+		return
+	}
+
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req changePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	currentPassword := strings.TrimSpace(req.CurrentPassword)
+	newPassword := strings.TrimSpace(req.NewPassword)
+	validation := map[string]string{}
+	if currentPassword == "" {
+		validation["current_password"] = "required"
+	}
+	if len(newPassword) < 6 {
+		validation["new_password"] = "min_6_chars"
+	}
+	if len(validation) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": validation})
+		return
+	}
+
+	loginResp, err := h.signInWithPassword(c.Request.Context(), user.Email, currentPassword)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_current_password"})
+		return
+	}
+
+	out, err := h.updateFirebasePassword(c.Request.Context(), loginResp.IDToken, newPassword)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "firebase_error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, out)
 }
 
 func (h *Handler) AssignRole(c *gin.Context) {
@@ -378,6 +467,81 @@ func (h *Handler) sendPasswordResetEmail(ctx context.Context, email string) erro
 	}
 
 	return nil
+}
+
+func (h *Handler) signInWithPassword(ctx context.Context, email string, password string) (firebaseLoginResponse, error) {
+	payload, err := json.Marshal(firebaseLoginRequest{
+		Email:             email,
+		Password:          password,
+		ReturnSecureToken: true,
+	})
+	if err != nil {
+		return firebaseLoginResponse{}, err
+	}
+
+	endpoint := "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + h.apiKey
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return firebaseLoginResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := h.client.Do(req)
+	if err != nil {
+		return firebaseLoginResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return firebaseLoginResponse{}, errors.New("firebase_login_failed")
+	}
+
+	var out firebaseLoginResponse
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return firebaseLoginResponse{}, err
+	}
+	return out, nil
+}
+
+func (h *Handler) updateFirebasePassword(ctx context.Context, idToken string, newPassword string) (loginResponse, error) {
+	payload, err := json.Marshal(firebaseUpdatePasswordRequest{
+		IDToken:           idToken,
+		Password:          newPassword,
+		ReturnSecureToken: true,
+	})
+	if err != nil {
+		return loginResponse{}, err
+	}
+
+	endpoint := "https://identitytoolkit.googleapis.com/v1/accounts:update?key=" + h.apiKey
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return loginResponse{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := h.client.Do(req)
+	if err != nil {
+		return loginResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return loginResponse{}, errors.New("firebase_update_password_failed")
+	}
+
+	var fbResp firebaseLoginResponse
+	if err := json.NewDecoder(res.Body).Decode(&fbResp); err != nil {
+		return loginResponse{}, err
+	}
+
+	return loginResponse{
+		IDToken:      fbResp.IDToken,
+		RefreshToken: fbResp.RefreshToken,
+		ExpiresIn:    fbResp.ExpiresIn,
+		UID:          fbResp.LocalID,
+		Email:        fbResp.Email,
+	}, nil
 }
 
 func randomPassword() (string, error) {

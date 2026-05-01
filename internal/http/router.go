@@ -145,10 +145,12 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1 := r.Group("/api/v1")
 
 	v1.POST("/auth/login", authHandler.Login)
+	v1.POST("/auth/password-reset", authHandler.RequestPasswordReset)
 
 	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
 	v1.GET("/auth/me", authHandler.Me)
+	v1.POST("/auth/change-password", authHandler.ChangePassword)
 	v1.GET("/admin/users", authHandler.ListUsers)
 	v1.POST("/admin/users/invite", authHandler.InviteUser)
 	v1.POST("/admin/users/role", authHandler.AssignRole)
