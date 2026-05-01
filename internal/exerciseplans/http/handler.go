@@ -61,6 +61,11 @@ type updatePlanRequest struct {
 }
 
 func (h *Handler) Create(c *gin.Context) {
+	if !middleware.HasRole(c, "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	var req createPlanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
@@ -71,6 +76,11 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func (h *Handler) CreateForPatient(c *gin.Context) {
+	if !middleware.HasRole(c, "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	patientID := c.Param("patient_id")
 
 	var req createPlanRequest
@@ -118,6 +128,9 @@ func (h *Handler) ListByPatient(c *gin.Context) {
 			return
 		}
 		patientID = resolvedPatientID
+	} else if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
 	}
 
 	pid, err := uuid.Parse(patientID)
@@ -138,6 +151,11 @@ func (h *Handler) ListByPatient(c *gin.Context) {
 }
 
 func (h *Handler) Update(c *gin.Context) {
+	if !middleware.HasRole(c, "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	if h.updateUC == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
@@ -175,6 +193,11 @@ func (h *Handler) Update(c *gin.Context) {
 }
 
 func (h *Handler) GetByID(c *gin.Context) {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	id, err := uuid.Parse(c.Param("plan_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_plan_id"})

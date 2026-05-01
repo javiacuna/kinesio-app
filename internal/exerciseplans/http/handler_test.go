@@ -14,6 +14,7 @@ import (
 
 	"github.com/javiacuna/kinesio-backend/internal/exerciseplans/domain"
 	"github.com/javiacuna/kinesio-backend/internal/exerciseplans/usecase"
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 )
 
 type exercisePlanRepo struct {
@@ -21,6 +22,17 @@ type exercisePlanRepo struct {
 	updated  domain.ExercisePlan
 	listed   []domain.ExercisePlan
 	listedID uuid.UUID
+}
+
+func testRole(role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set(middleware.AuthUserKey, middleware.AuthUser{
+			UID:   "test",
+			Email: "test@example.com",
+			Role:  role,
+		})
+		c.Next()
+	}
 }
 
 func (r *exercisePlanRepo) Create(ctx context.Context, p domain.ExercisePlan) (domain.ExercisePlan, error) {
@@ -117,6 +129,7 @@ func TestCreatePlanEndpoint(t *testing.T) {
 			handler := NewHandler(createUC, nil, nil)
 
 			router := gin.New()
+			router.Use(testRole("kinesiologo"))
 			router.POST("/plans", handler.Create)
 			router.POST("/patients/:patient_id/plans", handler.CreateForPatient)
 
@@ -217,6 +230,7 @@ func TestListPatientPlansEndpoint(t *testing.T) {
 			handler := NewHandler(nil, listUC, nil)
 
 			router := gin.New()
+			router.Use(testRole("recepcionista"))
 			router.GET("/patients/:patient_id/plans", handler.ListByPatient)
 
 			req := httptest.NewRequest(http.MethodGet, tt.route, nil)
