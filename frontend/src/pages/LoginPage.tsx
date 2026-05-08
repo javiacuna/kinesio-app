@@ -2,9 +2,11 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
+import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export default function LoginPage() {
   const { loginWithEmail, isAuthenticated, user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -27,7 +29,7 @@ export default function LoginPage() {
       navigate(from && from !== "/login" ? from : homePathForRole(me.role), { replace: true });
     } catch (err) {
       const message = (err as Error)?.message;
-      setError(message === "invalid_credentials" ? "Email o contraseña incorrectos." : "No se pudo iniciar sesión.");
+      setError(message === "invalid_credentials" ? t("auth.invalidCredentials") : t("auth.loginFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -37,14 +39,17 @@ export default function LoginPage() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-10">
       <section className="w-full max-w-sm bg-white border rounded-lg p-6 shadow-sm">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold">Ingresar</h1>
-          <p className="text-sm text-gray-600 mt-1">Ingresá con tu email y contraseña.</p>
+          <div className="mb-4">
+            <LanguageSelect />
+          </div>
+          <h1 className="text-2xl font-semibold">{t("auth.login")}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t("auth.loginHelp")}</p>
         </div>
 
         <form className="space-y-4" onSubmit={submit}>
           <div>
             <label className="text-sm font-medium" htmlFor="email">
-              Email
+              {t("auth.email")}
             </label>
             <input
               id="email"
@@ -59,7 +64,7 @@ export default function LoginPage() {
 
           <div>
             <label className="text-sm font-medium" htmlFor="password">
-              Contraseña
+              {t("auth.password")}
             </label>
             <input
               id="password"
@@ -83,13 +88,13 @@ export default function LoginPage() {
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "Ingresando..." : "Ingresar"}
+            {isSubmitting ? t("auth.loginLoading") : t("auth.login")}
           </button>
         </form>
 
         <div className="mt-4 text-center">
           <Link className="text-sm underline" to="/forgot-password">
-            Olvidé mi contraseña
+            {t("auth.forgotPassword")}
           </Link>
         </div>
       </section>

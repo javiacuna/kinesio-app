@@ -3,6 +3,7 @@ import type { Appointment } from "../types";
 import { generateSlots } from "@/shared/time/slots";
 import { hhmmToMinutes, toLocalHHmm } from "@/shared/time/local";
 import { formatLocalTime } from "@/shared/time/format";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 type Props = {
   date: string; // YYYY-MM-DD (solo para mostrar / precarga)
@@ -29,6 +30,7 @@ export function AgendaGrid({
   onReschedule,
   getPatientName = (patientId) => patientId,
 }: Props) {
+  const { t } = useLanguage();
   const slots = useMemo(
     () => generateSlots(workStartTime || "08:00", workEndTime || "20:00", 15),
     [workEndTime, workStartTime],
@@ -63,7 +65,7 @@ export function AgendaGrid({
   return (
     <section className="border rounded-lg p-3 space-y-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-lg font-semibold">Grilla horaria</h2>
+        <h2 className="text-lg font-semibold">{t("agenda.grid")}</h2>
         <div className="text-sm text-gray-600">
           {date} · {workStartTime} a {workEndTime}
         </div>
@@ -83,7 +85,7 @@ export function AgendaGrid({
                 className="flex items-center justify-between border rounded-lg p-2 bg-gray-50"
               >
                 <div className="text-sm font-mono text-gray-700">{hhmm}</div>
-                <div className="text-sm text-gray-700">Ocupado</div>
+                <div className="text-sm text-gray-700">{t("agenda.occupied")}</div>
               </div>
             );
           }
@@ -103,18 +105,18 @@ export function AgendaGrid({
                     {formatLocalTime(appt.start_at)} → {formatLocalTime(appt.end_at)}
                   </div>
                   <div className="text-sm text-gray-800">
-                    Paciente: {getPatientName(appt.patient_id)}
+                    {t("agenda.patient")}: {getPatientName(appt.patient_id)}
                   </div>
-                  {appt.notes && <div className="text-xs text-gray-600">Notas: {appt.notes}</div>}
+                  {appt.notes && <div className="text-xs text-gray-600">{t("agenda.notes")}: {appt.notes}</div>}
                   {cancelled && appt.cancelled_reason && (
-                    <div className="text-xs text-gray-600">Motivo: {appt.cancelled_reason}</div>
+                    <div className="text-xs text-gray-600">{t("agenda.cancelReason")}: {appt.cancelled_reason}</div>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2">
                   {cancelled ? (
                     <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
-                      Cancelado
+                      {t("agenda.cancelled")}
                     </span>
                   ) : canManageAppointments ? (
                     <>
@@ -123,19 +125,19 @@ export function AgendaGrid({
                         className="px-3 py-1 rounded-lg border text-sm hover:bg-white"
                         onClick={() => onReschedule(appt)}
                       >
-                        Reprogramar
+                        {t("agenda.reschedule")}
                       </button>
                       <button
                         type="button"
                         className="px-3 py-1 rounded-lg border text-sm hover:bg-white"
                         onClick={() => onCancel(appt)}
                       >
-                        Cancelar
+                        {t("agenda.cancel")}
                       </button>
                     </>
                   ) : (
                     <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
-                      Programado
+                      {t("agenda.scheduled")}
                     </span>
                   )}
                 </div>
@@ -153,10 +155,10 @@ export function AgendaGrid({
                   className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                   onClick={() => onPickSlot(hhmm)}
                 >
-                  Crear acá
+                  {t("agenda.create")}
                 </button>
               ) : (
-                <span className="text-sm text-gray-600">Libre</span>
+                <span className="text-sm text-gray-600">{t("agenda.free")}</span>
               )}
             </div>
           );

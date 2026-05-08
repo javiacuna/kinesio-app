@@ -1,0 +1,313 @@
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type Language = "es" | "en";
+
+const translations: Record<Language, Record<string, string>> = {
+  es: {
+    "app.name": "Kinesio App",
+    "auth.email": "Email",
+    "auth.forgotPassword": "Olvidé mi contraseña",
+    "auth.invalidCredentials": "Email o contraseña incorrectos.",
+    "auth.language": "Idioma",
+    "auth.login": "Ingresar",
+    "auth.loginFailed": "No se pudo iniciar sesión.",
+    "auth.loginHelp": "Ingresá con tu email y contraseña.",
+    "auth.loginLoading": "Ingresando...",
+    "auth.password": "Contraseña",
+    "auth.recovery": "Recuperar contraseña",
+    "auth.recoveryBack": "Volver al login",
+    "auth.recoveryFailed": "No se pudo iniciar la recuperación.",
+    "auth.recoveryHelp": "Ingresá tu email y te enviamos instrucciones.",
+    "auth.recoverySent": "Si existe una cuenta con ese email, enviamos las instrucciones.",
+    "auth.recoverySubmit": "Enviar instrucciones",
+    "auth.recoverySubmitting": "Enviando...",
+    "common.loadingSession": "Validando sesión...",
+    "agenda.appointmentDate": "Fecha del turno",
+    "agenda.appointmentOutOfHours": "El turno debe estar dentro del horario de",
+    "agenda.appointmentPast": "No se pueden crear turnos en horarios pasados.",
+    "agenda.cancel": "Cancelar",
+    "agenda.cancelAppointment": "Cancelar turno",
+    "agenda.cancelError": "Error al cancelar",
+    "agenda.cancelReason": "Motivo",
+    "agenda.cancelled": "Cancelado",
+    "agenda.close": "Cerrar",
+    "agenda.clearFilters": "Limpiar filtros",
+    "agenda.confirmCancel": "Confirmar cancelación",
+    "agenda.create": "Crear turno",
+    "agenda.creating": "Creando...",
+    "agenda.dailySubtitle": "Agenda diaria y creación de turnos.",
+    "agenda.date": "Fecha",
+    "agenda.day": "Día",
+    "agenda.duration": "Duración (min)",
+    "agenda.error": "Error",
+    "agenda.filterPatient": "Filtrar por paciente...",
+    "agenda.free": "Libre",
+    "agenda.goPatients": "Ir a Pacientes",
+    "agenda.grid": "Grilla horaria",
+    "agenda.kinesiologist": "Kinesiólogo",
+    "agenda.kinesiologistMissing": "Seleccioná un kinesiólogo.",
+    "agenda.myDay": "Mis turnos del día.",
+    "agenda.noAppointments": "No hay turnos.",
+    "agenda.noKinesiologistProfile": "No se encontró un perfil de kinesiólogo activo asociado a tu email.",
+    "agenda.noOwnKinesiologistProfile": "No se encontró tu perfil de kinesiólogo activo.",
+    "agenda.notes": "Notas",
+    "agenda.occupied": "Ocupado",
+    "agenda.patient": "Paciente",
+    "agenda.patientSearchDefault": "Buscar por DNI, email o apellido (mín. 3 caracteres)...",
+    "agenda.patientArchived": "Paciente archivado",
+    "agenda.patientArchivedDetail": "No se pueden crear turnos para pacientes archivados.",
+    "agenda.searching": "Buscando...",
+    "agenda.searchNoResults": "Sin resultados.",
+    "agenda.selected": "Seleccionado",
+    "agenda.reschedule": "Reprogramar",
+    "agenda.scheduled": "Programado",
+    "agenda.select": "Seleccionar...",
+    "agenda.startTime": "Hora inicio",
+    "agenda.status": "Estado",
+    "agenda.statusAll": "Todos",
+    "agenda.statusCancelled": "Cancelados",
+    "agenda.statusScheduled": "Programados",
+    "agenda.title": "Agenda",
+    "agenda.tipPatient": "Tip: si no existe, crealo en /patients y después buscá por DNI o email.",
+    "agenda.todayAppointments": "Turnos del día",
+    "agenda.view": "Vista",
+    "agenda.week": "Semana",
+    "agenda.weekAppointments": "Turnos de la semana",
+    "common.back": "Volver",
+    "common.cancel": "Cancelar",
+    "common.saveChanges": "Guardar cambios",
+    "common.saving": "Guardando...",
+    "dashboard.activePatients": "Pacientes activos",
+    "dashboard.activityToday": "Actividad operativa de hoy.",
+    "dashboard.borrowed": "Prestado",
+    "dashboard.available": "Disponible",
+    "dashboard.loadingAppointments": "Cargando turnos...",
+    "dashboard.loadingPending": "Cargando pendientes...",
+    "dashboard.loadingStock": "Cargando stock...",
+    "dashboard.lowStock": "Bajo stock",
+    "dashboard.material": "Material",
+    "dashboard.noAppointmentsToday": "No hay turnos programados para hoy.",
+    "dashboard.noPendingMaterials": "No hay materiales pendientes.",
+    "dashboard.noStockAlerts": "No hay materiales con bajo stock.",
+    "dashboard.pendingMaterials": "Materiales pendientes",
+    "dashboard.pendingReturns": "Pendientes de devolución",
+    "dashboard.quantity": "Cantidad",
+    "dashboard.stockAlerts": "Alertas de stock",
+    "dashboard.title": "Dashboard",
+    "dashboard.todayAppointments": "Turnos hoy",
+    "dashboard.upcomingAppointments": "Próximos turnos",
+    "nav.agenda": "Agenda",
+    "nav.dashboard": "Dashboard",
+    "nav.materials": "Materiales",
+    "nav.myProfile": "Mi perfil",
+    "nav.patients": "Pacientes",
+    "nav.portal": "Portal",
+    "nav.signOut": "Cerrar sesión",
+    "nav.staff": "Equipo",
+    "role.admin": "admin",
+    "role.kinesiologist": "kinesiólogo",
+    "role.none": "sin rol",
+    "role.patient": "paciente",
+    "role.receptionist": "recepcionista",
+    "profile.account": "Cuenta",
+    "profile.changePassword": "Cambiar contraseña",
+    "profile.currentPassword": "Contraseña actual",
+    "profile.data": "Datos de sesión y seguridad.",
+    "profile.email": "Email",
+    "profile.invalidCurrentPassword": "La contraseña actual no es correcta.",
+    "profile.minPassword": "La nueva contraseña debe tener al menos 6 caracteres.",
+    "profile.newPassword": "Nueva contraseña",
+    "profile.passwordChanged": "Contraseña actualizada.",
+    "profile.passwordChangeFailed": "No se pudo cambiar la contraseña.",
+    "profile.passwordMismatch": "Las contraseñas nuevas no coinciden.",
+    "profile.repeatPassword": "Repetir nueva contraseña",
+    "profile.role": "Rol",
+    "profile.savePassword": "Guardar contraseña",
+    "profile.title": "Mi perfil",
+  },
+  en: {
+    "app.name": "Kinesio App",
+    "auth.email": "Email",
+    "auth.forgotPassword": "Forgot password",
+    "auth.invalidCredentials": "Incorrect email or password.",
+    "auth.language": "Language",
+    "auth.login": "Sign in",
+    "auth.loginFailed": "Could not sign in.",
+    "auth.loginHelp": "Sign in with your email and password.",
+    "auth.loginLoading": "Signing in...",
+    "auth.password": "Password",
+    "auth.recovery": "Reset password",
+    "auth.recoveryBack": "Back to sign in",
+    "auth.recoveryFailed": "Could not start password recovery.",
+    "auth.recoveryHelp": "Enter your email and we will send instructions.",
+    "auth.recoverySent": "If an account exists for that email, we sent instructions.",
+    "auth.recoverySubmit": "Send instructions",
+    "auth.recoverySubmitting": "Sending...",
+    "common.loadingSession": "Validating session...",
+    "agenda.appointmentDate": "Appointment date",
+    "agenda.appointmentOutOfHours": "The appointment must be within the working hours from",
+    "agenda.appointmentPast": "Appointments cannot be created in past times.",
+    "agenda.cancel": "Cancel",
+    "agenda.cancelAppointment": "Cancel appointment",
+    "agenda.cancelError": "Cancellation error",
+    "agenda.cancelReason": "Reason",
+    "agenda.cancelled": "Cancelled",
+    "agenda.close": "Close",
+    "agenda.clearFilters": "Clear filters",
+    "agenda.confirmCancel": "Confirm cancellation",
+    "agenda.create": "Create appointment",
+    "agenda.creating": "Creating...",
+    "agenda.dailySubtitle": "Daily schedule and appointment creation.",
+    "agenda.date": "Date",
+    "agenda.day": "Day",
+    "agenda.duration": "Duration (min)",
+    "agenda.error": "Error",
+    "agenda.filterPatient": "Filter by patient...",
+    "agenda.free": "Free",
+    "agenda.goPatients": "Go to Patients",
+    "agenda.grid": "Time grid",
+    "agenda.kinesiologist": "Kinesiologist",
+    "agenda.kinesiologistMissing": "Select a kinesiologist.",
+    "agenda.myDay": "My appointments for today.",
+    "agenda.noAppointments": "No appointments.",
+    "agenda.noKinesiologistProfile": "No active kinesiologist profile was found for your email.",
+    "agenda.noOwnKinesiologistProfile": "Your active kinesiologist profile was not found.",
+    "agenda.notes": "Notes",
+    "agenda.occupied": "Busy",
+    "agenda.patient": "Patient",
+    "agenda.patientSearchDefault": "Search by DNI, email, or last name (min. 3 characters)...",
+    "agenda.patientArchived": "Archived patient",
+    "agenda.patientArchivedDetail": "Appointments cannot be created for archived patients.",
+    "agenda.searching": "Searching...",
+    "agenda.searchNoResults": "No results.",
+    "agenda.selected": "Selected",
+    "agenda.reschedule": "Reschedule",
+    "agenda.scheduled": "Scheduled",
+    "agenda.select": "Select...",
+    "agenda.startTime": "Start time",
+    "agenda.status": "Status",
+    "agenda.statusAll": "All",
+    "agenda.statusCancelled": "Cancelled",
+    "agenda.statusScheduled": "Scheduled",
+    "agenda.title": "Schedule",
+    "agenda.tipPatient": "Tip: if the patient does not exist, create them in /patients and then search by DNI or email.",
+    "agenda.todayAppointments": "Today's appointments",
+    "agenda.view": "View",
+    "agenda.week": "Week",
+    "agenda.weekAppointments": "Weekly appointments",
+    "common.back": "Back",
+    "common.cancel": "Cancel",
+    "common.saveChanges": "Save changes",
+    "common.saving": "Saving...",
+    "dashboard.activePatients": "Active patients",
+    "dashboard.activityToday": "Today's operational activity.",
+    "dashboard.borrowed": "Loaned",
+    "dashboard.available": "Available",
+    "dashboard.loadingAppointments": "Loading appointments...",
+    "dashboard.loadingPending": "Loading pending items...",
+    "dashboard.loadingStock": "Loading stock...",
+    "dashboard.lowStock": "Low stock",
+    "dashboard.material": "Material",
+    "dashboard.noAppointmentsToday": "No scheduled appointments for today.",
+    "dashboard.noPendingMaterials": "No pending materials.",
+    "dashboard.noStockAlerts": "No low-stock materials.",
+    "dashboard.pendingMaterials": "Pending materials",
+    "dashboard.pendingReturns": "Pending returns",
+    "dashboard.quantity": "Quantity",
+    "dashboard.stockAlerts": "Stock alerts",
+    "dashboard.title": "Dashboard",
+    "dashboard.todayAppointments": "Today's appointments",
+    "dashboard.upcomingAppointments": "Upcoming appointments",
+    "nav.agenda": "Schedule",
+    "nav.dashboard": "Dashboard",
+    "nav.materials": "Materials",
+    "nav.myProfile": "My profile",
+    "nav.patients": "Patients",
+    "nav.portal": "Portal",
+    "nav.signOut": "Sign out",
+    "nav.staff": "Team",
+    "role.admin": "admin",
+    "role.kinesiologist": "kinesiologist",
+    "role.none": "no role",
+    "role.patient": "patient",
+    "role.receptionist": "receptionist",
+    "profile.account": "Account",
+    "profile.changePassword": "Change password",
+    "profile.currentPassword": "Current password",
+    "profile.data": "Session and security details.",
+    "profile.email": "Email",
+    "profile.invalidCurrentPassword": "The current password is incorrect.",
+    "profile.minPassword": "The new password must be at least 6 characters.",
+    "profile.newPassword": "New password",
+    "profile.passwordChanged": "Password updated.",
+    "profile.passwordChangeFailed": "Could not change password.",
+    "profile.passwordMismatch": "The new passwords do not match.",
+    "profile.repeatPassword": "Repeat new password",
+    "profile.role": "Role",
+    "profile.savePassword": "Save password",
+    "profile.title": "My profile",
+  },
+};
+
+type LanguageContextValue = {
+  language: Language;
+  setLanguage: (language: Language) => void;
+  t: (key: string) => string;
+};
+
+const LanguageContext = createContext<LanguageContextValue | null>(null);
+
+function initialLanguage(): Language {
+  const stored = localStorage.getItem("app_language");
+  return stored === "en" || stored === "es" ? stored : "es";
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(initialLanguage);
+
+  const setLanguage = (nextLanguage: Language) => {
+    localStorage.setItem("app_language", nextLanguage);
+    setLanguageState(nextLanguage);
+  };
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  const value = useMemo<LanguageContextValue>(
+    () => ({
+      language,
+      setLanguage,
+      t: (key) => translations[language][key] ?? translations.es[key] ?? key,
+    }),
+    [language],
+  );
+
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+}
+
+export function useLanguage() {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) {
+    throw new Error("useLanguage must be used inside LanguageProvider");
+  }
+  return ctx;
+}
+
+export function LanguageSelect({ compact = false }: { compact?: boolean }) {
+  const { language, setLanguage, t } = useLanguage();
+
+  return (
+    <label className={compact ? "block" : "block text-sm font-medium"}>
+      <span className={compact ? "sr-only" : ""}>{t("auth.language")}</span>
+      <select
+        className={compact ? "w-full border rounded-lg p-2 text-sm bg-white" : "mt-1 w-full border rounded-lg p-2"}
+        value={language}
+        onChange={(event) => setLanguage(event.target.value as Language)}
+      >
+        <option value="es">Español</option>
+        <option value="en">English</option>
+      </select>
+    </label>
+  );
+}

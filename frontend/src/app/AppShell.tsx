@@ -1,9 +1,11 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { queryClient } from "./queryClient";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,25 +20,35 @@ export function AppShell() {
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeStaff = user?.role === "admin";
+  const roleText =
+    user?.role === "admin"
+      ? t("role.admin")
+      : user?.role === "recepcionista"
+        ? t("role.receptionist")
+        : user?.role === "kinesiologo"
+          ? t("role.kinesiologist")
+          : user?.role === "paciente"
+            ? t("role.patient")
+            : t("role.none");
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <aside className="bg-white border-b lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
+        <div className="px-6 py-4 space-y-5">
           <div>
-            <p className="text-xs uppercase text-gray-500">Kinesio App</p>
+            <p className="text-xs uppercase text-gray-500">{t("app.name")}</p>
             <p className="text-sm text-gray-700">
-              {user?.email} · {user?.role || "sin rol"}
+              {user?.email} · {roleText}
             </p>
           </div>
 
-          <nav className="flex flex-wrap items-center gap-2">
+          <nav className="flex flex-wrap gap-2 lg:flex-col">
             {canSeeDashboard && (
               <Link
                 className={navClass(location.pathname === "/dashboard")}
                 to="/dashboard"
               >
-                Dashboard
+                {t("nav.dashboard")}
               </Link>
             )}
             {canSeeAgenda && (
@@ -44,7 +56,7 @@ export function AppShell() {
                 className={navClass(location.pathname === "/agenda")}
                 to="/agenda"
               >
-                Agenda
+                {t("nav.agenda")}
               </Link>
             )}
             {user?.role === "paciente" && (
@@ -52,7 +64,7 @@ export function AppShell() {
                 className={navClass(location.pathname === "/portal")}
                 to="/portal"
               >
-                Portal
+                {t("nav.portal")}
               </Link>
             )}
             {canSeePatients && (
@@ -60,7 +72,7 @@ export function AppShell() {
                 className={navClass(location.pathname === "/patients")}
                 to="/patients"
               >
-                Pacientes
+                {t("nav.patients")}
               </Link>
             )}
             {canSeeMaterials && (
@@ -68,7 +80,7 @@ export function AppShell() {
                 className={navClass(location.pathname === "/materials")}
                 to="/materials"
               >
-                Materiales
+                {t("nav.materials")}
               </Link>
             )}
             {canSeeStaff && (
@@ -76,27 +88,33 @@ export function AppShell() {
                 className={navClass(location.pathname === "/staff")}
                 to="/staff"
               >
-                Equipo
+                {t("nav.staff")}
               </Link>
             )}
             <Link
               className={navClass(location.pathname === "/profile")}
               to="/profile"
             >
-              Mi perfil
+              {t("nav.myProfile")}
             </Link>
+          </nav>
+
+          <div className="space-y-3">
+            <LanguageSelect compact />
             <button
               type="button"
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
+              className="w-full px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
               onClick={closeSession}
             >
-              Cerrar sesión
+              {t("nav.signOut")}
             </button>
-          </nav>
+          </div>
         </div>
-      </header>
+      </aside>
 
-      <Outlet />
+      <div className="lg:pl-64">
+        <Outlet />
+      </div>
     </div>
   );
 }

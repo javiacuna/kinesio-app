@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { searchPatients } from "../api";
 import type { Patient } from "../types";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 type Props = {
   valuePatientId: string;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -32,11 +34,11 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
 
   return (
     <div className="relative">
-      <label className="text-sm font-medium">Paciente</label>
+      <label className="text-sm font-medium">{t("agenda.patient")}</label>
       <input
         className="mt-1 w-full border rounded-lg p-2"
         value={query}
-        placeholder={placeholder ?? "Buscar por DNI, email o apellido (mín. 3 caracteres)…"}
+        placeholder={placeholder ?? t("agenda.patientSearchDefault")}
         onChange={(e) => {
           setQuery(e.target.value);
           setOpen(true);
@@ -45,12 +47,12 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
       />
 
       <div className="mt-2 text-xs text-gray-500">
-        Seleccionado: <span className="font-mono">{valuePatientId || "—"}</span>
+        {t("agenda.selected")}: <span className="font-mono">{valuePatientId || "—"}</span>
       </div>
 
       {open && enabled && (
         <div className="absolute z-10 mt-2 w-full rounded-lg border bg-white shadow">
-          {q.isLoading && <div className="p-3 text-sm text-gray-600">Buscando…</div>}
+          {q.isLoading && <div className="p-3 text-sm text-gray-600">{t("agenda.searching")}</div>}
 
           {q.isError && (
             <div className="p-3 text-sm text-red-600">
@@ -59,7 +61,7 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
           )}
 
           {!q.isLoading && !q.isError && items.length === 0 && (
-            <div className="p-3 text-sm text-gray-600">Sin resultados.</div>
+            <div className="p-3 text-sm text-gray-600">{t("agenda.searchNoResults")}</div>
           )}
 
           {!q.isLoading && !q.isError && items.length > 0 && (

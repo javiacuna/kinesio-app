@@ -3,9 +3,11 @@ import { Link, Navigate } from "react-router-dom";
 import { requestPasswordReset } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
+import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export default function ForgotPasswordPage() {
   const { isAuthenticated, user } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSent, setIsSent] = useState(false);
@@ -25,7 +27,7 @@ export default function ForgotPasswordPage() {
       await requestPasswordReset({ email });
       setIsSent(true);
     } catch {
-      setError("No se pudo iniciar la recuperación.");
+      setError(t("auth.recoveryFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -35,14 +37,17 @@ export default function ForgotPasswordPage() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-10">
       <section className="w-full max-w-sm bg-white border rounded-lg p-6 shadow-sm">
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold">Recuperar contraseña</h1>
-          <p className="text-sm text-gray-600 mt-1">Ingresá tu email y te enviamos instrucciones.</p>
+          <div className="mb-4">
+            <LanguageSelect />
+          </div>
+          <h1 className="text-2xl font-semibold">{t("auth.recovery")}</h1>
+          <p className="text-sm text-gray-600 mt-1">{t("auth.recoveryHelp")}</p>
         </div>
 
         <form className="space-y-4" onSubmit={submit}>
           <div>
             <label className="text-sm font-medium" htmlFor="email">
-              Email
+              {t("auth.email")}
             </label>
             <input
               id="email"
@@ -57,7 +62,7 @@ export default function ForgotPasswordPage() {
 
           {isSent && (
             <div className="border border-green-200 bg-green-50 rounded-lg p-3 text-sm text-green-700">
-              Si existe una cuenta con ese email, enviamos las instrucciones.
+              {t("auth.recoverySent")}
             </div>
           )}
 
@@ -72,13 +77,13 @@ export default function ForgotPasswordPage() {
             disabled={isSubmitting}
             type="submit"
           >
-            {isSubmitting ? "Enviando..." : "Enviar instrucciones"}
+            {isSubmitting ? t("auth.recoverySubmitting") : t("auth.recoverySubmit")}
           </button>
         </form>
 
         <div className="mt-4 text-center">
           <Link className="text-sm underline" to="/login">
-            Volver al login
+            {t("auth.recoveryBack")}
           </Link>
         </div>
       </section>

@@ -16,6 +16,7 @@ import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { AgendaGrid } from "@/features/appointments/components/AgendaGrid";
 import type { Appointment } from "@/features/appointments/types";
 import type { Patient } from "@/features/patients/types";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 function todayISO() {
   const d = new Date();
@@ -83,8 +84,8 @@ function weekDaysFor(dateISO: string) {
   return Array.from({ length: 7 }, (_, index) => addDaysISO(start, index));
 }
 
-function statusLabel(status: Appointment["status"]) {
-  return status === "cancelled" ? "Cancelado" : "Programado";
+function statusLabel(status: Appointment["status"], t: (key: string) => string) {
+  return status === "cancelled" ? t("agenda.cancelled") : t("agenda.scheduled");
 }
 
 function patientName(patient?: Patient) {
@@ -105,6 +106,7 @@ function filterAppointments(
 
 export default function AgendaPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const isKinesiologist = user?.role === "kinesiologo";
   const canManageAppointments = user?.role === "admin" || user?.role === "recepcionista";
   // Agenda (listado)
@@ -314,14 +316,14 @@ export default function AgendaPage() {
       <div className="max-w-4xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Agenda</h1>
+            <h1 className="text-2xl font-semibold">{t("agenda.title")}</h1>
             <p className="text-sm text-gray-600">
-              {isKinesiologist ? "Mis turnos del día." : "Agenda diaria y creación de turnos."}
+              {isKinesiologist ? t("agenda.myDay") : t("agenda.dailySubtitle")}
             </p>
           </div>
           {(user?.role === "admin" || user?.role === "recepcionista") && (
             <Link className="text-sm underline" to="/patients">
-              Ir a Pacientes
+              {t("agenda.goPatients")}
             </Link>
           )}
         </header>
@@ -330,7 +332,7 @@ export default function AgendaPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-sm font-medium">Fecha</label>
+              <label className="text-sm font-medium">{t("agenda.date")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
@@ -340,26 +342,26 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Vista</label>
+              <label className="text-sm font-medium">{t("agenda.view")}</label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={viewMode}
                 onChange={(event) => setViewMode(event.target.value as "day" | "week")}
               >
-                <option value="day">Día</option>
-                <option value="week">Semana</option>
+                <option value="day">{t("agenda.day")}</option>
+                <option value="week">{t("agenda.week")}</option>
               </select>
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">Kinesiólogo</label>
+              <label className="text-sm font-medium">{t("agenda.kinesiologist")}</label>
               {isKinesiologist ? (
                 <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">
                   {selectedKinesiologist
                     ? `${selectedKinesiologist.last_name}, ${selectedKinesiologist.first_name}`
                     : kinesioQ.isLoading
-                      ? "Cargando tu agenda..."
-                      : "No se encontró tu perfil de kinesiólogo activo."}
+                      ? t("dashboard.loadingAppointments")
+                      : t("agenda.noOwnKinesiologistProfile")}
                 </div>
               ) : (
                 <select
@@ -367,7 +369,7 @@ export default function AgendaPage() {
                   value={kinesiologistId}
                   onChange={(e) => setKinesiologistId(e.target.value)}
                 >
-                  <option value="">Seleccionar…</option>
+                  <option value="">{t("agenda.select")}</option>
                   {kinesios.map((k) => (
                     <option key={k.id} value={k.id}>
                       {k.last_name}, {k.first_name}
@@ -383,7 +385,7 @@ export default function AgendaPage() {
               )}
               {selectedKinesiologist && (
                 <p className="text-sm text-gray-600 mt-2">
-                  Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+                  {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}
                 </p>
               )}
             </div>
@@ -391,24 +393,23 @@ export default function AgendaPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 items-end">
             <div>
-              <label className="text-sm font-medium">Estado</label>
+              <label className="text-sm font-medium">{t("agenda.status")}</label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as "all" | Appointment["status"])}
               >
-                <option value="all">Todos</option>
-                <option value="scheduled">Programados</option>
-                <option value="cancelled">Cancelados</option>
+                <option value="all">{t("agenda.statusAll")}</option>
+                <option value="scheduled">{t("agenda.statusScheduled")}</option>
+                <option value="cancelled">{t("agenda.statusCancelled")}</option>
               </select>
             </div>
 
             <div>
-              <label className="text-sm font-medium">Paciente</label>
               <PatientSearch
                 valuePatientId={filterPatient?.id ?? ""}
                 onSelect={setFilterPatient}
-                placeholder="Filtrar por paciente..."
+                placeholder={t("agenda.filterPatient")}
               />
             </div>
 
@@ -420,7 +421,7 @@ export default function AgendaPage() {
                 setFilterPatient(null);
               }}
             >
-              Limpiar filtros
+              {t("agenda.clearFilters")}
             </button>
           </div>
         </section>
@@ -428,7 +429,7 @@ export default function AgendaPage() {
         {/* Crear turno */}
         {canManageAppointments && (
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-semibold">Crear turno</h2>
+          <h2 className="text-lg font-semibold">{t("agenda.create")}</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
@@ -440,12 +441,12 @@ export default function AgendaPage() {
                 }}
               />
               <p className="text-xs text-gray-500 mt-2">
-                Tip: si no existe, crealo en /patients y después buscá por DNI o email.
+                {t("agenda.tipPatient")}
               </p>
             </div>
 
             <div>
-              <label className="text-sm font-medium">Fecha del turno</label>
+              <label className="text-sm font-medium">{t("agenda.appointmentDate")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
@@ -456,7 +457,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Hora inicio</label>
+              <label className="text-sm font-medium">{t("agenda.startTime")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="time"
@@ -466,7 +467,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Duración (min)</label>
+              <label className="text-sm font-medium">{t("agenda.duration")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="number"
@@ -491,7 +492,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">Notas</label>
+              <label className="text-sm font-medium">{t("agenda.notes")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 value={notes}
@@ -505,18 +506,18 @@ export default function AgendaPage() {
             disabled={!patientId.trim() || !kinesiologistId || isCreateInPast || isCreateOutsideWorkingHours || createM.isPending}
             onClick={create}
           >
-            {createM.isPending ? "Creando…" : "Crear turno"}
+            {createM.isPending ? t("agenda.creating") : t("agenda.create")}
           </button>
 
           {isCreateInPast && (
             <p className="text-sm text-red-600">
-              No se pueden crear turnos en horarios pasados.
+              {t("agenda.appointmentPast")}
             </p>
           )}
 
           {isCreateOutsideWorkingHours && selectedKinesiologist && (
             <p className="text-sm text-red-600">
-              El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+              {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}.
             </p>
           )}
 
@@ -524,17 +525,17 @@ export default function AgendaPage() {
             <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
               {hasCreateOverlap ? (
                 <>
-                  <div className="font-medium">Solapamiento detectado</div>
-                  <div>El kinesiólogo ya tiene un turno activo en ese horario.</div>
+                  <div className="font-medium">Overlap detected</div>
+                  <div>The kinesiologist already has an active appointment at that time.</div>
                 </>
               ) : hasCreateInactivePatient ? (
                 <>
-                  <div className="font-medium">Paciente archivado</div>
-                  <div>No se pueden crear turnos para pacientes archivados.</div>
+                  <div className="font-medium">{t("agenda.patientArchived")}</div>
+                  <div>{t("agenda.patientArchivedDetail")}</div>
                 </>
               ) : (
                 <>
-                  <div className="font-medium">Error</div>
+                  <div className="font-medium">{t("agenda.error")}</div>
                   <div>{createValidationMessage ?? String(createErr?.message)}</div>
                 </>
               )}
@@ -547,7 +548,7 @@ export default function AgendaPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">
-              {viewMode === "week" ? "Turnos de la semana" : "Turnos del día"}
+              {viewMode === "week" ? t("agenda.weekAppointments") : t("agenda.todayAppointments")}
             </h2>
             <div className="text-sm text-gray-600">
               {viewMode === "week" ? `${weekStart} a ${weekEnd}` : date}
@@ -557,13 +558,13 @@ export default function AgendaPage() {
           {!canLoadAgenda && (
             <p className="text-sm text-gray-600">
               {isKinesiologist
-                ? "No se encontró un perfil de kinesiólogo activo asociado a tu email."
-                : "Seleccioná un kinesiólogo."}
+                ? t("agenda.noKinesiologistProfile")
+                : t("agenda.kinesiologistMissing")}
             </p>
           )}
 
-          {agendaQ.isLoading && <p className="text-sm text-gray-600">Cargando…</p>}
-          {agendaQ.isError && <p className="text-sm text-red-600">Error: {String(agendaQ.error?.message)}</p>}
+          {agendaQ.isLoading && <p className="text-sm text-gray-600">{t("dashboard.loadingAppointments")}</p>}
+          {agendaQ.isError && <p className="text-sm text-red-600">{t("agenda.error")}: {String(agendaQ.error?.message)}</p>}
 
           {viewMode === "day" && agendaQ.data && (
             <div className="space-y-4">
@@ -591,7 +592,7 @@ export default function AgendaPage() {
 
               <div className="divide-y">
                 {dayAppointments.length === 0 ? (
-                  <p className="text-sm text-gray-600 py-2">No hay turnos.</p>
+                  <p className="text-sm text-gray-600 py-2">{t("agenda.noAppointments")}</p>
                 ) : (
                   dayAppointments.map((a) => (
                     <div key={a.id} className="py-3 flex items-start justify-between gap-4">
@@ -600,16 +601,16 @@ export default function AgendaPage() {
                           {formatLocalTime(a.start_at)} → {formatLocalTime(a.end_at)}
                         </div>
                         <div className="text-sm text-gray-600">
-                          Paciente:{" "}
+                          {t("agenda.patient")}:{" "}
                           <Link className="underline" to={`/patients/${a.patient_id}`}>
                             {patientName(patientById.get(a.patient_id))}
                           </Link>
                         </div>
-                        <div className="text-sm text-gray-600">Estado: {statusLabel(a.status)}</div>
+                        <div className="text-sm text-gray-600">{t("agenda.status")}: {statusLabel(a.status, t)}</div>
                         {a.status === "cancelled" && a.cancelled_reason && (
-                          <div className="text-sm text-gray-600">Motivo: {a.cancelled_reason}</div>
+                          <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {a.cancelled_reason}</div>
                         )}
-                        {a.notes && <div className="text-sm text-gray-600">Notas: {a.notes}</div>}
+                        {a.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {a.notes}</div>}
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -625,15 +626,15 @@ export default function AgendaPage() {
                               openCancelAppointment(a);
                             }}
                           >
-                            {cancelM.isPending ? "Cancelando…" : "Cancelar"}
+                            {cancelM.isPending ? "..." : t("agenda.cancel")}
                           </button>
                         ) : a.status === "cancelled" ? (
                           <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
-                            Cancelado
+                            {t("agenda.cancelled")}
                           </span>
                         ) : (
                           <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
-                            Programado
+                            {t("agenda.scheduled")}
                           </span>
                         )}
 
@@ -645,7 +646,7 @@ export default function AgendaPage() {
                               openEditAppointment(a);
                             }}
                           >
-                            {rescheduleM.isPending ? "Reprogramando…" : "Reprogramar"}
+                            {rescheduleM.isPending ? "..." : t("agenda.reschedule")}
                           </button>
                         )}
                       </div>
@@ -655,7 +656,7 @@ export default function AgendaPage() {
 
                 {cancelM.isError && (
                   <p className="text-sm text-red-600">
-                    Error al cancelar: {String((cancelM.error as any)?.message)}
+                    {t("agenda.cancelError")}: {String((cancelM.error as any)?.message)}
                   </p>
                 )}
 
@@ -680,13 +681,13 @@ export default function AgendaPage() {
 
           {viewMode === "week" && (
             <div className="space-y-3">
-              {weekAgendaQ.isLoading && <p className="text-sm text-gray-600">Cargando semana...</p>}
-              {weekAgendaQ.isError && <p className="text-sm text-red-600">Error: {String(weekAgendaQ.error?.message)}</p>}
+              {weekAgendaQ.isLoading && <p className="text-sm text-gray-600">{t("dashboard.loadingAppointments")}</p>}
+              {weekAgendaQ.isError && <p className="text-sm text-red-600">{t("agenda.error")}: {String(weekAgendaQ.error?.message)}</p>}
               {weekAppointments.map((group) => (
                 <section key={group.day} className="border rounded-lg p-3">
                   <div className="font-medium">{group.day}</div>
                   {group.appointments.length === 0 ? (
-                    <p className="text-sm text-gray-600 mt-2">Sin turnos.</p>
+                    <p className="text-sm text-gray-600 mt-2">{t("agenda.noAppointments")}</p>
                   ) : (
                     <div className="divide-y mt-2">
                       {group.appointments.map((appointment) => (
@@ -696,12 +697,12 @@ export default function AgendaPage() {
                               {formatLocalTime(appointment.start_at)} → {formatLocalTime(appointment.end_at)}
                             </div>
                             <div className="text-sm text-gray-600">
-                              {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status)}
+                              {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status, t)}
                             </div>
                             {appointment.status === "cancelled" && appointment.cancelled_reason && (
-                              <div className="text-sm text-gray-600">Motivo: {appointment.cancelled_reason}</div>
+                              <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
                             )}
-                            {appointment.notes && <div className="text-sm text-gray-600">Notas: {appointment.notes}</div>}
+                            {appointment.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {appointment.notes}</div>}
                           </div>
                           {canManageAppointments && appointment.status !== "cancelled" && (
                             <div className="flex flex-wrap gap-2">
@@ -710,14 +711,14 @@ export default function AgendaPage() {
                                 className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                                 onClick={() => openEditAppointment(appointment)}
                               >
-                                Reprogramar
+                                {t("agenda.reschedule")}
                               </button>
                               <button
                                 type="button"
                                 className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                                 onClick={() => openCancelAppointment(appointment)}
                               >
-                                Cancelar
+                                {t("agenda.cancel")}
                               </button>
                             </div>
                           )}
@@ -737,9 +738,9 @@ export default function AgendaPage() {
           <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-xl space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold">Modificar turno</h2>
+                <h2 className="text-lg font-semibold">{t("agenda.reschedule")}</h2>
                 <p className="text-sm text-gray-600">
-                  Paciente: <span className="font-mono">{editingAppointment.patient_id}</span>
+                  {t("agenda.patient")}: <span className="font-mono">{editingAppointment.patient_id}</span>
                 </p>
               </div>
               <button
@@ -747,13 +748,13 @@ export default function AgendaPage() {
                 className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                 onClick={() => setEditingAppointment(null)}
               >
-                Cerrar
+                {t("agenda.close")}
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">Fecha</label>
+                <label className="text-sm font-medium">{t("agenda.date")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="date"
@@ -764,7 +765,7 @@ export default function AgendaPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Hora inicio</label>
+                <label className="text-sm font-medium">{t("agenda.startTime")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="time"
@@ -774,7 +775,7 @@ export default function AgendaPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Duración</label>
+                <label className="text-sm font-medium">{t("agenda.duration")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={editDurationMin}
@@ -788,7 +789,7 @@ export default function AgendaPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Notas</label>
+                <label className="text-sm font-medium">{t("agenda.notes")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={editNotes}
@@ -799,17 +800,17 @@ export default function AgendaPage() {
 
             {selectedKinesiologist && (
               <p className="text-sm text-gray-600">
-                Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+                {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}
               </p>
             )}
 
             {isEditInPast && (
-              <p className="text-sm text-red-600">No se pueden reprogramar turnos en horarios pasados.</p>
+              <p className="text-sm text-red-600">{t("agenda.appointmentPast")}</p>
             )}
 
             {isEditOutsideWorkingHours && selectedKinesiologist && (
               <p className="text-sm text-red-600">
-                El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time}.
+                {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}.
               </p>
             )}
 
@@ -835,7 +836,7 @@ export default function AgendaPage() {
                 className="px-4 py-2 rounded-lg border hover:bg-gray-50"
                 onClick={() => setEditingAppointment(null)}
               >
-                Cancelar
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -843,7 +844,7 @@ export default function AgendaPage() {
                 disabled={isEditInPast || isEditOutsideWorkingHours || rescheduleM.isPending}
                 onClick={submitEditAppointment}
               >
-                {rescheduleM.isPending ? "Guardando..." : "Guardar cambios"}
+                {rescheduleM.isPending ? t("common.saving") : t("common.saveChanges")}
               </button>
             </div>
           </section>
@@ -855,7 +856,7 @@ export default function AgendaPage() {
           <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-lg space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold">Cancelar turno</h2>
+                <h2 className="text-lg font-semibold">{t("agenda.cancelAppointment")}</h2>
                 <p className="text-sm text-gray-600">
                   {formatLocalTime(cancelAppointmentTarget.start_at)} a {formatLocalTime(cancelAppointmentTarget.end_at)} ·{" "}
                   {patientName(patientById.get(cancelAppointmentTarget.patient_id))}
@@ -866,12 +867,12 @@ export default function AgendaPage() {
                 className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                 onClick={() => setCancelAppointmentTarget(null)}
               >
-                Cerrar
+                {t("agenda.close")}
               </button>
             </div>
 
             <div>
-              <label className="text-sm font-medium">Motivo</label>
+              <label className="text-sm font-medium">{t("agenda.cancelReason")}</label>
               <textarea
                 className="mt-1 w-full border rounded-lg p-2 min-h-24"
                 value={cancelReason}
@@ -881,7 +882,7 @@ export default function AgendaPage() {
 
             {cancelM.isError && (
               <p className="text-sm text-red-600">
-                Error al cancelar: {String((cancelM.error as any)?.message)}
+                {t("agenda.cancelError")}: {String((cancelM.error as any)?.message)}
               </p>
             )}
 
@@ -891,7 +892,7 @@ export default function AgendaPage() {
                 className="px-4 py-2 rounded-lg border hover:bg-gray-50"
                 onClick={() => setCancelAppointmentTarget(null)}
               >
-                Volver
+                {t("common.back")}
               </button>
               <button
                 type="button"
@@ -899,7 +900,7 @@ export default function AgendaPage() {
                 disabled={cancelM.isPending}
                 onClick={submitCancelAppointment}
               >
-                {cancelM.isPending ? "Cancelando..." : "Confirmar cancelación"}
+                {cancelM.isPending ? "..." : t("agenda.confirmCancel")}
               </button>
             </div>
           </section>
