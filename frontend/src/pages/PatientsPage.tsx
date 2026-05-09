@@ -4,6 +4,7 @@ import { inviteUserAccess } from "@/features/auth/adminApi";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { archivePatient, createPatient, listPatients, searchPatients, updatePatient } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
+import { uploadPatientAttachment } from "@/features/patients/detailApi";
 
 export default function PatientsPage() {
   const { user } = useAuth();
@@ -11,6 +12,7 @@ export default function PatientsPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [initialFiles, setInitialFiles] = useState<File[]>([]);
 
   const [created, setCreated] = useState<Patient | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -70,6 +72,17 @@ export default function PatientsPage() {
       setFirstName("");
       setLastName("");
       setEmail("");
+      if (initialFiles.length > 0) {
+        await Promise.all(
+          initialFiles.map((file) =>
+            uploadPatientAttachment(res.id, file, {
+              category: file.type.startsWith("image/") ? "foto" : file.type.startsWith("video/") ? "video" : "documento",
+              patient_visible: false,
+            }),
+          ),
+        );
+        setInitialFiles([]);
+      }
       await refreshPatients("");
     } catch (e: any) {
       setError(e?.message ?? "Error");
@@ -173,6 +186,21 @@ export default function PatientsPage() {
             <div>
               <label className="text-sm font-medium">Apellido</label>
               <input className="mt-1 w-full border rounded-lg p-2" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            </div>
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium">Archivos iniciales</label>
+              <input
+                className="mt-1 w-full border rounded-lg p-2"
+                type="file"
+                multiple
+                accept="image/*,video/*,application/pdf"
+                onChange={(event) => setInitialFiles(Array.from(event.target.files ?? []))}
+              />
+              {initialFiles.length > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {initialFiles.length} archivo(s) se van a subir después de crear el paciente.
+                </p>
+              )}
             </div>
           </div>
 

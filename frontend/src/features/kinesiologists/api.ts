@@ -1,4 +1,4 @@
-import { apiFetch } from "@/shared/api/http";
+import { apiFetch, apiFetchBlob } from "@/shared/api/http";
 import type { Kinesiologist } from "./types";
 
 export type SaveKinesiologistInput = {
@@ -31,4 +31,43 @@ export function updateKinesiologist(input: SaveKinesiologistInput & { id: string
     method: "PUT",
     body: JSON.stringify(body),
   });
+}
+
+export type KinesiologistAttachment = {
+  id: string;
+  kinesiologist_id: string;
+  file_name: string;
+  content_type: string;
+  size_bytes: number;
+  kind: "image" | "video" | "pdf" | string;
+  category: string;
+  notes?: string | null;
+  uploaded_by_email?: string | null;
+  uploaded_by_role?: string | null;
+  download_url: string;
+  created_at: string;
+};
+
+export function listKinesiologistAttachments(kinesiologistId: string) {
+  return apiFetch<KinesiologistAttachment[]>(`/api/v1/kinesiologists/${kinesiologistId}/attachments`);
+}
+
+export function uploadKinesiologistAttachment(
+  kinesiologistId: string,
+  file: File,
+  input?: { notes?: string; category?: string },
+) {
+  const body = new FormData();
+  body.append("file", file);
+  if (input?.notes?.trim()) body.append("notes", input.notes.trim());
+  if (input?.category) body.append("category", input.category);
+
+  return apiFetch<KinesiologistAttachment>(`/api/v1/kinesiologists/${kinesiologistId}/attachments`, {
+    method: "POST",
+    body,
+  });
+}
+
+export function downloadKinesiologistAttachment(attachment: KinesiologistAttachment) {
+  return apiFetchBlob(attachment.download_url);
 }

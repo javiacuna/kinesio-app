@@ -3,6 +3,7 @@ import {
   createKinesiologist,
   listKinesiologists,
   updateKinesiologist,
+  uploadKinesiologistAttachment,
   type SaveKinesiologistInput,
 } from "@/features/kinesiologists/api";
 import type { Kinesiologist } from "@/features/kinesiologists/types";
@@ -70,6 +71,7 @@ export default function StaffPage() {
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editingStaffEmail, setEditingStaffEmail] = useState<string | null>(null);
   const [sendAccess, setSendAccess] = useState(true);
+  const [professionalFiles, setProfessionalFiles] = useState<File[]>([]);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [roleEmail, setRoleEmail] = useState("");
   const [role, setRole] = useState<AuthRole>("recepcionista");
@@ -180,7 +182,18 @@ export default function StaffPage() {
         ? await updateStaffMember({ ...payload, id: editingStaffId })
         : await createStaffMember(payload);
 
-      await syncKinesiologistProfile(saved);
+      const professionalProfile = await syncKinesiologistProfile(saved);
+
+      if (professionalProfile && professionalFiles.length > 0) {
+        await Promise.all(
+          professionalFiles.map((file) =>
+            uploadKinesiologistAttachment(professionalProfile.id, file, {
+              category: professionalFileCategory(file),
+            }),
+          ),
+        );
+        setProfessionalFiles([]);
+      }
 
       if (sendAccess) {
         await inviteUserAccess({ email: saved.email, role: saved.role });
@@ -197,7 +210,7 @@ export default function StaffPage() {
     }
   }
 
-  async function syncKinesiologistProfile(saved: StaffMember) {
+  async function syncKinesiologistProfile(saved: StaffMember): Promise<Kinesiologist | undefined> {
     const currentEmail = saved.email.toLowerCase();
     const previousEmail = editingStaffEmail?.toLowerCase();
     const existing =
@@ -211,15 +224,14 @@ export default function StaffPage() {
           id: existing.id,
         });
       }
-      return;
+      return undefined;
     }
 
     const payload = toKinesiologistPayload(saved, existing, saved.active);
     if (existing) {
-      await updateKinesiologist({ ...payload, id: existing.id });
-      return;
+      return updateKinesiologist({ ...payload, id: existing.id });
     }
-    await createKinesiologist(payload);
+    return createKinesiologist(payload);
   }
 
   function toKinesiologistPayload(
@@ -279,6 +291,7 @@ export default function StaffPage() {
       work_days: profile?.work_days?.length ? profile.work_days : defaultWorkDays,
     });
     setSendAccess(false);
+    setProfessionalFiles([]);
     setMessage("");
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -288,6 +301,7 @@ export default function StaffPage() {
     setEditingStaffId(null);
     setEditingStaffEmail(null);
     setForm(emptyTeamForm);
+    setProfessionalFiles([]);
     setSendAccess(true);
   }
 
@@ -385,6 +399,21 @@ export default function StaffPage() {
                       );
                     })}
                   </div>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium">Documentación profesional</label>
+                  <input
+                    className="mt-1 w-full border rounded-lg p-2"
+                    type="file"
+                    multiple
+                    accept="image/*,video/*,application/pdf"
+                    onChange={(event) => setProfessionalFiles(Array.from(event.target.files ?? []))}
+                  />
+                  {professionalFiles.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {professionalFiles.length} archivo(s) se van a subir al guardar el kinesiólogo.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -587,4 +616,10 @@ function workDaysLabel(days: number[] | undefined) {
     .map((value) => workDayOptions.find((day) => day.value === value)?.label)
     .filter(Boolean)
     .join(", ");
+}
+
+function professionalFileCategory(file: File) {
+  if (file.type.startsWith("image/")) return "foto";
+  if (file.type.startsWith("video/")) return "video";
+  return "documento";
 }

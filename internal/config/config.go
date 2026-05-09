@@ -23,7 +23,8 @@ type Config struct {
 	FirebaseWebAPIKey       string
 	FirebaseCredentialsFile string
 
-	PatientFilesDir string
+	PatientFilesDir       string
+	KinesiologistFilesDir string
 }
 
 func MustLoad() Config {
@@ -41,6 +42,7 @@ func MustLoad() Config {
 		FirebaseWebAPIKey:       getenv("FIREBASE_WEB_API_KEY", ""),
 		FirebaseCredentialsFile: getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
 		PatientFilesDir:         getenv("PATIENT_FILES_DIR", "uploads/patient-attachments"),
+		KinesiologistFilesDir:   getenv("KINESIOLOGIST_FILES_DIR", "uploads/kinesiologist-attachments"),
 	}
 
 	// Validaciones mínimas

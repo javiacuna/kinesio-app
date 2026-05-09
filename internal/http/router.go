@@ -25,6 +25,9 @@ import (
 	kineRepo "github.com/javiacuna/kinesio-backend/internal/kinesiologists/infra/gorm"
 	kineUC "github.com/javiacuna/kinesio-backend/internal/kinesiologists/usecase"
 
+	kineAttachmentsHTTP "github.com/javiacuna/kinesio-backend/internal/kinesiologistattachments/http"
+	kineAttachmentsGorm "github.com/javiacuna/kinesio-backend/internal/kinesiologistattachments/infra/gorm"
+
 	exercisePlanHTTP "github.com/javiacuna/kinesio-backend/internal/exerciseplans/http"
 	exercisePlanGorm "github.com/javiacuna/kinesio-backend/internal/exerciseplans/infra/gorm"
 	exercisePlanUC "github.com/javiacuna/kinesio-backend/internal/exerciseplans/usecase"
@@ -144,6 +147,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	attachmentRepo := attachmentsGorm.NewRepository(db)
 	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir, patientRepo)
+	kineAttachmentRepo := kineAttachmentsGorm.NewRepository(db)
+	kineAttachmentHandler := kineAttachmentsHTTP.NewHandler(kineAttachmentRepo, cfg.KinesiologistFilesDir)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -190,6 +195,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/kinesiologists", middleware.RequireRole("recepcionista", "kinesiologo", "paciente"), kHandler.List)
 	v1.POST("/kinesiologists", kHandler.Create)
 	v1.PUT("/kinesiologists/:id", kHandler.Update)
+	v1.GET("/kinesiologists/:kinesiologist_id/attachments", middleware.RequireRole("recepcionista", "kinesiologo"), kineAttachmentHandler.ListByKinesiologist)
+	v1.POST("/kinesiologists/:kinesiologist_id/attachments", middleware.RequireRole("recepcionista", "kinesiologo"), kineAttachmentHandler.Upload)
 
 	v1.POST("/plans", planHandler.Create)
 	v1.GET("/plans/:plan_id", planHandler.GetByID)
@@ -208,6 +215,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/patient-attachments/:attachment_id/download", attachmentHandler.Download)
 	v1.PATCH("/patient-attachments/:attachment_id", attachmentHandler.Update)
 	v1.DELETE("/patient-attachments/:attachment_id", attachmentHandler.Delete)
+	v1.GET("/kinesiologist-attachments/:attachment_id/download", middleware.RequireRole("recepcionista", "kinesiologo"), kineAttachmentHandler.Download)
 
 	_ = db
 
