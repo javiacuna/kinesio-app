@@ -1,5 +1,5 @@
 import { apiFetch, apiFetchBlob } from "@/shared/api/http";
-import type { Kinesiologist } from "./types";
+import type { Kinesiologist, Practice, Specialty } from "./types";
 
 export type SaveKinesiologistInput = {
   id?: string;
@@ -10,6 +10,7 @@ export type SaveKinesiologistInput = {
   work_start_time: string;
   work_end_time: string;
   work_days: number[];
+  practice_ids: string[];
   active: boolean;
 };
 
@@ -28,6 +29,60 @@ export function createKinesiologist(input: SaveKinesiologistInput) {
 export function updateKinesiologist(input: SaveKinesiologistInput & { id: string }) {
   const { id, ...body } = input;
   return apiFetch<Kinesiologist>(`/api/v1/kinesiologists/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export type SaveSpecialtyInput = {
+  id?: string;
+  name: string;
+  active: boolean;
+};
+
+export function listSpecialties(options?: { includeInactive?: boolean }) {
+  const query = options?.includeInactive ? "?active=false" : "";
+  return apiFetch<Specialty[]>(`/api/v1/specialties${query}`);
+}
+
+export function createSpecialty(input: SaveSpecialtyInput) {
+  return apiFetch<Specialty>("/api/v1/specialties", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateSpecialty(input: SaveSpecialtyInput & { id: string }) {
+  const { id, ...body } = input;
+  return apiFetch<Specialty>(`/api/v1/specialties/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export type SavePracticeInput = {
+  id?: string;
+  specialty_id: string;
+  name: string;
+  description?: string | null;
+  active: boolean;
+};
+
+export function listPractices(options?: { includeInactive?: boolean }) {
+  const query = options?.includeInactive ? "?active=false" : "";
+  return apiFetch<Practice[]>(`/api/v1/practices${query}`);
+}
+
+export function createPractice(input: SavePracticeInput) {
+  return apiFetch<Practice>("/api/v1/practices", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePractice(input: SavePracticeInput & { id: string }) {
+  const { id, ...body } = input;
+  return apiFetch<Practice>(`/api/v1/practices/${id}`, {
     method: "PUT",
     body: JSON.stringify(body),
   });

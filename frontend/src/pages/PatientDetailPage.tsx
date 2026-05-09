@@ -10,15 +10,21 @@ import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
 import {
   type ExercisePlan,
+  type PatientDiagnosis,
   type PatientAttachment,
+  createPatientDiagnosis,
   createPatientPlan,
   createPatientEvolution,
+  deletePatientDiagnosis,
   deletePatientAttachment,
   downloadPatientAttachment,
+  listPatientDiagnoses,
   listPatientAttachments,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
+  searchCIE10Codes,
+  updatePatientDiagnosis,
   updatePatientAttachment,
   updatePatientPlan,
   uploadPatientAttachment,
@@ -64,6 +70,11 @@ function historyRange() {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+function todayISO() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 export default function PatientDetailPage() {
   const { patientId = "" } = useParams();
   const { user } = useAuth();
@@ -75,6 +86,13 @@ export default function PatientDetailPage() {
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
+  const [cie10Query, setCie10Query] = useState("");
+  const [diagnosisCode, setDiagnosisCode] = useState("");
+  const [diagnosisKind, setDiagnosisKind] = useState<"primary" | "secondary">("primary");
+  const [diagnosisStatus, setDiagnosisStatus] = useState<"suspected" | "confirmed" | "resolved">("suspected");
+  const [diagnosisDate, setDiagnosisDate] = useState(todayISO());
+  const [diagnosisNotes, setDiagnosisNotes] = useState("");
+  const [editingDiagnosisId, setEditingDiagnosisId] = useState("");
   const [evolutionKinesiologistId, setEvolutionKinesiologistId] = useState("");
   const [evolutionAppointmentId, setEvolutionAppointmentId] = useState("");
   const [painLevel, setPainLevel] = useState("");
@@ -130,6 +148,18 @@ export default function PatientDetailPage() {
     enabled: Boolean(patientId) && canEditClinical,
   });
 
+  const diagnosesQ = useQuery({
+    queryKey: ["patients", "diagnoses", patientId],
+    queryFn: () => listPatientDiagnoses(patientId),
+    enabled: Boolean(patientId) && canEditClinical,
+  });
+
+  const cie10Q = useQuery({
+    queryKey: ["cie10", cie10Query],
+    queryFn: () => searchCIE10Codes(cie10Query, 30),
+    enabled: canEditClinical,
+  });
+
   const kinesiologistsQ = useQuery({
     queryKey: ["kinesiologists", "patient-detail"],
     queryFn: () => listKinesiologists(),
@@ -181,6 +211,33 @@ export default function PatientDetailPage() {
       });
     },
     onSuccess: () => patientQ.refetch(),
+  });
+
+  const saveDiagnosisM = useMutation({
+    mutationFn: () => {
+      const input = {
+        cie10_code: diagnosisCode,
+        kind: diagnosisKind,
+        status: diagnosisStatus,
+        diagnosed_at: diagnosisDate,
+        notes: diagnosisNotes.trim() || null,
+      };
+      return editingDiagnosisId
+        ? updatePatientDiagnosis(patientId, editingDiagnosisId, input)
+        : createPatientDiagnosis(patientId, input);
+    },
+    onSuccess: () => {
+      resetDiagnosisForm();
+      diagnosesQ.refetch();
+    },
+  });
+
+  const deleteDiagnosisM = useMutation({
+    mutationFn: (diagnosisId: string) => deletePatientDiagnosis(patientId, diagnosisId),
+    onSuccess: () => {
+      resetDiagnosisForm();
+      diagnosesQ.refetch();
+    },
   });
 
   const createEvolutionM = useMutation({
@@ -278,6 +335,8 @@ export default function PatientDetailPage() {
   const evolutions = evolutionsQ.data ?? [];
   const loans = loansQ.data ?? [];
   const attachments = attachmentsQ.data ?? [];
+  const diagnoses = diagnosesQ.data ?? [];
+  const cie10Results = cie10Q.data ?? [];
   const kinesiologists = kinesiologistsQ.data ?? [];
   const upcomingScheduledAppointments = appointments.filter(
     (appointment) => appointment.status !== "cancelled",
@@ -309,6 +368,13 @@ export default function PatientDetailPage() {
           title: `${plan.frequency} · ${plan.duration_weeks} semanas`,
           detail: `${plan.items.length} ejercicios · estado ${plan.status}`,
         })),
+        ...diagnoses.map((diagnosis) => ({
+          id: `diagnosis:${diagnosis.id}`,
+          at: diagnosis.created_at,
+          kind: "Diagnóstico",
+          title: `${diagnosis.cie10_code} · ${diagnosis.cie10_description}`,
+          detail: `${diagnosisKindLabel(diagnosis.kind)} · ${diagnosisStatusLabel(diagnosis.status)}${diagnosis.notes ? ` · ${diagnosis.notes}` : ""}`,
+        })),
         ...loans.map((loan) => ({
           id: `loan:${loan.id}`,
           at: loan.loaned_at,
@@ -324,7 +390,7 @@ export default function PatientDetailPage() {
           detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · subido por ${attachment.uploaded_by_email}` : ""}`,
         })),
       ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
-    [appointments, attachments, evolutions, loans, plans],
+    [appointments, attachments, diagnoses, evolutions, loans, plans],
   );
 
   useEffect(() => {
@@ -384,6 +450,28 @@ export default function PatientDetailPage() {
         : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }],
     );
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function loadDiagnosisForEdit(diagnosis: PatientDiagnosis) {
+    setEditingDiagnosisId(diagnosis.id);
+    setDiagnosisCode(diagnosis.cie10_code);
+    setDiagnosisKind(diagnosis.kind === "secondary" ? "secondary" : "primary");
+    setDiagnosisStatus(
+      diagnosis.status === "confirmed" || diagnosis.status === "resolved" ? diagnosis.status : "suspected",
+    );
+    setDiagnosisDate(diagnosis.diagnosed_at || todayISO());
+    setDiagnosisNotes(diagnosis.notes ?? "");
+    setCie10Query(`${diagnosis.cie10_code} ${diagnosis.cie10_description}`);
+  }
+
+  function resetDiagnosisForm() {
+    setEditingDiagnosisId("");
+    setDiagnosisCode("");
+    setDiagnosisKind("primary");
+    setDiagnosisStatus("suspected");
+    setDiagnosisDate(todayISO());
+    setDiagnosisNotes("");
+    setCie10Query("");
   }
 
   async function openAttachment(attachment: PatientAttachment) {
@@ -546,6 +634,167 @@ export default function PatientDetailPage() {
                 {patient.clinical_notes_updated_by_email ? ` · ${patient.clinical_notes_updated_by_email}` : ""}
                 {patient.clinical_notes_updated_by_role ? ` (${patient.clinical_notes_updated_by_role})` : ""}
               </p>
+            )}
+          </section>
+        )}
+
+        {patient && canEditClinical && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">Diagnósticos CIE-10</h2>
+              <p className="text-sm text-gray-600">Registro de diagnóstico principal y diagnósticos asociados.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">Buscar diagnóstico</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={cie10Query}
+                  onChange={(event) => setCie10Query(event.target.value)}
+                  placeholder="Ej: M54, dorsalgia, respiratoria..."
+                />
+                {cie10Q.isFetching && <p className="text-xs text-gray-500 mt-1">Buscando CIE-10...</p>}
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Tipo</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={diagnosisKind}
+                  onChange={(event) => setDiagnosisKind(event.target.value as "primary" | "secondary")}
+                >
+                  <option value="primary">Principal</option>
+                  <option value="secondary">Secundario</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Estado</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={diagnosisStatus}
+                  onChange={(event) => setDiagnosisStatus(event.target.value as "suspected" | "confirmed" | "resolved")}
+                >
+                  <option value="suspected">Sospechado</option>
+                  <option value="confirmed">Confirmado</option>
+                  <option value="resolved">Resuelto</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Fecha</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  value={diagnosisDate}
+                  onChange={(event) => setDiagnosisDate(event.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Observaciones</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={diagnosisNotes}
+                  onChange={(event) => setDiagnosisNotes(event.target.value)}
+                  placeholder="Detalle clínico opcional."
+                />
+              </div>
+            </div>
+
+            <div className="rounded-lg border divide-y">
+              {cie10Results.length === 0 ? (
+                <p className="text-sm text-gray-600 p-3">Buscá por código o texto para seleccionar un diagnóstico.</p>
+              ) : (
+                cie10Results.map((item) => (
+                  <button
+                    type="button"
+                    key={item.code}
+                    className={`w-full text-left p-3 hover:bg-gray-50 ${diagnosisCode === item.code ? "bg-gray-100" : ""}`}
+                    onClick={() => {
+                      setDiagnosisCode(item.code);
+                      setCie10Query(`${item.code} ${item.description}`);
+                    }}
+                  >
+                    <div className="font-medium">{item.code} · {item.description}</div>
+                    {item.chapter && <div className="text-xs text-gray-500">{item.chapter}</div>}
+                  </button>
+                ))
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={!diagnosisCode || !diagnosisDate || saveDiagnosisM.isPending}
+                onClick={() => saveDiagnosisM.mutate()}
+              >
+                {saveDiagnosisM.isPending ? "Guardando..." : editingDiagnosisId ? "Guardar diagnóstico" : "Agregar diagnóstico"}
+              </button>
+              {editingDiagnosisId && (
+                <button type="button" className="px-4 py-2 rounded-lg border hover:bg-gray-50" onClick={resetDiagnosisForm}>
+                  Cancelar edición
+                </button>
+              )}
+            </div>
+
+            {saveDiagnosisM.isError && (
+              <p className="text-sm text-red-600">No se pudo guardar el diagnóstico.</p>
+            )}
+            {deleteDiagnosisM.isError && (
+              <p className="text-sm text-red-600">No se pudo quitar el diagnóstico.</p>
+            )}
+            {saveDiagnosisM.isSuccess && (
+              <p className="text-sm text-green-700">Diagnóstico guardado.</p>
+            )}
+
+            {diagnosesQ.isLoading && <p className="text-sm text-gray-600">Cargando diagnósticos...</p>}
+            {diagnosesQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los diagnósticos.</p>}
+            {!diagnosesQ.isLoading && !diagnosesQ.isError && diagnoses.length === 0 && (
+              <p className="text-sm text-gray-600">Sin diagnósticos registrados.</p>
+            )}
+            {diagnoses.length > 0 && (
+              <div className="divide-y">
+                {diagnoses.map((diagnosis) => (
+                  <div key={diagnosis.id} className="py-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="font-medium">{diagnosis.cie10_code} · {diagnosis.cie10_description}</div>
+                      <div className="text-sm text-gray-600">
+                        {diagnosisKindLabel(diagnosis.kind)} · {diagnosisStatusLabel(diagnosis.status)} · {diagnosis.diagnosed_at}
+                      </div>
+                      {diagnosis.cie10_chapter && <div className="text-xs text-gray-500">{diagnosis.cie10_chapter}</div>}
+                      {diagnosis.notes && <p className="text-sm text-gray-700 mt-1">{diagnosis.notes}</p>}
+                      <div className="text-xs text-gray-500 mt-1">
+                        Cargado: {formatLocalDateTime(diagnosis.created_at)}
+                        {diagnosis.created_by_email ? ` · ${diagnosis.created_by_email}` : ""}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Última edición: {formatLocalDateTime(diagnosis.updated_at)}
+                        {diagnosis.updated_by_email ? ` · ${diagnosis.updated_by_email}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                        onClick={() => loadDiagnosisForEdit(diagnosis)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1 rounded-lg border text-sm hover:bg-red-50 disabled:opacity-50"
+                        disabled={deleteDiagnosisM.isPending}
+                        onClick={() => deleteDiagnosisM.mutate(diagnosis.id)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         )}
@@ -1209,4 +1458,14 @@ function Panel({
       )}
     </section>
   );
+}
+
+function diagnosisKindLabel(kind: string) {
+  return kind === "secondary" ? "Secundario" : "Principal";
+}
+
+function diagnosisStatusLabel(status: string) {
+  if (status === "confirmed") return "Confirmado";
+  if (status === "resolved") return "Resuelto";
+  return "Sospechado";
 }

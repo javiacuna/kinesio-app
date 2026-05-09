@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  createPractice,
   createKinesiologist,
+  createSpecialty,
+  listPractices,
   listKinesiologists,
+  listSpecialties,
+  updatePractice,
   updateKinesiologist,
+  updateSpecialty,
   uploadKinesiologistAttachment,
+  type SavePracticeInput,
   type SaveKinesiologistInput,
 } from "@/features/kinesiologists/api";
-import type { Kinesiologist } from "@/features/kinesiologists/types";
+import type { Kinesiologist, Practice, Specialty } from "@/features/kinesiologists/types";
 import { inviteUserAccess, listAdminUsers, type AdminUser } from "@/features/auth/adminApi";
 import type { AuthRole } from "@/features/auth/types";
 import {
@@ -25,6 +32,19 @@ type TeamForm = SaveStaffMemberInput & {
   work_start_time: string;
   work_end_time: string;
   work_days: number[];
+  practice_ids: string[];
+};
+
+type PracticeForm = {
+  specialty_id: string;
+  name: string;
+  description: string;
+  active: boolean;
+};
+
+type SpecialtyForm = {
+  name: string;
+  active: boolean;
 };
 
 type RoleFilter = "all" | StaffRole;
@@ -63,16 +83,35 @@ const emptyTeamForm: TeamForm = {
   work_start_time: "08:00",
   work_end_time: "20:00",
   work_days: defaultWorkDays,
+  practice_ids: [],
+  active: true,
+};
+
+const emptyPracticeForm: PracticeForm = {
+  specialty_id: "",
+  name: "",
+  description: "",
+  active: true,
+};
+
+const emptySpecialtyForm: SpecialtyForm = {
+  name: "Kinesiología",
   active: true,
 };
 
 export default function StaffPage() {
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [kinesiologists, setKinesiologists] = useState<Kinesiologist[]>([]);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [practices, setPractices] = useState<Practice[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [form, setForm] = useState<TeamForm>(emptyTeamForm);
+  const [specialtyForm, setSpecialtyForm] = useState<SpecialtyForm>(emptySpecialtyForm);
+  const [practiceForm, setPracticeForm] = useState<PracticeForm>(emptyPracticeForm);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editingStaffEmail, setEditingStaffEmail] = useState<string | null>(null);
+  const [editingSpecialtyId, setEditingSpecialtyId] = useState<string | null>(null);
+  const [editingPracticeId, setEditingPracticeId] = useState<string | null>(null);
   const [sendAccess, setSendAccess] = useState(true);
   const [professionalFiles, setProfessionalFiles] = useState<File[]>([]);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
@@ -81,8 +120,12 @@ export default function StaffPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [teamFormErrors, setTeamFormErrors] = useState<Record<string, string>>({});
+  const [specialtyFormErrors, setSpecialtyFormErrors] = useState<Record<string, string>>({});
+  const [practiceFormErrors, setPracticeFormErrors] = useState<Record<string, string>>({});
   const [roleFormErrors, setRoleFormErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingSpecialty, setIsSavingSpecialty] = useState(false);
+  const [isSavingPractice, setIsSavingPractice] = useState(false);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
 
   const kinesiologistByEmail = useMemo(() => {
@@ -92,6 +135,16 @@ export default function StaffPage() {
     }
     return index;
   }, [kinesiologists]);
+
+  const primarySpecialty = useMemo(
+    () => specialties.find((item) => item.active) ?? specialties[0],
+    [specialties],
+  );
+
+  const activePractices = useMemo(
+    () => practices.filter((practice) => practice.active),
+    [practices],
+  );
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
@@ -146,12 +199,22 @@ export default function StaffPage() {
   async function refreshTeam() {
     setError("");
     try {
-      const [staff, kinesioProfiles] = await Promise.all([
+      const [staff, kinesioProfiles, specialtyItems, practiceItems] = await Promise.all([
         listStaffMembers({ includeInactive: true }),
         listKinesiologists({ includeInactive: true }),
+        listSpecialties({ includeInactive: true }),
+        listPractices({ includeInactive: true }),
       ]);
       setStaffMembers(staff);
       setKinesiologists(kinesioProfiles);
+      setSpecialties(specialtyItems);
+      setPractices(practiceItems);
+      if (!practiceForm.specialty_id && specialtyItems.length > 0) {
+        setPracticeForm((current) => ({
+          ...current,
+          specialty_id: current.specialty_id || specialtyItems.find((item) => item.active)?.id || specialtyItems[0].id,
+        }));
+      }
     } catch (err) {
       setError((err as Error)?.message ?? "No se pudo cargar el equipo.");
     }
@@ -275,8 +338,148 @@ export default function StaffPage() {
       work_start_time: form.work_start_time || existing?.work_start_time || "08:00",
       work_end_time: form.work_end_time || existing?.work_end_time || "20:00",
       work_days: form.work_days.length > 0 ? form.work_days : existing?.work_days ?? defaultWorkDays,
+      practice_ids: form.practice_ids,
       active,
     };
+  }
+
+  async function submitSpecialty(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    const validation: Record<string, string> = {};
+    if (!specialtyForm.name.trim()) validation.name = "Completá el nombre de la especialidad.";
+    setSpecialtyFormErrors(validation);
+    if (Object.keys(validation).length > 0) return;
+    setIsSavingSpecialty(true);
+
+    try {
+      const payload = {
+        name: specialtyForm.name.trim(),
+        active: specialtyForm.active,
+      };
+      if (editingSpecialtyId) {
+        await updateSpecialty({ ...payload, id: editingSpecialtyId });
+      } else {
+        await createSpecialty(payload);
+      }
+      setMessage(editingSpecialtyId ? "Especialidad actualizada." : "Especialidad creada.");
+      resetSpecialtyForm();
+      await refreshTeam();
+    } catch (err) {
+      const apiError = err as Error;
+      setError(apiError.message === "nombre_duplicado" ? "Ya existe una especialidad con ese nombre." : apiError.message);
+    } finally {
+      setIsSavingSpecialty(false);
+    }
+  }
+
+  async function toggleSpecialty(specialty: Specialty) {
+    setError("");
+    setMessage("");
+    try {
+      await updateSpecialty({
+        id: specialty.id,
+        name: specialty.name,
+        active: !specialty.active,
+      });
+      setMessage(!specialty.active ? "Especialidad activada." : "Especialidad desactivada.");
+      await refreshTeam();
+    } catch (err) {
+      setError((err as Error)?.message ?? "No se pudo actualizar la especialidad.");
+    }
+  }
+
+  function editSpecialty(specialty: Specialty) {
+    setEditingSpecialtyId(specialty.id);
+    setSpecialtyForm({
+      name: specialty.name,
+      active: specialty.active,
+    });
+    setSpecialtyFormErrors({});
+    setMessage("");
+    setError("");
+  }
+
+  function resetSpecialtyForm() {
+    setEditingSpecialtyId(null);
+    setSpecialtyForm(emptySpecialtyForm);
+    setSpecialtyFormErrors({});
+  }
+
+  async function submitPractice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    const validation: Record<string, string> = {};
+    const specialtyId = practiceForm.specialty_id || primarySpecialty?.id || "";
+    if (!specialtyId) validation.specialty_id = "Primero creá una especialidad.";
+    if (!practiceForm.name.trim()) validation.name = "Completá el nombre de la práctica.";
+    setPracticeFormErrors(validation);
+    if (Object.keys(validation).length > 0) return;
+    setIsSavingPractice(true);
+
+    try {
+      const payload: SavePracticeInput = {
+        specialty_id: specialtyId,
+        name: practiceForm.name.trim(),
+        description: practiceForm.description.trim() || null,
+        active: practiceForm.active,
+      };
+      if (editingPracticeId) {
+        await updatePractice({ ...payload, id: editingPracticeId });
+      } else {
+        await createPractice(payload);
+      }
+      setMessage(editingPracticeId ? "Práctica actualizada." : "Práctica creada.");
+      resetPracticeForm();
+      await refreshTeam();
+    } catch (err) {
+      const apiError = err as Error;
+      setError(apiError.message === "nombre_duplicado" ? "Ya existe una práctica con ese nombre." : apiError.message);
+    } finally {
+      setIsSavingPractice(false);
+    }
+  }
+
+  async function togglePractice(practice: Practice) {
+    setError("");
+    setMessage("");
+    try {
+      await updatePractice({
+        id: practice.id,
+        specialty_id: practice.specialty_id,
+        name: practice.name,
+        description: practice.description ?? null,
+        active: !practice.active,
+      });
+      setMessage(!practice.active ? "Práctica activada." : "Práctica desactivada.");
+      await refreshTeam();
+    } catch (err) {
+      setError((err as Error)?.message ?? "No se pudo actualizar la práctica.");
+    }
+  }
+
+  function editPractice(practice: Practice) {
+    setEditingPracticeId(practice.id);
+    setPracticeForm({
+      specialty_id: practice.specialty_id,
+      name: practice.name,
+      description: practice.description ?? "",
+      active: practice.active,
+    });
+    setPracticeFormErrors({});
+    setMessage("");
+    setError("");
+  }
+
+  function resetPracticeForm() {
+    setEditingPracticeId(null);
+    setPracticeForm({
+      ...emptyPracticeForm,
+      specialty_id: primarySpecialty?.id ?? specialties[0]?.id ?? "",
+    });
+    setPracticeFormErrors({});
   }
 
   async function submitRole(event: FormEvent<HTMLFormElement>) {
@@ -325,6 +528,9 @@ export default function StaffPage() {
       work_start_time: profile?.work_start_time ?? "08:00",
       work_end_time: profile?.work_end_time ?? "20:00",
       work_days: profile?.work_days?.length ? profile.work_days : defaultWorkDays,
+      practice_ids: profile?.practice_ids?.length
+        ? profile.practice_ids
+        : profile?.practices?.map((practice) => practice.id) ?? [],
     });
     setSendAccess(false);
     setProfessionalFiles([]);
@@ -336,7 +542,7 @@ export default function StaffPage() {
   function resetForm() {
     setEditingStaffId(null);
     setEditingStaffEmail(null);
-    setForm(emptyTeamForm);
+    setForm({ ...emptyTeamForm });
     setProfessionalFiles([]);
     setSendAccess(true);
   }
@@ -439,6 +645,38 @@ export default function StaffPage() {
                   {teamFormErrors.work_days && <p className="text-xs text-red-600 mt-1">{teamFormErrors.work_days}</p>}
                 </div>
                 <div className="md:col-span-2">
+                  <label className="text-sm font-medium">Prácticas</label>
+                  <p className="text-xs text-gray-500 mt-1">Especialidad: {primarySpecialty?.name ?? "Kinesiología"}</p>
+                  {activePractices.length === 0 ? (
+                    <p className="text-sm text-amber-700 mt-2">No hay prácticas activas para asignar.</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {activePractices.map((practice) => {
+                        const checked = form.practice_ids.includes(practice.id);
+                        return (
+                          <label
+                            key={practice.id}
+                            className={`px-3 py-2 rounded-lg border text-sm cursor-pointer ${checked ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                          >
+                            <input
+                              className="sr-only"
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                const next = event.target.checked
+                                  ? [...form.practice_ids, practice.id]
+                                  : form.practice_ids.filter((value) => value !== practice.id);
+                                setForm({ ...form, practice_ids: next });
+                              }}
+                            />
+                            {practice.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="md:col-span-2">
                   <label className="text-sm font-medium">Documentación profesional</label>
                   <input
                     className="mt-1 w-full border rounded-lg p-2"
@@ -467,6 +705,155 @@ export default function StaffPage() {
               )}
             </div>
           </form>
+        </section>
+
+        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Especialidades y prácticas</h2>
+            <p className="text-sm text-gray-600">Catálogo para asignar prácticas al perfil de cada kinesiólogo.</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="border rounded-lg p-3 space-y-3">
+              <div>
+                <h3 className="font-medium">Especialidades</h3>
+                <p className="text-xs text-gray-500">Por ahora la especialidad operativa es Kinesiología.</p>
+              </div>
+              <form className="space-y-3" onSubmit={submitSpecialty} noValidate>
+                <Field
+                  label="Nombre especialidad"
+                  value={specialtyForm.name}
+                  onChange={(value) => setSpecialtyForm({ ...specialtyForm, name: value })}
+                  error={specialtyFormErrors.name}
+                />
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={specialtyForm.active}
+                    onChange={(event) => setSpecialtyForm({ ...specialtyForm, active: event.target.checked })}
+                  />
+                  Activa
+                </label>
+                <div className="flex gap-2">
+                  <button className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-50" disabled={isSavingSpecialty}>
+                    {isSavingSpecialty ? "Guardando..." : editingSpecialtyId ? "Guardar especialidad" : "Crear especialidad"}
+                  </button>
+                  {editingSpecialtyId && (
+                    <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={resetSpecialtyForm}>
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <div className="divide-y">
+                {specialties.length === 0 ? (
+                  <p className="text-sm text-gray-600 py-2">No hay especialidades.</p>
+                ) : (
+                  specialties.map((specialty) => (
+                    <div key={specialty.id} className="py-2 flex items-center justify-between gap-2">
+                      <div>
+                        <div className="font-medium">{specialty.name}</div>
+                        <div className="text-xs text-gray-500">{specialty.active ? "Activa" : "Inactiva"}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editSpecialty(specialty)}>
+                          Editar
+                        </button>
+                        <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => toggleSpecialty(specialty)}>
+                          {specialty.active ? "Desactivar" : "Activar"}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-3 space-y-3">
+              <div>
+                <h3 className="font-medium">Prácticas</h3>
+                <p className="text-xs text-gray-500">Motora, respiratoria, pediátrica u otras prácticas de kinesiología.</p>
+              </div>
+              <form className="space-y-3" onSubmit={submitPractice} noValidate>
+                <div>
+                  <label className="text-sm font-medium"><RequiredLabel required>Especialidad</RequiredLabel></label>
+                  <select
+                    className="mt-1 w-full border rounded-lg p-2"
+                    value={practiceForm.specialty_id || primarySpecialty?.id || ""}
+                    onChange={(event) => setPracticeForm({ ...practiceForm, specialty_id: event.target.value })}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {specialties.map((specialty) => (
+                      <option key={specialty.id} value={specialty.id}>
+                        {specialty.name}{specialty.active ? "" : " (inactiva)"}
+                      </option>
+                    ))}
+                  </select>
+                  {practiceFormErrors.specialty_id && <p className="text-xs text-red-600 mt-1">{practiceFormErrors.specialty_id}</p>}
+                </div>
+                <Field
+                  label="Nombre práctica"
+                  value={practiceForm.name}
+                  onChange={(value) => setPracticeForm({ ...practiceForm, name: value })}
+                  error={practiceFormErrors.name}
+                />
+                <div>
+                  <label className="text-sm font-medium">Descripción</label>
+                  <textarea
+                    className="mt-1 w-full border rounded-lg p-2"
+                    rows={3}
+                    value={practiceForm.description}
+                    onChange={(event) => setPracticeForm({ ...practiceForm, description: event.target.value })}
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={practiceForm.active}
+                    onChange={(event) => setPracticeForm({ ...practiceForm, active: event.target.checked })}
+                  />
+                  Activa
+                </label>
+                <div className="flex gap-2">
+                  <button className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-50" disabled={isSavingPractice}>
+                    {isSavingPractice ? "Guardando..." : editingPracticeId ? "Guardar práctica" : "Crear práctica"}
+                  </button>
+                  {editingPracticeId && (
+                    <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={resetPracticeForm}>
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </form>
+
+              <div className="divide-y">
+                {practices.length === 0 ? (
+                  <p className="text-sm text-gray-600 py-2">No hay prácticas.</p>
+                ) : (
+                  practices.map((practice) => (
+                    <div key={practice.id} className="py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="font-medium">{practice.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {specialties.find((item) => item.id === practice.specialty_id)?.name ?? "Kinesiología"} · {practice.active ? "Activa" : "Inactiva"}
+                        </div>
+                        {practice.description && <div className="text-sm text-gray-600">{practice.description}</div>}
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editPractice(practice)}>
+                          Editar
+                        </button>
+                        <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => togglePractice(practice)}>
+                          {practice.active ? "Desactivar" : "Activar"}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
@@ -539,10 +926,15 @@ export default function StaffPage() {
                       <div className="text-sm text-gray-600">{member.email}</div>
                       {member.phone && <div className="text-sm text-gray-600">Tel: {member.phone}</div>}
                       {member.role === "kinesiologo" && profile && (
-                        <div className="text-sm text-gray-600">
-                          {profile.license_number ? `Matrícula: ${profile.license_number} · ` : ""}
-                          Horario: {profile.work_start_time} a {profile.work_end_time} · Días: {workDaysLabel(profile.work_days)}
-                        </div>
+                        <>
+                          <div className="text-sm text-gray-600">
+                            {profile.license_number ? `Matrícula: ${profile.license_number} · ` : ""}
+                            Horario: {profile.work_start_time} a {profile.work_end_time} · Días: {workDaysLabel(profile.work_days)}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            Prácticas: {profile.practices?.length ? profile.practices.map((practice) => practice.name).join(", ") : "Sin asignar"}
+                          </div>
+                        </>
                       )}
                       {member.role === "kinesiologo" && !profile && (
                         <div className="text-sm text-red-600">Perfil profesional pendiente.</div>

@@ -16,16 +16,36 @@ type Kinesiologist struct {
 	WorkStartTime string
 	WorkEndTime   string
 	WorkDays      []int
+	PracticeIDs   []uuid.UUID
+	Practices     []Practice
 	Active        bool
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type Specialty struct {
+	ID        uuid.UUID
+	Name      string
+	Active    bool
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type Practice struct {
+	ID          uuid.UUID
+	SpecialtyID uuid.UUID
+	Name        string
+	Description *string
+	Active      bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func NormalizeEmail(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-func NewKinesiologist(firstName, lastName, email string, licenseNumber *string, workStartTime, workEndTime string, workDays []int, active bool) Kinesiologist {
+func NewKinesiologist(firstName, lastName, email string, licenseNumber *string, workStartTime, workEndTime string, workDays []int, practiceIDs []uuid.UUID, active bool) Kinesiologist {
 	return Kinesiologist{
 		ID:            uuid.New(),
 		FirstName:     strings.TrimSpace(firstName),
@@ -35,6 +55,7 @@ func NewKinesiologist(firstName, lastName, email string, licenseNumber *string, 
 		WorkStartTime: strings.TrimSpace(workStartTime),
 		WorkEndTime:   strings.TrimSpace(workEndTime),
 		WorkDays:      NormalizeWorkDays(workDays),
+		PracticeIDs:   NormalizePracticeIDs(practiceIDs),
 		Active:        active,
 	}
 }
@@ -62,6 +83,25 @@ func NormalizeWorkDays(values []int) []int {
 	}
 	if len(out) == 0 {
 		return DefaultWorkDays()
+	}
+	return out
+}
+
+func NormalizePracticeIDs(values []uuid.UUID) []uuid.UUID {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := map[uuid.UUID]struct{}{}
+	out := make([]uuid.UUID, 0, len(values))
+	for _, value := range values {
+		if value == uuid.Nil {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
 	}
 	return out
 }

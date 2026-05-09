@@ -19,6 +19,7 @@ type SaveKinesiologistInput struct {
 	WorkStartTime string
 	WorkEndTime   string
 	WorkDays      []int
+	PracticeIDs   []string
 	Active        bool
 }
 
@@ -62,6 +63,7 @@ func buildKinesiologist(in SaveKinesiologistInput) (domain.Kinesiologist, map[st
 	email := domain.NormalizeEmail(in.Email)
 	workStartTime := defaultWorkTime(in.WorkStartTime, "08:00")
 	workEndTime := defaultWorkTime(in.WorkEndTime, "20:00")
+	practiceIDs := make([]uuid.UUID, 0, len(in.PracticeIDs))
 
 	if firstName == "" {
 		errs["first_name"] = "Campo obligatorio"
@@ -95,7 +97,16 @@ func buildKinesiologist(in SaveKinesiologistInput) (domain.Kinesiologist, map[st
 		}
 	}
 
-	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, workStartTime, workEndTime, workDays, in.Active), errs
+	for _, id := range in.PracticeIDs {
+		parsed, err := uuid.Parse(strings.TrimSpace(id))
+		if err != nil {
+			errs["practice_ids"] = "Hay prácticas con ID inválido"
+			break
+		}
+		practiceIDs = append(practiceIDs, parsed)
+	}
+
+	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, workStartTime, workEndTime, workDays, practiceIDs, in.Active), errs
 }
 
 var hhmmPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)

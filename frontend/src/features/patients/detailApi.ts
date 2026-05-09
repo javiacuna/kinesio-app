@@ -92,6 +92,67 @@ export type PatientAttachment = {
   created_at: string;
 };
 
+export type CIE10Code = {
+  code: string;
+  description: string;
+  chapter?: string | null;
+};
+
+export type PatientDiagnosis = {
+  id: string;
+  patient_id: string;
+  cie10_code: string;
+  cie10_description: string;
+  cie10_chapter?: string | null;
+  kind: "primary" | "secondary" | string;
+  status: "suspected" | "confirmed" | "resolved" | string;
+  diagnosed_at: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by_email?: string | null;
+  created_by_role?: string | null;
+  updated_by_email?: string | null;
+  updated_by_role?: string | null;
+};
+
+export type SavePatientDiagnosisInput = {
+  cie10_code: string;
+  kind: "primary" | "secondary";
+  status: "suspected" | "confirmed" | "resolved";
+  diagnosed_at: string;
+  notes?: string | null;
+};
+
+export function searchCIE10Codes(query: string, limit = 30) {
+  const qs = new URLSearchParams({ query, limit: String(limit) });
+  return apiFetch<CIE10Code[]>(`/api/v1/cie10?${qs.toString()}`);
+}
+
+export function listPatientDiagnoses(patientId: string) {
+  return apiFetch<PatientDiagnosis[]>(`/api/v1/patients/${patientId}/diagnoses`);
+}
+
+export function createPatientDiagnosis(patientId: string, input: SavePatientDiagnosisInput) {
+  return apiFetch<PatientDiagnosis>(`/api/v1/patients/${patientId}/diagnoses`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updatePatientDiagnosis(patientId: string, diagnosisId: string, input: SavePatientDiagnosisInput) {
+  return apiFetch<PatientDiagnosis>(`/api/v1/patients/${patientId}/diagnoses/${diagnosisId}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deletePatientDiagnosis(patientId: string, diagnosisId: string) {
+  return apiFetch<void>(`/api/v1/patients/${patientId}/diagnoses/${diagnosisId}`, {
+    method: "DELETE",
+  });
+}
+
 export function listPatientPlans(patientId: string) {
   return apiFetch<ExercisePlan[]>(`/api/v1/patients/${patientId}/plans`);
 }

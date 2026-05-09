@@ -103,6 +103,22 @@ func (r *appointmentKinesiologistRepo) GetByID(ctx context.Context, id string) (
 	return r.kinesiologist, r.found, nil
 }
 
+func (r *appointmentKinesiologistRepo) ListSpecialties(ctx context.Context, includeInactive bool) ([]kineDomain.Specialty, error) {
+	return nil, nil
+}
+
+func (r *appointmentKinesiologistRepo) SaveSpecialty(ctx context.Context, specialty kineDomain.Specialty) (kineDomain.Specialty, error) {
+	return specialty, nil
+}
+
+func (r *appointmentKinesiologistRepo) ListPractices(ctx context.Context, includeInactive bool) ([]kineDomain.Practice, error) {
+	return nil, nil
+}
+
+func (r *appointmentKinesiologistRepo) SavePractice(ctx context.Context, practice kineDomain.Practice) (kineDomain.Practice, error) {
+	return practice, nil
+}
+
 func testKinesiologist(id uuid.UUID) *appointmentKinesiologistRepo {
 	return &appointmentKinesiologistRepo{
 		kinesiologist: kineDomain.Kinesiologist{
