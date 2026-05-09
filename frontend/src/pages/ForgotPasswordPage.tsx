@@ -4,6 +4,7 @@ import { requestPasswordReset } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 export default function ForgotPasswordPage() {
   const { isAuthenticated, user } = useAuth();
@@ -47,7 +48,7 @@ export default function ForgotPasswordPage() {
         <form className="space-y-4" onSubmit={submit}>
           <div>
             <label className="text-sm font-medium" htmlFor="email">
-              {t("auth.email")}
+              <RequiredLabel required>{t("auth.email")}</RequiredLabel>
             </label>
             <input
               id="email"

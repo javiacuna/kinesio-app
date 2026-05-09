@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 export default function LoginPage() {
   const { loginWithEmail, isAuthenticated, user } = useAuth();
@@ -49,7 +50,7 @@ export default function LoginPage() {
         <form className="space-y-4" onSubmit={submit}>
           <div>
             <label className="text-sm font-medium" htmlFor="email">
-              {t("auth.email")}
+              <RequiredLabel required>{t("auth.email")}</RequiredLabel>
             </label>
             <input
               id="email"
@@ -64,7 +65,7 @@ export default function LoginPage() {
 
           <div>
             <label className="text-sm font-medium" htmlFor="password">
-              {t("auth.password")}
+              <RequiredLabel required>{t("auth.password")}</RequiredLabel>
             </label>
             <input
               id="password"

@@ -3,6 +3,7 @@ import { changePassword } from "@/features/auth/api";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { saveAuthTokens } from "@/features/auth/session";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -88,7 +89,7 @@ export default function ProfilePage() {
         <form className="space-y-4" onSubmit={submitPassword}>
           <div>
             <label className="text-sm font-medium" htmlFor="current-password">
-              {t("profile.currentPassword")}
+              <RequiredLabel required>{t("profile.currentPassword")}</RequiredLabel>
             </label>
             <input
               id="current-password"
@@ -104,7 +105,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <label className="text-sm font-medium" htmlFor="new-password">
-                {t("profile.newPassword")}
+                <RequiredLabel required>{t("profile.newPassword")}</RequiredLabel>
               </label>
               <input
                 id="new-password"
@@ -118,7 +119,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="repeat-password">
-                {t("profile.repeatPassword")}
+                <RequiredLabel required>{t("profile.repeatPassword")}</RequiredLabel>
               </label>
               <input
                 id="repeat-password"

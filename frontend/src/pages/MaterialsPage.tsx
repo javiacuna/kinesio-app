@@ -16,6 +16,7 @@ import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { listPatients } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
 import { formatLocalDateTime } from "@/shared/time/format";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 function isStockError(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "insufficient_stock";
@@ -40,6 +41,8 @@ export default function MaterialsPage() {
   const [editMaterialName, setEditMaterialName] = useState("");
   const [editMaterialQty, setEditMaterialQty] = useState(1);
   const [editMaterialDescription, setEditMaterialDescription] = useState("");
+  const [showMaterialValidation, setShowMaterialValidation] = useState(false);
+  const [showLoanValidation, setShowLoanValidation] = useState(false);
 
   const materialsQ = useQuery({
     queryKey: ["materials"],
@@ -116,6 +119,7 @@ export default function MaterialsPage() {
         total_qty: newMaterialQty,
       }),
     onSuccess: () => {
+      setShowMaterialValidation(false);
       setNewMaterialName("");
       setNewMaterialQty(1);
       setNewMaterialDescription("");
@@ -147,6 +151,7 @@ export default function MaterialsPage() {
         notes: notes.trim() || null,
       }),
     onSuccess: () => {
+      setShowLoanValidation(false);
       setQty(1);
       setNotes("");
       materialsQ.refetch();
@@ -212,22 +217,30 @@ export default function MaterialsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr_auto] gap-3">
           <div>
-            <label className="text-sm font-medium">Material</label>
+            <label className="text-sm font-medium"><RequiredLabel required>Material</RequiredLabel></label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
+              required
               value={newMaterialName}
               onChange={(event) => setNewMaterialName(event.target.value)}
             />
+            {showMaterialValidation && !newMaterialName.trim() && (
+              <p className="text-xs text-red-600 mt-1">Completá el nombre del material.</p>
+            )}
           </div>
           <div>
-            <label className="text-sm font-medium">Cantidad</label>
+            <label className="text-sm font-medium"><RequiredLabel required>Cantidad</RequiredLabel></label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="number"
               min={1}
+              required
               value={newMaterialQty}
               onChange={(event) => setNewMaterialQty(Number(event.target.value))}
             />
+            {showMaterialValidation && newMaterialQty <= 0 && (
+              <p className="text-xs text-red-600 mt-1">La cantidad debe ser mayor a 0.</p>
+            )}
           </div>
           <div>
             <label className="text-sm font-medium">Descripción</label>
@@ -240,8 +253,12 @@ export default function MaterialsPage() {
           <button
             type="button"
             className="px-4 py-2 rounded-lg bg-black text-white self-end disabled:opacity-50"
-            disabled={!newMaterialName.trim() || newMaterialQty <= 0 || createMaterialM.isPending}
-            onClick={() => createMaterialM.mutate()}
+            disabled={createMaterialM.isPending}
+            onClick={() => {
+              setShowMaterialValidation(true);
+              if (!newMaterialName.trim() || newMaterialQty <= 0) return;
+              createMaterialM.mutate();
+            }}
           >
             {createMaterialM.isPending ? "Guardando..." : "Crear"}
           </button>
@@ -369,7 +386,7 @@ export default function MaterialsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-3">
             <div>
-              <label className="text-sm font-medium">Material</label>
+              <label className="text-sm font-medium"><RequiredLabel required>Material</RequiredLabel></label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={materialId}
@@ -384,7 +401,7 @@ export default function MaterialsPage() {
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">Cantidad</label>
+              <label className="text-sm font-medium"><RequiredLabel required>Cantidad</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="number"
@@ -408,11 +425,29 @@ export default function MaterialsPage() {
           <button
             type="button"
             className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            disabled={!canLoan || loanM.isPending}
-            onClick={() => loanM.mutate()}
+            disabled={loanM.isPending}
+            onClick={() => {
+              setShowLoanValidation(true);
+              if (!canLoan) return;
+              loanM.mutate();
+            }}
           >
             {loanM.isPending ? "Registrando..." : "Registrar préstamo"}
           </button>
+
+          {showLoanValidation && !canLoan && (
+            <p className="text-sm text-red-600">
+              {!loanPatient?.id
+                ? "Seleccioná un paciente."
+                : !materialId
+                  ? "Seleccioná un material."
+                  : !kinesiologistId
+                    ? "Seleccioná un kinesiólogo responsable."
+                    : qty <= 0
+                      ? "La cantidad debe ser mayor a 0."
+                      : "La cantidad no puede superar el stock disponible."}
+            </p>
+          )}
 
           {loanM.isError && (
             <p className="text-sm text-red-600">

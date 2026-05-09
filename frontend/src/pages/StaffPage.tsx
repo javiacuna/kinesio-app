@@ -16,6 +16,9 @@ import {
   type SaveStaffMemberInput,
 } from "@/features/staff/api";
 import type { StaffMember, StaffRole } from "@/features/staff/types";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type TeamForm = SaveStaffMemberInput & {
   license_number: string;
@@ -77,6 +80,8 @@ export default function StaffPage() {
   const [role, setRole] = useState<AuthRole>("recepcionista");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [teamFormErrors, setTeamFormErrors] = useState<Record<string, string>>({});
+  const [roleFormErrors, setRoleFormErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
 
@@ -165,6 +170,9 @@ export default function StaffPage() {
     event.preventDefault();
     setError("");
     setMessage("");
+    const validation = validateTeamForm();
+    setTeamFormErrors(validation);
+    if (Object.keys(validation).length > 0) return;
     setIsSaving(true);
 
     try {
@@ -208,6 +216,26 @@ export default function StaffPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function validateTeamForm() {
+    const validation: Record<string, string> = {};
+    if (!form.first_name.trim()) validation.first_name = "Completá el nombre.";
+    if (!form.last_name.trim()) validation.last_name = "Completá el apellido.";
+    if (!form.email.trim()) {
+      validation.email = "Completá el email.";
+    } else if (!emailPattern.test(form.email.trim())) {
+      validation.email = "Ingresá un email válido.";
+    }
+    if (form.role === "kinesiologo") {
+      if (!form.work_start_time) validation.work_start_time = "Completá el horario de inicio.";
+      if (!form.work_end_time) validation.work_end_time = "Completá el horario de fin.";
+      if (form.work_start_time && form.work_end_time && form.work_start_time >= form.work_end_time) {
+        validation.work_end_time = "Debe ser mayor al horario de inicio.";
+      }
+      if (form.work_days.length === 0) validation.work_days = "Seleccioná al menos un día laboral.";
+    }
+    return validation;
   }
 
   async function syncKinesiologistProfile(saved: StaffMember): Promise<Kinesiologist | undefined> {
@@ -255,6 +283,14 @@ export default function StaffPage() {
     event.preventDefault();
     setError("");
     setMessage("");
+    const validation: Record<string, string> = {};
+    if (!roleEmail.trim()) {
+      validation.roleEmail = "Completá el email.";
+    } else if (!emailPattern.test(roleEmail.trim())) {
+      validation.roleEmail = "Ingresá un email válido.";
+    }
+    setRoleFormErrors(validation);
+    if (Object.keys(validation).length > 0) return;
     setIsAssigningRole(true);
 
     try {
@@ -330,10 +366,11 @@ export default function StaffPage() {
             <p className="text-sm text-gray-600">Los datos profesionales aparecen cuando el rol es kinesiólogo.</p>
           </div>
 
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={submitTeamMember}>
-            <Field label="Nombre" value={form.first_name} onChange={(value) => setForm({ ...form, first_name: value })} />
-            <Field label="Apellido" value={form.last_name} onChange={(value) => setForm({ ...form, last_name: value })} />
-            <Field label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={submitTeamMember} noValidate>
+            <p className="text-xs text-gray-500 md:col-span-2">Los campos marcados con <span className="text-red-600">*</span> son obligatorios.</p>
+            <Field label="Nombre" value={form.first_name} onChange={(value) => setForm({ ...form, first_name: value })} error={teamFormErrors.first_name} />
+            <Field label="Apellido" value={form.last_name} onChange={(value) => setForm({ ...form, last_name: value })} error={teamFormErrors.last_name} />
+            <Field label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} error={teamFormErrors.email} />
             <Field label="Teléfono" value={form.phone ?? ""} onChange={(value) => setForm({ ...form, phone: value })} required={false} />
 
             <div>
@@ -371,10 +408,10 @@ export default function StaffPage() {
             {isKinesiologistRole && (
               <>
                 <Field label="Matrícula" value={form.license_number} onChange={(value) => setForm({ ...form, license_number: value })} required={false} />
-                <Field label="Horario inicio" type="time" value={form.work_start_time} onChange={(value) => setForm({ ...form, work_start_time: value })} />
-                <Field label="Horario fin" type="time" value={form.work_end_time} onChange={(value) => setForm({ ...form, work_end_time: value })} />
+                <Field label="Horario inicio" type="time" value={form.work_start_time} onChange={(value) => setForm({ ...form, work_start_time: value })} error={teamFormErrors.work_start_time} />
+                <Field label="Horario fin" type="time" value={form.work_end_time} onChange={(value) => setForm({ ...form, work_end_time: value })} error={teamFormErrors.work_end_time} />
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Días laborales</label>
+                  <label className="text-sm font-medium"><RequiredLabel required>Días laborales</RequiredLabel></label>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {workDayOptions.map((day) => {
                       const checked = form.work_days.includes(day.value);
@@ -399,6 +436,7 @@ export default function StaffPage() {
                       );
                     })}
                   </div>
+                  {teamFormErrors.work_days && <p className="text-xs text-red-600 mt-1">{teamFormErrors.work_days}</p>}
                 </div>
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium">Documentación profesional</label>
@@ -439,8 +477,8 @@ export default function StaffPage() {
             </p>
           </div>
 
-          <form className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3" onSubmit={submitRole}>
-            <Field label="Email" type="email" value={roleEmail} onChange={setRoleEmail} />
+          <form className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3" onSubmit={submitRole} noValidate>
+            <Field label="Email" type="email" value={roleEmail} onChange={setRoleEmail} error={roleFormErrors.roleEmail} />
             <div>
               <label className="text-sm font-medium">Rol</label>
               <select
@@ -589,16 +627,18 @@ function Field({
   onChange,
   type = "text",
   required = true,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   required?: boolean;
+  error?: string;
 }) {
   return (
     <div>
-      <label className="text-sm font-medium">{label}</label>
+      <label className="text-sm font-medium"><RequiredLabel required={required}>{label}</RequiredLabel></label>
       <input
         className="mt-1 w-full border rounded-lg p-2"
         type={type}
@@ -606,6 +646,7 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         required={required}
       />
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
     </div>
   );
 }

@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { inviteUserAccess } from "@/features/auth/adminApi";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { archivePatient, createPatient, listPatients, searchPatients, updatePatient } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
 import { uploadPatientAttachment } from "@/features/patients/detailApi";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function PatientsPage() {
   const { user } = useAuth();
@@ -15,6 +18,7 @@ export default function PatientsPage() {
   const [initialFiles, setInitialFiles] = useState<File[]>([]);
 
   const [created, setCreated] = useState<Patient | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -53,10 +57,14 @@ export default function PatientsPage() {
     }
   }
 
-  async function submit() {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError("");
     setInviteMessage("");
     setCreated(null);
+    const validation = validatePatientForm();
+    setFormErrors(validation);
+    if (Object.keys(validation).length > 0) return;
 
     try {
       const res = await createPatient({
@@ -87,6 +95,19 @@ export default function PatientsPage() {
     } catch (e: any) {
       setError(e?.message ?? "Error");
     }
+  }
+
+  function validatePatientForm() {
+    const validation: Record<string, string> = {};
+    if (!dni.trim()) validation.dni = "Completá el DNI.";
+    if (!firstName.trim()) validation.firstName = "Completá el nombre.";
+    if (!lastName.trim()) validation.lastName = "Completá el apellido.";
+    if (!email.trim()) {
+      validation.email = "Completá el email.";
+    } else if (!emailPattern.test(email.trim())) {
+      validation.email = "Ingresá un email válido.";
+    }
+    return validation;
   }
 
   async function invitePatient() {
@@ -169,23 +190,28 @@ export default function PatientsPage() {
           <Link className="text-sm underline" to="/agenda">Ir a Agenda</Link>
         </header>
 
-        <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <form className="bg-white rounded-xl shadow p-4 space-y-3" onSubmit={submit} noValidate>
+          <p className="text-xs text-gray-500">Los campos marcados con <span className="text-red-600">*</span> son obligatorios.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium">DNI</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={dni} onChange={(e) => setDni(e.target.value)} />
+              <label className="text-sm font-medium"><RequiredLabel required>DNI</RequiredLabel></label>
+              <input className="mt-1 w-full border rounded-lg p-2" value={dni} onChange={(e) => setDni(e.target.value)} required />
+              {formErrors.dni && <p className="text-xs text-red-600 mt-1">{formErrors.dni}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Email</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <label className="text-sm font-medium"><RequiredLabel required>Email</RequiredLabel></label>
+              <input className="mt-1 w-full border rounded-lg p-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Nombre</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+              <label className="text-sm font-medium"><RequiredLabel required>Nombre</RequiredLabel></label>
+              <input className="mt-1 w-full border rounded-lg p-2" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              {formErrors.firstName && <p className="text-xs text-red-600 mt-1">{formErrors.firstName}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Apellido</label>
-              <input className="mt-1 w-full border rounded-lg p-2" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+              <label className="text-sm font-medium"><RequiredLabel required>Apellido</RequiredLabel></label>
+              <input className="mt-1 w-full border rounded-lg p-2" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              {formErrors.lastName && <p className="text-xs text-red-600 mt-1">{formErrors.lastName}</p>}
             </div>
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Archivos iniciales</label>
@@ -204,7 +230,7 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          <button className="px-4 py-2 rounded-lg bg-black text-white" onClick={submit}>
+          <button className="px-4 py-2 rounded-lg bg-black text-white" type="submit">
             Crear paciente
           </button>
 
@@ -229,7 +255,7 @@ export default function PatientsPage() {
               {inviteMessage && <p className="text-sm text-green-700 mt-2">{inviteMessage}</p>}
             </div>
           )}
-        </div>
+        </form>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

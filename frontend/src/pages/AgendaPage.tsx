@@ -20,6 +20,7 @@ import type { Appointment } from "@/features/appointments/types";
 import type { Patient } from "@/features/patients/types";
 import type { Kinesiologist } from "@/features/kinesiologists/types";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
+import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 const defaultWorkDays = [1, 2, 3, 4, 5];
 const workDayLabels: Record<number, string> = {
@@ -455,7 +456,7 @@ export default function AgendaPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="text-sm font-medium">{t("agenda.date")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.date")}</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
@@ -465,7 +466,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">{t("agenda.view")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.view")}</RequiredLabel></label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={viewMode}
@@ -477,7 +478,7 @@ export default function AgendaPage() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">{t("agenda.kinesiologist")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.kinesiologist")}</RequiredLabel></label>
               {isKinesiologist ? (
                 <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">
                   {selectedKinesiologist
@@ -586,7 +587,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">{t("agenda.appointmentDate")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.appointmentDate")}</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="date"
@@ -597,7 +598,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">{t("agenda.startTime")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.startTime")}</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="time"
@@ -607,7 +608,7 @@ export default function AgendaPage() {
             </div>
 
             <div>
-              <label className="text-sm font-medium">{t("agenda.duration")}</label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.duration")}</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="number"
@@ -642,7 +643,7 @@ export default function AgendaPage() {
 
             {createMode === "package" && (
               <div>
-                <label className="text-sm font-medium">{t("agenda.sessionsCount")}</label>
+                <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.sessionsCount")}</RequiredLabel></label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="number"
