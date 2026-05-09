@@ -6,8 +6,10 @@ import { listKinesiologists } from "../features/kinesiologists/api";
 import {
   cancelAppointment,
   createAppointment,
+  createAppointmentPackage,
   listAppointmentsDay,
   updateAppointment,
+  updateAppointmentPackage,
 } from "../features/appointments/api";
 import { listPatients } from "@/features/patients/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
@@ -16,7 +18,19 @@ import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { AgendaGrid } from "@/features/appointments/components/AgendaGrid";
 import type { Appointment } from "@/features/appointments/types";
 import type { Patient } from "@/features/patients/types";
+import type { Kinesiologist } from "@/features/kinesiologists/types";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
+
+const defaultWorkDays = [1, 2, 3, 4, 5];
+const workDayLabels: Record<number, string> = {
+  1: "Lun",
+  2: "Mar",
+  3: "Mié",
+  4: "Jue",
+  5: "Vie",
+  6: "Sáb",
+  7: "Dom",
+};
 
 function todayISO() {
   const d = new Date();
@@ -51,6 +65,23 @@ function isOutsideWorkingHours(startHHmm: string, durationMin: number, workStart
   const from = workStart || "08:00";
   const to = workEnd || "20:00";
   return start < from || end > to || end <= start;
+}
+
+function isOutsideWorkingSchedule(dateISO: string, startHHmm: string, durationMin: number, kinesiologist?: Kinesiologist) {
+  if (!kinesiologist) return false;
+  if (isOutsideWorkingHours(startHHmm, durationMin, kinesiologist.work_start_time, kinesiologist.work_end_time)) {
+    return true;
+  }
+  const days = kinesiologist.work_days?.length ? kinesiologist.work_days : defaultWorkDays;
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const isoDay = date.getDay() === 0 ? 7 : date.getDay();
+  return !days.includes(isoDay);
+}
+
+function workDaysLabel(days?: number[]) {
+  const selected = days?.length ? days : defaultWorkDays;
+  return selected.map((day) => workDayLabels[day]).filter(Boolean).join(", ");
 }
 
 function localDateISO(iso: string) {
@@ -118,11 +149,16 @@ export default function AgendaPage() {
 
   // Crear turno (inputs UX)
   const [patientId, setPatientId] = useState("");
+  const [createMode, setCreateMode] = useState<"single" | "package">("single");
   const [apptDate, setApptDate] = useState(todayISO());
   const [startTime, setStartTime] = useState("09:00");
   const [durationMin, setDurationMin] = useState(45);
+  const [sessionsCount, setSessionsCount] = useState(8);
   const [notes, setNotes] = useState("");
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [editPackageDate, setEditPackageDate] = useState(todayISO());
+  const [editPackageDays, setEditPackageDays] = useState<number[]>(defaultWorkDays);
   const [editDate, setEditDate] = useState(todayISO());
   const [editStartTime, setEditStartTime] = useState("09:00");
   const [editDurationMin, setEditDurationMin] = useState(45);
@@ -204,6 +240,20 @@ export default function AgendaPage() {
     },
   });
 
+  const createPackageM = useMutation({
+    mutationFn: createAppointmentPackage,
+    onSuccess: () => {
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
+    onError: (error) => {
+      if (isInactivePatientError(error)) {
+        localStorage.removeItem("last_patient_id");
+        setPatientId("");
+      }
+    },
+  });
+
   const cancelM = useMutation({
     mutationFn: cancelAppointment,
     onSuccess: () => {
@@ -224,11 +274,42 @@ export default function AgendaPage() {
     },
   });
 
+  const packageUpdateM = useMutation({
+    mutationFn: (args: { id: string; start_date: string; start_time: string; duration_min: number; work_days: number[]; notes?: string }) =>
+      updateAppointmentPackage({
+        id: args.id,
+        start_date: args.start_date,
+        start_time: args.start_time,
+        duration_min: args.duration_min,
+        work_days: args.work_days,
+        notes: args.notes,
+      }),
+    onSuccess: () => {
+      setEditingPackageId(null);
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
+  });
+
 
   function create() {
     if (isCreateInPast) return;
 
     const endTime = addMinutesToHHmm(startTime, durationMin);
+
+    if (createMode === "package") {
+      createPackageM.mutate({
+        patient_id: patientId.trim(),
+        kinesiologist_id: kinesiologistId,
+        start_date: apptDate,
+        start_time: startTime,
+        duration_min: durationMin,
+        sessions_count: sessionsCount,
+        weekdays_only: true,
+        notes: notes.trim() ? notes.trim() : undefined,
+      });
+      return;
+    }
 
     createM.mutate({
       patient_id: patientId.trim(),
@@ -241,11 +322,24 @@ export default function AgendaPage() {
 
   function openEditAppointment(appt: Appointment) {
     setEditingAppointment(appt);
+    setEditingPackageId(null);
     setEditDate(localDateISO(appt.start_at));
     setEditStartTime(formatLocalTime(appt.start_at));
     setEditDurationMin(durationMinutes(appt.start_at, appt.end_at));
     setEditNotes(appt.notes ?? "");
     rescheduleM.reset();
+  }
+
+  function openEditPackage(appt: Appointment) {
+    if (!appt.package_id) return;
+    setEditingPackageId(appt.package_id);
+    setEditingAppointment(null);
+    setEditStartTime(formatLocalTime(appt.start_at));
+    setEditDurationMin(durationMinutes(appt.start_at, appt.end_at));
+    setEditNotes(appt.notes ?? "");
+    setEditPackageDate(localDateISO(appt.start_at));
+    setEditPackageDays(selectedKinesiologist?.work_days?.length ? selectedKinesiologist.work_days : defaultWorkDays);
+    packageUpdateM.reset();
   }
 
   function submitEditAppointment() {
@@ -256,6 +350,18 @@ export default function AgendaPage() {
       id: editingAppointment.id,
       start_at: localDateTimeToUTC(editDate, editStartTime),
       end_at: localDateTimeToUTC(editDate, endTime),
+      notes: editNotes.trim() ? editNotes.trim() : undefined,
+    });
+  }
+
+  function submitEditPackage() {
+    if (!editingPackageId || isPackageEditOutsideWorkingHours) return;
+    packageUpdateM.mutate({
+      id: editingPackageId,
+      start_date: editPackageDate,
+      start_time: editStartTime,
+      duration_min: editDurationMin,
+      work_days: editPackageDays,
       notes: editNotes.trim() ? editNotes.trim() : undefined,
     });
   }
@@ -274,23 +380,38 @@ export default function AgendaPage() {
     });
   }
 
-  const createErr: any = createM.error;
-  const hasCreateOverlap = isOverlapError(createM.error);
-  const hasCreateInactivePatient = isInactivePatientError(createM.error);
+  const activeCreateError = createMode === "package" ? createPackageM.error : createM.error;
+  const createErr: any = activeCreateError;
+  const hasCreateOverlap = isOverlapError(activeCreateError);
+  const hasCreateInactivePatient = isInactivePatientError(activeCreateError);
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
+  const hasPackageUpdateOverlap = isOverlapError(packageUpdateM.error);
   const isCreateInPast = isPastLocalDateTime(apptDate, startTime);
-  const isCreateOutsideWorkingHours = selectedKinesiologist
-    ? isOutsideWorkingHours(
-        startTime,
-        durationMin,
-        selectedKinesiologist.work_start_time,
-        selectedKinesiologist.work_end_time,
-      )
-    : false;
-  const createValidationMessage = validationDetail(createM.error, "start_at");
+  const isCreateOutsideWorkingHours = isOutsideWorkingSchedule(
+    apptDate,
+    startTime,
+    durationMin,
+    selectedKinesiologist,
+  );
+  const createValidationMessage =
+    validationDetail(activeCreateError, "start_at") ??
+    validationDetail(activeCreateError, "start_date") ??
+    validationDetail(activeCreateError, "start_time") ??
+    validationDetail(activeCreateError, "session");
   const rescheduleValidationMessage = validationDetail(rescheduleM.error, "start_at");
+  const packageUpdateValidationMessage =
+    validationDetail(packageUpdateM.error, "start_time") ??
+    validationDetail(packageUpdateM.error, "start_date") ??
+    validationDetail(packageUpdateM.error, "work_days") ??
+    validationDetail(packageUpdateM.error, "session");
   const isEditInPast = isPastLocalDateTime(editDate, editStartTime);
-  const isEditOutsideWorkingHours = selectedKinesiologist
+  const isEditOutsideWorkingHours = isOutsideWorkingSchedule(
+    editDate,
+    editStartTime,
+    editDurationMin,
+    selectedKinesiologist,
+  );
+  const isPackageEditOutsideWorkingHours = selectedKinesiologist
     ? isOutsideWorkingHours(
         editStartTime,
         editDurationMin,
@@ -298,6 +419,8 @@ export default function AgendaPage() {
         selectedKinesiologist.work_end_time,
       )
     : false;
+  const isPackageEditDaysInvalid = editPackageDays.length === 0;
+  const isCreating = createM.isPending || createPackageM.isPending;
   const dayAppointments = useMemo(
     () => filterAppointments(agendaQ.data ?? [], statusFilter, filterPatient?.id),
     [agendaQ.data, filterPatient?.id, statusFilter],
@@ -385,7 +508,7 @@ export default function AgendaPage() {
               )}
               {selectedKinesiologist && (
                 <p className="text-sm text-gray-600 mt-2">
-                  {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}
+                  {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}
                 </p>
               )}
             </div>
@@ -430,6 +553,23 @@ export default function AgendaPage() {
         {canManageAppointments && (
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <h2 className="text-lg font-semibold">{t("agenda.create")}</h2>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={`px-3 py-2 rounded-lg border text-sm ${createMode === "single" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+              onClick={() => setCreateMode("single")}
+            >
+              {t("agenda.singleAppointment")}
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-2 rounded-lg border text-sm ${createMode === "package" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+              onClick={() => setCreateMode("package")}
+            >
+              {t("agenda.appointmentPackage")}
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
@@ -499,14 +639,42 @@ export default function AgendaPage() {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+
+            {createMode === "package" && (
+              <div>
+                <label className="text-sm font-medium">{t("agenda.sessionsCount")}</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="number"
+                  min={1}
+                  max={80}
+                  value={sessionsCount}
+                  onChange={(event) => setSessionsCount(Number(event.target.value))}
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  {t("agenda.weekdaysOnly")}
+                </p>
+              </div>
+            )}
           </div>
 
           <button
             className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            disabled={!patientId.trim() || !kinesiologistId || isCreateInPast || isCreateOutsideWorkingHours || createM.isPending}
+            disabled={
+              !patientId.trim() ||
+              !kinesiologistId ||
+              isCreateInPast ||
+              isCreateOutsideWorkingHours ||
+              (createMode === "package" && sessionsCount <= 0) ||
+              isCreating
+            }
             onClick={create}
           >
-            {createM.isPending ? t("agenda.creating") : t("agenda.create")}
+            {isCreating
+              ? t("agenda.creating")
+              : createMode === "package"
+                ? t("agenda.createPackage")
+                : t("agenda.create")}
           </button>
 
           {isCreateInPast && (
@@ -517,16 +685,16 @@ export default function AgendaPage() {
 
           {isCreateOutsideWorkingHours && selectedKinesiologist && (
             <p className="text-sm text-red-600">
-              {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}.
+              {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}.
             </p>
           )}
 
-          {createM.isError && (
+          {(createM.isError || createPackageM.isError) && (
             <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
               {hasCreateOverlap ? (
                 <>
-                  <div className="font-medium">Overlap detected</div>
-                  <div>The kinesiologist already has an active appointment at that time.</div>
+                  <div className="font-medium">{t("agenda.overlapTitle")}</div>
+                  <div>{t("agenda.overlapDetail")}</div>
                 </>
               ) : hasCreateInactivePatient ? (
                 <>
@@ -610,6 +778,11 @@ export default function AgendaPage() {
                         {a.status === "cancelled" && a.cancelled_reason && (
                           <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {a.cancelled_reason}</div>
                         )}
+                        {a.package_id && (
+                          <div className="text-sm text-gray-600">
+                            {t("agenda.packageSession")} {a.package_session_number ?? "-"}
+                          </div>
+                        )}
                         {a.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {a.notes}</div>}
                       </div>
 
@@ -647,6 +820,18 @@ export default function AgendaPage() {
                             }}
                           >
                             {rescheduleM.isPending ? "..." : t("agenda.reschedule")}
+                          </button>
+                        )}
+
+                        {canManageAppointments && a.package_id && a.status !== "cancelled" && (
+                          <button
+                            className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
+                            disabled={packageUpdateM.isPending}
+                            onClick={() => {
+                              openEditPackage(a);
+                            }}
+                          >
+                            {packageUpdateM.isPending ? "..." : t("agenda.editPackage")}
                           </button>
                         )}
                       </div>
@@ -702,10 +887,24 @@ export default function AgendaPage() {
                             {appointment.status === "cancelled" && appointment.cancelled_reason && (
                               <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
                             )}
+                            {appointment.package_id && (
+                              <div className="text-sm text-gray-600">
+                                {t("agenda.packageSession")} {appointment.package_session_number ?? "-"}
+                              </div>
+                            )}
                             {appointment.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {appointment.notes}</div>}
                           </div>
                           {canManageAppointments && appointment.status !== "cancelled" && (
                             <div className="flex flex-wrap gap-2">
+                              {appointment.package_id && (
+                                <button
+                                  type="button"
+                                  className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                                  onClick={() => openEditPackage(appointment)}
+                                >
+                                  {t("agenda.editPackage")}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
@@ -800,7 +999,7 @@ export default function AgendaPage() {
 
             {selectedKinesiologist && (
               <p className="text-sm text-gray-600">
-                {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}
+                {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}
               </p>
             )}
 
@@ -810,7 +1009,7 @@ export default function AgendaPage() {
 
             {isEditOutsideWorkingHours && selectedKinesiologist && (
               <p className="text-sm text-red-600">
-                {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}.
+                {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}.
               </p>
             )}
 
@@ -845,6 +1044,152 @@ export default function AgendaPage() {
                 onClick={submitEditAppointment}
               >
                 {rescheduleM.isPending ? t("common.saving") : t("common.saveChanges")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {editingPackageId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-xl space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">{t("agenda.editPackage")}</h2>
+                <p className="text-sm text-gray-600">
+                  {t("agenda.editPackageDetail")}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                onClick={() => setEditingPackageId(null)}
+              >
+                {t("agenda.close")}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">{t("agenda.packageStartDate")}</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  min={todayISO()}
+                  value={editPackageDate}
+                  onChange={(event) => setEditPackageDate(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t("agenda.startTime")}</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="time"
+                  value={editStartTime}
+                  onChange={(event) => setEditStartTime(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">{t("agenda.duration")}</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editDurationMin}
+                  onChange={(event) => setEditDurationMin(Number(event.target.value))}
+                >
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>60 min</option>
+                  <option value={90}>90 min</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">{t("agenda.notes")}</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editNotes}
+                  onChange={(event) => setEditNotes(event.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">{t("agenda.packageDays")}</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(selectedKinesiologist?.work_days?.length ? selectedKinesiologist.work_days : defaultWorkDays).map((day) => {
+                    const checked = editPackageDays.includes(day);
+                    return (
+                      <label
+                        key={day}
+                        className={`px-3 py-2 rounded-lg border text-sm cursor-pointer ${checked ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                      >
+                        <input
+                          className="sr-only"
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            const next = event.target.checked
+                              ? [...editPackageDays, day]
+                              : editPackageDays.filter((value) => value !== day);
+                            setEditPackageDays(next.sort((a, b) => a - b));
+                          }}
+                        />
+                        {workDayLabels[day]}
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {selectedKinesiologist && (
+              <p className="text-sm text-gray-600">
+                {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}
+              </p>
+            )}
+
+            {isPackageEditOutsideWorkingHours && selectedKinesiologist && (
+              <p className="text-sm text-red-600">
+                {t("agenda.appointmentOutOfHours")} {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time}.
+              </p>
+            )}
+
+            {isPackageEditDaysInvalid && (
+              <p className="text-sm text-red-600">{t("agenda.packageDaysRequired")}</p>
+            )}
+
+            {packageUpdateM.isError && (
+              <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
+                {hasPackageUpdateOverlap ? (
+                  <>
+                    <div className="font-medium">{t("agenda.overlapTitle")}</div>
+                    <div>{t("agenda.overlapDetail")}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium">{t("agenda.packageUpdateError")}</div>
+                    <div>{packageUpdateValidationMessage ?? String((packageUpdateM.error as any)?.message)}</div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+                onClick={() => setEditingPackageId(null)}
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={isPackageEditOutsideWorkingHours || isPackageEditDaysInvalid || packageUpdateM.isPending}
+                onClick={submitEditPackage}
+              >
+                {packageUpdateM.isPending ? t("common.saving") : t("common.saveChanges")}
               </button>
             </div>
           </section>

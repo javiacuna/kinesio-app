@@ -14,14 +14,31 @@ const (
 )
 
 type Appointment struct {
+	ID                   uuid.UUID
+	PatientID            uuid.UUID
+	KinesiologistID      uuid.UUID
+	PackageID            *uuid.UUID
+	PackageSessionNumber *int
+	StartAt              time.Time
+	EndAt                time.Time
+	Status               Status
+	Notes                *string
+	CancelledReason      *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type AppointmentPackage struct {
 	ID              uuid.UUID
 	PatientID       uuid.UUID
 	KinesiologistID uuid.UUID
-	StartAt         time.Time
-	EndAt           time.Time
-	Status          Status
+	SessionsCount   int
+	DurationMin     int
+	StartDate       time.Time
+	StartTime       string
+	WeekdaysOnly    bool
+	WorkDays        []int
 	Notes           *string
-	CancelledReason *string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

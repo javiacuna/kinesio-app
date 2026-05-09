@@ -18,6 +18,7 @@ type SaveKinesiologistInput struct {
 	LicenseNumber *string
 	WorkStartTime string
 	WorkEndTime   string
+	WorkDays      []int
 	Active        bool
 }
 
@@ -83,7 +84,18 @@ func buildKinesiologist(in SaveKinesiologistInput) (domain.Kinesiologist, map[st
 		errs["work_end_time"] = "Debe ser mayor al horario de inicio"
 	}
 
-	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, workStartTime, workEndTime, in.Active), errs
+	workDays := domain.NormalizeWorkDays(in.WorkDays)
+	if len(in.WorkDays) > 0 && len(workDays) == 0 {
+		errs["work_days"] = "Seleccioná al menos un día laboral"
+	}
+	for _, day := range in.WorkDays {
+		if day < 1 || day > 7 {
+			errs["work_days"] = "Los días deben estar entre 1 y 7"
+			break
+		}
+	}
+
+	return domain.NewKinesiologist(firstName, lastName, email, in.LicenseNumber, workStartTime, workEndTime, workDays, in.Active), errs
 }
 
 var hhmmPattern = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)

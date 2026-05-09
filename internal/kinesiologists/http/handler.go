@@ -27,6 +27,7 @@ type saveReq struct {
 	LicenseNumber *string `json:"license_number,omitempty"`
 	WorkStartTime string  `json:"work_start_time"`
 	WorkEndTime   string  `json:"work_end_time"`
+	WorkDays      []int   `json:"work_days"`
 	Active        bool    `json:"active"`
 }
 
@@ -38,6 +39,7 @@ type resp struct {
 	LicenseNumber *string `json:"license_number,omitempty"`
 	WorkStartTime string  `json:"work_start_time"`
 	WorkEndTime   string  `json:"work_end_time"`
+	WorkDays      []int   `json:"work_days"`
 	Active        bool    `json:"active"`
 }
 
@@ -95,6 +97,7 @@ func (h *Handler) Create(c *gin.Context) {
 		LicenseNumber: req.LicenseNumber,
 		WorkStartTime: req.WorkStartTime,
 		WorkEndTime:   req.WorkEndTime,
+		WorkDays:      req.WorkDays,
 		Active:        req.Active,
 	})
 	if err != nil {
@@ -125,6 +128,7 @@ func (h *Handler) Update(c *gin.Context) {
 		LicenseNumber: req.LicenseNumber,
 		WorkStartTime: req.WorkStartTime,
 		WorkEndTime:   req.WorkEndTime,
+		WorkDays:      req.WorkDays,
 		Active:        req.Active,
 	})
 	if err != nil {
@@ -157,6 +161,7 @@ func toResp(k domain.Kinesiologist) resp {
 		LicenseNumber: k.LicenseNumber,
 		WorkStartTime: k.WorkStartTime,
 		WorkEndTime:   k.WorkEndTime,
+		WorkDays:      k.WorkDays,
 		Active:        k.Active,
 	}
 }

@@ -9,6 +9,7 @@ export type SaveKinesiologistInput = {
   license_number?: string | null;
   work_start_time: string;
   work_end_time: string;
+  work_days: number[];
   active: boolean;
 };
 

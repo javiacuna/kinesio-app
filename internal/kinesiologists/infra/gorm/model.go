@@ -14,6 +14,7 @@ type KinesiologistModel struct {
 	LicenseNumber *string   `gorm:"column:license_number"`
 	WorkStartTime string    `gorm:"column:work_start_time;not null"`
 	WorkEndTime   string    `gorm:"column:work_end_time;not null"`
+	WorkDays      string    `gorm:"column:work_days;not null"`
 	Active        bool      `gorm:"column:active;not null"`
 	CreatedAt     time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt     time.Time `gorm:"column:updated_at;autoUpdateTime"`

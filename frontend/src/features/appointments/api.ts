@@ -26,6 +26,61 @@ export function createAppointment(input: CreateAppointmentInput) {
   });
 }
 
+export type AppointmentPackage = {
+  id: string;
+  patient_id: string;
+  kinesiologist_id: string;
+  sessions_count: number;
+  duration_min: number;
+  start_date: string;
+  start_time: string;
+  weekdays_only: boolean;
+  work_days?: number[] | null;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AppointmentPackageWriteResponse = {
+  package: AppointmentPackage;
+  appointments: Appointment[];
+};
+
+export type CreateAppointmentPackageInput = {
+  patient_id: string;
+  kinesiologist_id: string;
+  start_date: string;
+  start_time: string;
+  duration_min: number;
+  sessions_count: number;
+  weekdays_only: boolean;
+  notes?: string;
+};
+
+export function createAppointmentPackage(input: CreateAppointmentPackageInput) {
+  return apiFetch<AppointmentPackageWriteResponse>("/api/v1/appointment-packages", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export type UpdateAppointmentPackageInput = {
+  id: string;
+  start_date?: string;
+  start_time?: string;
+  duration_min?: number;
+  work_days?: number[];
+  notes?: string;
+};
+
+export function updateAppointmentPackage(input: UpdateAppointmentPackageInput) {
+  const { id, ...patch } = input;
+  return apiFetch<AppointmentPackageWriteResponse>(`/api/v1/appointment-packages/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
+}
+
 export type UpdateAppointmentInput = {
   id: string;
   status?: "scheduled" | "cancelled";

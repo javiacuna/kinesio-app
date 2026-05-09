@@ -3,6 +3,8 @@ package gorm
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,14 +26,16 @@ func New(db *gorm.DB) *Repository {
 
 func (r *Repository) Create(ctx context.Context, a domain.Appointment) (domain.Appointment, error) {
 	m := AppointmentModel{
-		ID:              a.ID,
-		PatientID:       a.PatientID,
-		KinesiologistID: a.KinesiologistID,
-		StartAt:         a.StartAt,
-		EndAt:           a.EndAt,
-		Status:          string(a.Status),
-		Notes:           a.Notes,
-		CancelledReason: a.CancelledReason,
+		ID:                   a.ID,
+		PatientID:            a.PatientID,
+		KinesiologistID:      a.KinesiologistID,
+		PackageID:            a.PackageID,
+		PackageSessionNumber: a.PackageSessionNumber,
+		StartAt:              a.StartAt,
+		EndAt:                a.EndAt,
+		Status:               string(a.Status),
+		Notes:                a.Notes,
+		CancelledReason:      a.CancelledReason,
 	}
 	if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
 		if relationErr := appointmentRelationError(err); relationErr != nil {
@@ -51,9 +55,9 @@ func appointmentRelationError(err error) error {
 	}
 
 	switch pgErr.ConstraintName {
-	case "fk_appointments_patient", "appointments_patient_id_fkey":
+	case "fk_appointments_patient", "appointments_patient_id_fkey", "appointment_packages_patient_id_fkey":
 		return domain.ErrPatientNotFound
-	case "fk_appointments_kinesiologist", "appointments_kinesiologist_id_fkey":
+	case "fk_appointments_kinesiologist", "appointments_kinesiologist_id_fkey", "appointment_packages_kinesiologist_id_fkey":
 		return domain.ErrKinesiologistNotFound
 	default:
 		return nil
@@ -75,12 +79,14 @@ func (r *Repository) GetByID(ctx context.Context, id uuid.UUID) (domain.Appointm
 func (r *Repository) Update(ctx context.Context, a domain.Appointment) (domain.Appointment, error) {
 	// Actualizamos por ID
 	updates := map[string]any{
-		"start_at":         a.StartAt,
-		"end_at":           a.EndAt,
-		"status":           string(a.Status),
-		"notes":            a.Notes,
-		"cancelled_reason": a.CancelledReason,
-		"updated_at":       time.Now().UTC(),
+		"package_id":             a.PackageID,
+		"package_session_number": a.PackageSessionNumber,
+		"start_at":               a.StartAt,
+		"end_at":                 a.EndAt,
+		"status":                 string(a.Status),
+		"notes":                  a.Notes,
+		"cancelled_reason":       a.CancelledReason,
+		"updated_at":             time.Now().UTC(),
 	}
 	if err := r.db.WithContext(ctx).Model(&AppointmentModel{}).Where("id = ?", a.ID).Updates(updates).Error; err != nil {
 		return domain.Appointment{}, err
@@ -135,6 +141,29 @@ func (r *Repository) HasOverlap(ctx context.Context, kinesiologistID uuid.UUID, 
 	return count > 0, nil
 }
 
+func (r *Repository) HasOverlapIgnoringAppointments(
+	ctx context.Context,
+	kinesiologistID uuid.UUID,
+	startAt time.Time,
+	endAt time.Time,
+	excludeIDs []uuid.UUID,
+) (bool, error) {
+	q := r.db.WithContext(ctx).Model(&AppointmentModel{}).
+		Where("kinesiologist_id = ?", kinesiologistID).
+		Where("status = ?", string(domain.StatusScheduled)).
+		Where("? < end_at AND ? > start_at", startAt, endAt)
+
+	if len(excludeIDs) > 0 {
+		q = q.Where("id NOT IN ?", excludeIDs)
+	}
+
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (r *Repository) ListByKinesiologistAndRange(ctx context.Context, kinesiologistID uuid.UUID, startDay, endDay time.Time) ([]domain.Appointment, error) {
 	var ms []AppointmentModel
 	err := r.db.WithContext(ctx).
@@ -155,17 +184,192 @@ func (r *Repository) ListByKinesiologistAndRange(ctx context.Context, kinesiolog
 
 func toDomain(m AppointmentModel) domain.Appointment {
 	return domain.Appointment{
+		ID:                   m.ID,
+		PatientID:            m.PatientID,
+		KinesiologistID:      m.KinesiologistID,
+		PackageID:            m.PackageID,
+		PackageSessionNumber: m.PackageSessionNumber,
+		StartAt:              m.StartAt.UTC(),
+		EndAt:                m.EndAt.UTC(),
+		Status:               domain.Status(m.Status),
+		Notes:                m.Notes,
+		CancelledReason:      m.CancelledReason,
+		CreatedAt:            m.CreatedAt,
+		UpdatedAt:            m.UpdatedAt,
+	}
+}
+
+func (r *Repository) CreatePackageWithAppointments(
+	ctx context.Context,
+	pkg domain.AppointmentPackage,
+	appointments []domain.Appointment,
+) (domain.AppointmentPackage, []domain.Appointment, error) {
+	pkgModel := toPackageModel(pkg)
+	appointmentModels := make([]AppointmentModel, 0, len(appointments))
+	for _, appointment := range appointments {
+		appointmentModels = append(appointmentModels, AppointmentModel{
+			ID:                   appointment.ID,
+			PatientID:            appointment.PatientID,
+			KinesiologistID:      appointment.KinesiologistID,
+			PackageID:            appointment.PackageID,
+			PackageSessionNumber: appointment.PackageSessionNumber,
+			StartAt:              appointment.StartAt,
+			EndAt:                appointment.EndAt,
+			Status:               string(appointment.Status),
+			Notes:                appointment.Notes,
+			CancelledReason:      appointment.CancelledReason,
+		})
+	}
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&pkgModel).Error; err != nil {
+			if relationErr := appointmentRelationError(err); relationErr != nil {
+				return relationErr
+			}
+			return err
+		}
+		if len(appointmentModels) > 0 {
+			if err := tx.Create(&appointmentModels).Error; err != nil {
+				if relationErr := appointmentRelationError(err); relationErr != nil {
+					return relationErr
+				}
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.AppointmentPackage{}, nil, err
+	}
+
+	created := toPackageDomain(pkgModel)
+	out := make([]domain.Appointment, 0, len(appointmentModels))
+	for _, model := range appointmentModels {
+		out = append(out, toDomain(model))
+	}
+	return created, out, nil
+}
+
+func (r *Repository) GetPackageByID(ctx context.Context, id uuid.UUID) (domain.AppointmentPackage, bool, error) {
+	var m AppointmentPackageModel
+	err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.AppointmentPackage{}, false, nil
+		}
+		return domain.AppointmentPackage{}, false, err
+	}
+	return toPackageDomain(m), true, nil
+}
+
+func (r *Repository) ListByPackage(ctx context.Context, packageID uuid.UUID) ([]domain.Appointment, error) {
+	var ms []AppointmentModel
+	err := r.db.WithContext(ctx).
+		Where("package_id = ?", packageID).
+		Order("package_session_number ASC, start_at ASC").
+		Find(&ms).Error
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.Appointment, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, toDomain(m))
+	}
+	return out, nil
+}
+
+func (r *Repository) UpdatePackage(ctx context.Context, pkg domain.AppointmentPackage) (domain.AppointmentPackage, error) {
+	updates := map[string]any{
+		"duration_min": pkg.DurationMin,
+		"start_date":   pkg.StartDate,
+		"start_time":   pkg.StartTime,
+		"work_days":    encodeWorkDays(pkg.WorkDays),
+		"notes":        pkg.Notes,
+		"updated_at":   time.Now().UTC(),
+	}
+	if err := r.db.WithContext(ctx).Model(&AppointmentPackageModel{}).Where("id = ?", pkg.ID).Updates(updates).Error; err != nil {
+		return domain.AppointmentPackage{}, err
+	}
+
+	var model AppointmentPackageModel
+	if err := r.db.WithContext(ctx).First(&model, "id = ?", pkg.ID).Error; err != nil {
+		return domain.AppointmentPackage{}, err
+	}
+	return toPackageDomain(model), nil
+}
+
+func toPackageModel(pkg domain.AppointmentPackage) AppointmentPackageModel {
+	return AppointmentPackageModel{
+		ID:              pkg.ID,
+		PatientID:       pkg.PatientID,
+		KinesiologistID: pkg.KinesiologistID,
+		SessionsCount:   pkg.SessionsCount,
+		DurationMin:     pkg.DurationMin,
+		StartDate:       pkg.StartDate,
+		StartTime:       pkg.StartTime,
+		WeekdaysOnly:    pkg.WeekdaysOnly,
+		WorkDays:        encodeWorkDays(pkg.WorkDays),
+		Notes:           pkg.Notes,
+		CreatedAt:       pkg.CreatedAt,
+		UpdatedAt:       pkg.UpdatedAt,
+	}
+}
+
+func toPackageDomain(m AppointmentPackageModel) domain.AppointmentPackage {
+	return domain.AppointmentPackage{
 		ID:              m.ID,
 		PatientID:       m.PatientID,
 		KinesiologistID: m.KinesiologistID,
-		StartAt:         m.StartAt.UTC(),
-		EndAt:           m.EndAt.UTC(),
-		Status:          domain.Status(m.Status),
+		SessionsCount:   m.SessionsCount,
+		DurationMin:     m.DurationMin,
+		StartDate:       m.StartDate,
+		StartTime:       m.StartTime,
+		WeekdaysOnly:    m.WeekdaysOnly,
+		WorkDays:        decodeWorkDays(m.WorkDays),
 		Notes:           m.Notes,
-		CancelledReason: m.CancelledReason,
 		CreatedAt:       m.CreatedAt,
 		UpdatedAt:       m.UpdatedAt,
 	}
+}
+
+func encodeWorkDays(days []int) *string {
+	if len(days) == 0 {
+		return nil
+	}
+	seen := map[int]struct{}{}
+	parts := make([]string, 0, len(days))
+	for _, day := range days {
+		if day < 1 || day > 7 {
+			continue
+		}
+		if _, ok := seen[day]; ok {
+			continue
+		}
+		seen[day] = struct{}{}
+		parts = append(parts, strconv.Itoa(day))
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	value := strings.Join(parts, ",")
+	return &value
+}
+
+func decodeWorkDays(value *string) []int {
+	if value == nil {
+		return nil
+	}
+	parts := strings.Split(strings.TrimSpace(*value), ",")
+	out := make([]int, 0, len(parts))
+	for _, part := range parts {
+		day, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || day < 1 || day > 7 {
+			continue
+		}
+		out = append(out, day)
+	}
+	return out
 }
 
 func (r *Repository) ListByPatientAndRange(

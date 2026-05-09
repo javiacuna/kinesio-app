@@ -100,6 +100,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
 	updateApptUC := appointmentsUC.NewUpdateAppointmentUseCase(apptRepo)
 	cancelApptUC := appointmentsUC.NewCancelAppointmentUseCase(apptRepo)
+	createApptPackageUC := appointmentsUC.NewCreateAppointmentPackageUseCase(apptRepo)
+	updateApptPackageUC := appointmentsUC.NewUpdateAppointmentPackageUseCase(apptRepo)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
@@ -113,6 +115,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		listByPatientUC,
 		kRepo,
 		patientRepo,
+		createApptPackageUC,
+		updateApptPackageUC,
 	)
 
 	planRepo := exercisePlanGorm.NewRepository(db)
@@ -173,6 +177,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/patients/:patient_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientHandler.GetPatientByID)
 
 	v1.POST("/appointments", apptHandler.Create)
+	v1.POST("/appointment-packages", middleware.RequireRole("recepcionista"), apptHandler.CreatePackage)
+	v1.PUT("/appointment-packages/:package_id", middleware.RequireRole("recepcionista"), apptHandler.UpdatePackage)
+	v1.PATCH("/appointment-packages/:package_id", middleware.RequireRole("recepcionista"), apptHandler.UpdatePackage)
 	v1.GET("/appointments", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.ListDay)
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 	v1.PUT("/appointments/:id", apptHandler.Update)

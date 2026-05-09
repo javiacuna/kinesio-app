@@ -20,6 +20,7 @@ type TeamForm = SaveStaffMemberInput & {
   license_number: string;
   work_start_time: string;
   work_end_time: string;
+  work_days: number[];
 };
 
 type RoleFilter = "all" | StaffRole;
@@ -36,6 +37,18 @@ type TeamListItem = {
   active: boolean;
 };
 
+const defaultWorkDays = [1, 2, 3, 4, 5];
+
+const workDayOptions = [
+  { value: 1, label: "Lun" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Mié" },
+  { value: 4, label: "Jue" },
+  { value: 5, label: "Vie" },
+  { value: 6, label: "Sáb" },
+  { value: 7, label: "Dom" },
+];
+
 const emptyTeamForm: TeamForm = {
   first_name: "",
   last_name: "",
@@ -45,6 +58,7 @@ const emptyTeamForm: TeamForm = {
   license_number: "",
   work_start_time: "08:00",
   work_end_time: "20:00",
+  work_days: defaultWorkDays,
   active: true,
 };
 
@@ -220,6 +234,7 @@ export default function StaffPage() {
       license_number: form.license_number.trim() || existing?.license_number || null,
       work_start_time: form.work_start_time || existing?.work_start_time || "08:00",
       work_end_time: form.work_end_time || existing?.work_end_time || "20:00",
+      work_days: form.work_days.length > 0 ? form.work_days : existing?.work_days ?? defaultWorkDays,
       active,
     };
   }
@@ -261,6 +276,7 @@ export default function StaffPage() {
       license_number: profile?.license_number ?? "",
       work_start_time: profile?.work_start_time ?? "08:00",
       work_end_time: profile?.work_end_time ?? "20:00",
+      work_days: profile?.work_days?.length ? profile.work_days : defaultWorkDays,
     });
     setSendAccess(false);
     setMessage("");
@@ -343,6 +359,33 @@ export default function StaffPage() {
                 <Field label="Matrícula" value={form.license_number} onChange={(value) => setForm({ ...form, license_number: value })} required={false} />
                 <Field label="Horario inicio" type="time" value={form.work_start_time} onChange={(value) => setForm({ ...form, work_start_time: value })} />
                 <Field label="Horario fin" type="time" value={form.work_end_time} onChange={(value) => setForm({ ...form, work_end_time: value })} />
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium">Días laborales</label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {workDayOptions.map((day) => {
+                      const checked = form.work_days.includes(day.value);
+                      return (
+                        <label
+                          key={day.value}
+                          className={`px-3 py-2 rounded-lg border text-sm cursor-pointer ${checked ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                        >
+                          <input
+                            className="sr-only"
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              const next = event.target.checked
+                                ? [...form.work_days, day.value]
+                                : form.work_days.filter((value) => value !== day.value);
+                              setForm({ ...form, work_days: next.sort((a, b) => a - b) });
+                            }}
+                          />
+                          {day.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
 
@@ -431,7 +474,7 @@ export default function StaffPage() {
                       {member.role === "kinesiologo" && profile && (
                         <div className="text-sm text-gray-600">
                           {profile.license_number ? `Matrícula: ${profile.license_number} · ` : ""}
-                          Horario: {profile.work_start_time} a {profile.work_end_time}
+                          Horario: {profile.work_start_time} a {profile.work_end_time} · Días: {workDaysLabel(profile.work_days)}
                         </div>
                       )}
                       {member.role === "kinesiologo" && !profile && (
@@ -536,4 +579,12 @@ function Field({
       />
     </div>
   );
+}
+
+function workDaysLabel(days: number[] | undefined) {
+  const selected = days?.length ? days : defaultWorkDays;
+  return selected
+    .map((value) => workDayOptions.find((day) => day.value === value)?.label)
+    .filter(Boolean)
+    .join(", ");
 }

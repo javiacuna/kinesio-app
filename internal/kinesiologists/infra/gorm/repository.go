@@ -3,6 +3,8 @@ package gorm
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -30,6 +32,7 @@ func (r *Repository) Create(ctx context.Context, k domain.Kinesiologist) (domain
 		LicenseNumber: k.LicenseNumber,
 		WorkStartTime: k.WorkStartTime,
 		WorkEndTime:   k.WorkEndTime,
+		WorkDays:      encodeWorkDays(k.WorkDays),
 		Active:        k.Active,
 	}
 
@@ -52,6 +55,7 @@ func (r *Repository) Update(ctx context.Context, k domain.Kinesiologist) (domain
 		"license_number":  k.LicenseNumber,
 		"work_start_time": k.WorkStartTime,
 		"work_end_time":   k.WorkEndTime,
+		"work_days":       encodeWorkDays(k.WorkDays),
 		"active":          k.Active,
 		"updated_at":      updatedAt,
 	}
@@ -139,8 +143,31 @@ func toDomain(m KinesiologistModel) domain.Kinesiologist {
 		LicenseNumber: m.LicenseNumber,
 		WorkStartTime: m.WorkStartTime,
 		WorkEndTime:   m.WorkEndTime,
+		WorkDays:      decodeWorkDays(m.WorkDays),
 		Active:        m.Active,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,
 	}
+}
+
+func encodeWorkDays(days []int) string {
+	normalized := domain.NormalizeWorkDays(days)
+	parts := make([]string, 0, len(normalized))
+	for _, day := range normalized {
+		parts = append(parts, strconv.Itoa(day))
+	}
+	return strings.Join(parts, ",")
+}
+
+func decodeWorkDays(value string) []int {
+	parts := strings.Split(strings.TrimSpace(value), ",")
+	days := make([]int, 0, len(parts))
+	for _, part := range parts {
+		day, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			continue
+		}
+		days = append(days, day)
+	}
+	return domain.NormalizeWorkDays(days)
 }
