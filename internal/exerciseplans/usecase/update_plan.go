@@ -14,6 +14,7 @@ import (
 
 type UpdatePlanInput struct {
 	KinesiologistID string                `json:"kinesiologist_id"`
+	DiagnosisID     *string               `json:"patient_diagnosis_id"`
 	Frequency       string                `json:"frequency"`
 	DurationWeeks   int                   `json:"duration_weeks"`
 	Observations    *string               `json:"observations"`
@@ -41,6 +42,15 @@ func (uc *UpdatePlanUseCase) Execute(ctx context.Context, id string, in UpdatePl
 	kID, err := uuid.Parse(strings.TrimSpace(in.KinesiologistID))
 	if err != nil {
 		validation["kinesiologist_id"] = "invalid_uuid"
+	}
+	var diagnosisID *uuid.UUID
+	if in.DiagnosisID != nil && strings.TrimSpace(*in.DiagnosisID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.DiagnosisID))
+		if err != nil {
+			validation["patient_diagnosis_id"] = "invalid_uuid"
+		} else {
+			diagnosisID = &id
+		}
 	}
 
 	freq := domain.Frequency(strings.TrimSpace(in.Frequency))
@@ -87,6 +97,7 @@ func (uc *UpdatePlanUseCase) Execute(ctx context.Context, id string, in UpdatePl
 		ID:              current.ID,
 		PatientID:       current.PatientID,
 		KinesiologistID: kID,
+		DiagnosisID:     diagnosisID,
 		Frequency:       freq,
 		DurationWeeks:   in.DurationWeeks,
 		Observations:    in.Observations,

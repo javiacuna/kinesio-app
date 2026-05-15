@@ -70,12 +70,18 @@ func toModel(e domain.PatientEvolution) PatientEvolutionModel {
 		s := e.AppointmentID.String()
 		appt = &s
 	}
+	var diagnosis *string
+	if e.DiagnosisID != nil {
+		s := e.DiagnosisID.String()
+		diagnosis = &s
+	}
 
 	m := PatientEvolutionModel{
 		ID:              e.ID.String(),
 		PatientID:       e.PatientID.String(),
 		KinesiologistID: e.KinesiologistID.String(),
 		AppointmentID:   appt,
+		DiagnosisID:     diagnosis,
 		PainLevel:       e.PainLevel,
 		Notes:           e.Notes,
 		CreatedAt:       e.CreatedAt,
@@ -100,12 +106,18 @@ func toDomain(m PatientEvolutionModel) domain.PatientEvolution {
 		id := uuid.MustParse(*m.AppointmentID)
 		appt = &id
 	}
+	var diagnosis *uuid.UUID
+	if m.DiagnosisID != nil && *m.DiagnosisID != "" {
+		id := uuid.MustParse(*m.DiagnosisID)
+		diagnosis = &id
+	}
 
 	e := domain.PatientEvolution{
 		ID:              uuid.MustParse(m.ID),
 		PatientID:       uuid.MustParse(m.PatientID),
 		KinesiologistID: uuid.MustParse(m.KinesiologistID),
 		AppointmentID:   appt,
+		DiagnosisID:     diagnosis,
 		PainLevel:       m.PainLevel,
 		Notes:           m.Notes,
 		CreatedAt:       m.CreatedAt,

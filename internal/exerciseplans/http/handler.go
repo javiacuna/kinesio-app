@@ -45,6 +45,7 @@ func NewHandler(createUC *usecase.CreatePlanUseCase, listUC *usecase.ListPlansBy
 type createPlanRequest struct {
 	PatientID       string                        `json:"patient_id"`
 	KinesiologistID string                        `json:"kinesiologist_id"`
+	DiagnosisID     *string                       `json:"patient_diagnosis_id,omitempty"`
 	Frequency       string                        `json:"frequency"`
 	DurationWeeks   int                           `json:"duration_weeks"`
 	Observations    *string                       `json:"observations"`
@@ -53,6 +54,7 @@ type createPlanRequest struct {
 
 type updatePlanRequest struct {
 	KinesiologistID string                        `json:"kinesiologist_id"`
+	DiagnosisID     *string                       `json:"patient_diagnosis_id,omitempty"`
 	Frequency       string                        `json:"frequency"`
 	DurationWeeks   int                           `json:"duration_weeks"`
 	Observations    *string                       `json:"observations"`
@@ -96,6 +98,7 @@ func (h *Handler) create(c *gin.Context, patientID string, req createPlanRequest
 	out, validation, err := h.createUC.Execute(c.Request.Context(), usecase.CreatePlanInput{
 		PatientID:       patientID,
 		KinesiologistID: req.KinesiologistID,
+		DiagnosisID:     req.DiagnosisID,
 		Frequency:       req.Frequency,
 		DurationWeeks:   req.DurationWeeks,
 		Observations:    req.Observations,
@@ -169,6 +172,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	out, validation, err := h.updateUC.Execute(c.Request.Context(), c.Param("plan_id"), usecase.UpdatePlanInput{
 		KinesiologistID: req.KinesiologistID,
+		DiagnosisID:     req.DiagnosisID,
 		Frequency:       req.Frequency,
 		DurationWeeks:   req.DurationWeeks,
 		Observations:    req.Observations,

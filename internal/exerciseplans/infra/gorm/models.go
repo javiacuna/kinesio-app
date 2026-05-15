@@ -3,11 +3,12 @@ package gorm
 import "time"
 
 type ExercisePlanModel struct {
-	ID              string `gorm:"type:uuid;primaryKey"`
-	PatientID       string `gorm:"type:uuid;not null"`
-	KinesiologistID string `gorm:"type:uuid;not null"`
-	Frequency       string `gorm:"not null"`
-	DurationWeeks   int    `gorm:"not null"`
+	ID              string  `gorm:"type:uuid;primaryKey"`
+	PatientID       string  `gorm:"type:uuid;not null"`
+	KinesiologistID string  `gorm:"type:uuid;not null"`
+	DiagnosisID     *string `gorm:"type:uuid;column:patient_diagnosis_id"`
+	Frequency       string  `gorm:"not null"`
+	DurationWeeks   int     `gorm:"not null"`
 	Observations    *string
 	Status          string `gorm:"not null"`
 	CreatedAt       time.Time

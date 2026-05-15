@@ -4,6 +4,7 @@ export type ExercisePlan = {
   id: string;
   patient_id: string;
   kinesiologist_id: string;
+  patient_diagnosis_id?: string | null;
   frequency: "daily" | "weekly" | string;
   duration_weeks: number;
   observations?: string | null;
@@ -31,6 +32,7 @@ export type PatientEvolution = {
   patient_id: string;
   kinesiologist_id: string;
   appointment_id?: string | null;
+  patient_diagnosis_id?: string | null;
   pain_level?: number | null;
   notes: string;
   created_at: string;
@@ -40,12 +42,14 @@ export type PatientEvolution = {
 export type CreatePatientEvolutionInput = {
   kinesiologist_id: string;
   appointment_id?: string | null;
+  patient_diagnosis_id?: string | null;
   pain_level?: number | null;
   notes: string;
 };
 
 export type CreateExercisePlanInput = {
   kinesiologist_id: string;
+  patient_diagnosis_id?: string | null;
   frequency: "daily" | "weekly";
   duration_weeks: number;
   observations?: string | null;

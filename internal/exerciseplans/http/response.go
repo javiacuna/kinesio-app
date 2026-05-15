@@ -21,6 +21,7 @@ type planResponse struct {
 	ID              string             `json:"id"`
 	PatientID       string             `json:"patient_id"`
 	KinesiologistID string             `json:"kinesiologist_id"`
+	DiagnosisID     *string            `json:"patient_diagnosis_id,omitempty"`
 	Frequency       string             `json:"frequency"`
 	DurationWeeks   int                `json:"duration_weeks"`
 	Observations    *string            `json:"observations,omitempty"`
@@ -35,6 +36,12 @@ type planResponse struct {
 }
 
 func toResponse(p domain.ExercisePlan) planResponse {
+	var diagnosisID *string
+	if p.DiagnosisID != nil {
+		value := p.DiagnosisID.String()
+		diagnosisID = &value
+	}
+
 	items := make([]planItemResponse, 0, len(p.Items))
 	for _, it := range p.Items {
 		items = append(items, planItemResponse{
@@ -52,6 +59,7 @@ func toResponse(p domain.ExercisePlan) planResponse {
 		ID:              p.ID.String(),
 		PatientID:       p.PatientID.String(),
 		KinesiologistID: p.KinesiologistID.String(),
+		DiagnosisID:     diagnosisID,
 		Frequency:       string(p.Frequency),
 		DurationWeeks:   p.DurationWeeks,
 		Observations:    p.Observations,

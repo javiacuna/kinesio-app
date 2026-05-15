@@ -27,6 +27,7 @@ func NewHandler(createUC *usecase.CreateEvolutionUseCase, listUC *usecase.ListEv
 type createEvolutionRequest struct {
 	KinesiologistID string                              `json:"kinesiologist_id"`
 	AppointmentID   *string                             `json:"appointment_id,omitempty"`
+	DiagnosisID     *string                             `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                                `json:"pain_level,omitempty"`
 	Notes           string                              `json:"notes"`
 	Photos          []usecase.CreateEvolutionPhotoInput `json:"photos,omitempty"`
@@ -37,6 +38,7 @@ type evolutionResponse struct {
 	PatientID       string                   `json:"patient_id"`
 	KinesiologistID string                   `json:"kinesiologist_id"`
 	AppointmentID   *string                  `json:"appointment_id,omitempty"`
+	DiagnosisID     *string                  `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                     `json:"pain_level,omitempty"`
 	Notes           string                   `json:"notes"`
 	Photos          []evolutionPhotoResponse `json:"photos"`
@@ -68,6 +70,7 @@ func (h *Handler) create(c *gin.Context, patientID string, req createEvolutionRe
 		PatientID:       patientID,
 		KinesiologistID: req.KinesiologistID,
 		AppointmentID:   req.AppointmentID,
+		DiagnosisID:     req.DiagnosisID,
 		PainLevel:       req.PainLevel,
 		Notes:           req.Notes,
 		Photos:          req.Photos,
@@ -138,6 +141,11 @@ func toResponse(e domain.PatientEvolution) evolutionResponse {
 		s := e.AppointmentID.String()
 		appt = &s
 	}
+	var diagnosis *string
+	if e.DiagnosisID != nil {
+		s := e.DiagnosisID.String()
+		diagnosis = &s
+	}
 
 	photos := make([]evolutionPhotoResponse, 0, len(e.Photos))
 	for _, photo := range e.Photos {
@@ -154,6 +162,7 @@ func toResponse(e domain.PatientEvolution) evolutionResponse {
 		PatientID:       e.PatientID.String(),
 		KinesiologistID: e.KinesiologistID.String(),
 		AppointmentID:   appt,
+		DiagnosisID:     diagnosis,
 		PainLevel:       e.PainLevel,
 		Notes:           e.Notes,
 		Photos:          photos,

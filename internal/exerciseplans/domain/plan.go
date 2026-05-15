@@ -24,6 +24,7 @@ type ExercisePlan struct {
 	ID              uuid.UUID
 	PatientID       uuid.UUID
 	KinesiologistID uuid.UUID
+	DiagnosisID     *uuid.UUID
 
 	Frequency     Frequency
 	DurationWeeks int

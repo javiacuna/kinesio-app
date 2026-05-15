@@ -15,6 +15,7 @@ type CreateEvolutionInput struct {
 	PatientID       string                      `json:"patient_id"`
 	KinesiologistID string                      `json:"kinesiologist_id"`
 	AppointmentID   *string                     `json:"appointment_id,omitempty"`
+	DiagnosisID     *string                     `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                        `json:"pain_level,omitempty"`
 	Notes           string                      `json:"notes"`
 	Photos          []CreateEvolutionPhotoInput `json:"photos,omitempty"`
@@ -56,6 +57,16 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		}
 	}
 
+	var diagnosisID *uuid.UUID
+	if in.DiagnosisID != nil && strings.TrimSpace(*in.DiagnosisID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.DiagnosisID))
+		if err != nil {
+			validation["patient_diagnosis_id"] = "invalid_uuid"
+		} else {
+			diagnosisID = &id
+		}
+	}
+
 	notes := strings.TrimSpace(in.Notes)
 	if notes == "" {
 		validation["notes"] = "required"
@@ -83,6 +94,7 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		PatientID:       patientID,
 		KinesiologistID: kID,
 		AppointmentID:   apptID,
+		DiagnosisID:     diagnosisID,
 		PainLevel:       in.PainLevel,
 		Notes:           notes,
 		Photos:          make([]domain.PatientEvolutionPhoto, 0, len(in.Photos)),

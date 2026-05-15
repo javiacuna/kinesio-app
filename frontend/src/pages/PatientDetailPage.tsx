@@ -93,11 +93,14 @@ export default function PatientDetailPage() {
   const [diagnosisDate, setDiagnosisDate] = useState(todayISO());
   const [diagnosisNotes, setDiagnosisNotes] = useState("");
   const [editingDiagnosisId, setEditingDiagnosisId] = useState("");
+  const [selectedClinicalDiagnosisId, setSelectedClinicalDiagnosisId] = useState("");
   const [evolutionKinesiologistId, setEvolutionKinesiologistId] = useState("");
   const [evolutionAppointmentId, setEvolutionAppointmentId] = useState("");
+  const [evolutionDiagnosisId, setEvolutionDiagnosisId] = useState("");
   const [painLevel, setPainLevel] = useState("");
   const [evolutionNotes, setEvolutionNotes] = useState("");
   const [planKinesiologistId, setPlanKinesiologistId] = useState("");
+  const [planDiagnosisId, setPlanDiagnosisId] = useState("");
   const [planFrequency, setPlanFrequency] = useState<"daily" | "weekly">("weekly");
   const [planStatus, setPlanStatus] = useState<"active" | "closed">("active");
   const [planDurationWeeks, setPlanDurationWeeks] = useState(4);
@@ -245,11 +248,13 @@ export default function PatientDetailPage() {
       createPatientEvolution(patientId, {
         kinesiologist_id: evolutionKinesiologistId,
         appointment_id: evolutionAppointmentId || null,
+        patient_diagnosis_id: evolutionDiagnosisId || null,
         pain_level: painLevel === "" ? null : Number(painLevel),
         notes: evolutionNotes,
       }),
     onSuccess: () => {
       setEvolutionAppointmentId("");
+      setEvolutionDiagnosisId("");
       setPainLevel("");
       setEvolutionNotes("");
       evolutionsQ.refetch();
@@ -261,6 +266,7 @@ export default function PatientDetailPage() {
       editingPlanId
         ? updatePatientPlan(editingPlanId, {
             kinesiologist_id: planKinesiologistId,
+            patient_diagnosis_id: planDiagnosisId || null,
             frequency: planFrequency,
             duration_weeks: planDurationWeeks,
             observations: planObservations.trim() || null,
@@ -275,6 +281,7 @@ export default function PatientDetailPage() {
           })
         : createPatientPlan(patientId, {
         kinesiologist_id: planKinesiologistId,
+        patient_diagnosis_id: planDiagnosisId || null,
         frequency: planFrequency,
         duration_weeks: planDurationWeeks,
         observations: planObservations.trim() || null,
@@ -338,59 +345,103 @@ export default function PatientDetailPage() {
   const diagnoses = diagnosesQ.data ?? [];
   const cie10Results = cie10Q.data ?? [];
   const kinesiologists = kinesiologistsQ.data ?? [];
+  const diagnosisById = useMemo(() => {
+    const index = new Map<string, PatientDiagnosis>();
+    for (const diagnosis of diagnoses) {
+      index.set(diagnosis.id, diagnosis);
+    }
+    return index;
+  }, [diagnoses]);
+  const selectedClinicalDiagnosis = useMemo(
+    () => (selectedClinicalDiagnosisId ? diagnosisById.get(selectedClinicalDiagnosisId) : undefined),
+    [diagnosisById, selectedClinicalDiagnosisId],
+  );
+  const filteredDiagnoses = useMemo(
+    () => (selectedClinicalDiagnosis ? [selectedClinicalDiagnosis] : diagnoses),
+    [diagnoses, selectedClinicalDiagnosis],
+  );
+  const filteredEvolutions = useMemo(
+    () =>
+      selectedClinicalDiagnosisId
+        ? evolutions.filter((evolution) => evolution.patient_diagnosis_id === selectedClinicalDiagnosisId)
+        : evolutions,
+    [evolutions, selectedClinicalDiagnosisId],
+  );
+  const filteredPlans = useMemo(
+    () =>
+      selectedClinicalDiagnosisId
+        ? plans.filter((plan) => plan.patient_diagnosis_id === selectedClinicalDiagnosisId)
+        : plans,
+    [plans, selectedClinicalDiagnosisId],
+  );
   const upcomingScheduledAppointments = appointments.filter(
     (appointment) => appointment.status !== "cancelled",
   );
   const timeline = useMemo(
     () =>
       [
-        ...appointments.map((appointment) => ({
-          id: `appointment:${appointment.id}`,
-          at: appointment.start_at,
-          kind: "Turno",
-          title:
-            appointment.status === "cancelled"
-              ? "Turno cancelado"
-              : "Turno programado",
-          detail: `${formatLocalTime(appointment.start_at)} a ${formatLocalTime(appointment.end_at)}${appointment.notes ? ` · ${appointment.notes}` : ""}`,
-        })),
-        ...evolutions.map((evolution) => ({
+        ...(selectedClinicalDiagnosisId
+          ? []
+          : appointments.map((appointment) => ({
+              id: `appointment:${appointment.id}`,
+              at: appointment.start_at,
+              kind: "Turno",
+              title:
+                appointment.status === "cancelled"
+                  ? "Turno cancelado"
+                  : "Turno programado",
+              detail: `${formatLocalTime(appointment.start_at)} a ${formatLocalTime(appointment.end_at)}${appointment.notes ? ` · ${appointment.notes}` : ""}`,
+            }))),
+        ...filteredEvolutions.map((evolution) => ({
           id: `evolution:${evolution.id}`,
           at: evolution.created_at,
           kind: "Evolución",
           title: evolution.pain_level != null ? `Dolor ${evolution.pain_level}/10` : "Evolución clínica",
-          detail: evolution.notes,
+          detail: `${diagnosisSummary(diagnosisById.get(evolution.patient_diagnosis_id ?? ""))}${evolution.notes}`,
         })),
-        ...plans.map((plan) => ({
+        ...filteredPlans.map((plan) => ({
           id: `plan:${plan.id}`,
           at: plan.created_at,
           kind: "Plan",
           title: `${plan.frequency} · ${plan.duration_weeks} semanas`,
-          detail: `${plan.items.length} ejercicios · estado ${plan.status}`,
+          detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ejercicios · estado ${plan.status}`,
         })),
-        ...diagnoses.map((diagnosis) => ({
+        ...filteredDiagnoses.map((diagnosis) => ({
           id: `diagnosis:${diagnosis.id}`,
           at: diagnosis.created_at,
           kind: "Diagnóstico",
           title: `${diagnosis.cie10_code} · ${diagnosis.cie10_description}`,
           detail: `${diagnosisKindLabel(diagnosis.kind)} · ${diagnosisStatusLabel(diagnosis.status)}${diagnosis.notes ? ` · ${diagnosis.notes}` : ""}`,
         })),
-        ...loans.map((loan) => ({
-          id: `loan:${loan.id}`,
-          at: loan.loaned_at,
-          kind: "Material",
-          title: loan.returned_at ? "Material devuelto" : "Material prestado",
-          detail: `Cantidad ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
-        })),
-        ...attachments.map((attachment) => ({
-          id: `attachment:${attachment.id}`,
-          at: attachment.created_at,
-          kind: "Archivo",
-          title: attachment.file_name,
-          detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · subido por ${attachment.uploaded_by_email}` : ""}`,
-        })),
+        ...(selectedClinicalDiagnosisId
+          ? []
+          : loans.map((loan) => ({
+              id: `loan:${loan.id}`,
+              at: loan.loaned_at,
+              kind: "Material",
+              title: loan.returned_at ? "Material devuelto" : "Material prestado",
+              detail: `Cantidad ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
+            }))),
+        ...(selectedClinicalDiagnosisId
+          ? []
+          : attachments.map((attachment) => ({
+              id: `attachment:${attachment.id}`,
+              at: attachment.created_at,
+              kind: "Archivo",
+              title: attachment.file_name,
+              detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · subido por ${attachment.uploaded_by_email}` : ""}`,
+            }))),
       ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
-    [appointments, attachments, diagnoses, evolutions, loans, plans],
+    [
+      appointments,
+      attachments,
+      diagnosisById,
+      filteredDiagnoses,
+      filteredEvolutions,
+      filteredPlans,
+      loans,
+      selectedClinicalDiagnosisId,
+    ],
   );
 
   useEffect(() => {
@@ -420,12 +471,19 @@ export default function PatientDetailPage() {
     setClinicalNotes(patient.clinical_notes ?? "");
   }, [patient]);
 
+  useEffect(() => {
+    if (selectedClinicalDiagnosisId && !diagnosisById.has(selectedClinicalDiagnosisId)) {
+      setSelectedClinicalDiagnosisId("");
+    }
+  }, [diagnosisById, selectedClinicalDiagnosisId]);
+
   const hasValidPlanItems = planItems.every((item) => item.name.trim() && Number(item.estimated_minutes) > 0);
 
   function resetPlanForm() {
     setEditingPlanId("");
     setPlanFrequency("weekly");
     setPlanStatus("active");
+    setPlanDiagnosisId("");
     setPlanDurationWeeks(4);
     setPlanObservations("");
     setPlanItems([{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }]);
@@ -434,6 +492,7 @@ export default function PatientDetailPage() {
   function loadPlanForEdit(plan: ExercisePlan) {
     setEditingPlanId(plan.id);
     setPlanKinesiologistId(plan.kinesiologist_id);
+    setPlanDiagnosisId(plan.patient_diagnosis_id ?? "");
     setPlanFrequency(plan.frequency === "daily" ? "daily" : "weekly");
     setPlanStatus(plan.status === "closed" ? "closed" : "active");
     setPlanDurationWeeks(plan.duration_weeks);
@@ -778,6 +837,15 @@ export default function PatientDetailPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
+                        className={`px-3 py-1 rounded-lg border text-sm ${
+                          selectedClinicalDiagnosisId === diagnosis.id ? "bg-black text-white" : "hover:bg-gray-50"
+                        }`}
+                        onClick={() => setSelectedClinicalDiagnosisId(diagnosis.id)}
+                      >
+                        Ver historia
+                      </button>
+                      <button
+                        type="button"
                         className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                         onClick={() => loadDiagnosisForEdit(diagnosis)}
                       >
@@ -1065,6 +1133,22 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-3">
+                <label className="text-sm font-medium">Diagnóstico asociado</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={evolutionDiagnosisId}
+                  onChange={(event) => setEvolutionDiagnosisId(event.target.value)}
+                >
+                  <option value="">Sin asociar</option>
+                  {diagnoses.map((diagnosis) => (
+                    <option key={diagnosis.id} value={diagnosis.id}>
+                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-3">
                 <label className="text-sm font-medium">Notas</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-28"
@@ -1113,6 +1197,22 @@ export default function PatientDetailPage() {
                   {kinesiologists.map((kinesiologist) => (
                     <option key={kinesiologist.id} value={kinesiologist.id}>
                       {kinesiologist.last_name}, {kinesiologist.first_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Diagnóstico asociado</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={planDiagnosisId}
+                  onChange={(event) => setPlanDiagnosisId(event.target.value)}
+                >
+                  <option value="">Sin asociar</option>
+                  {diagnoses.map((diagnosis) => (
+                    <option key={diagnosis.id} value={diagnosis.id}>
+                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind)}
                     </option>
                   ))}
                 </select>
@@ -1304,7 +1404,48 @@ export default function PatientDetailPage() {
         )}
 
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-semibold">Timeline clínico</h2>
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Timeline clínico</h2>
+              <p className="text-sm text-gray-600">
+                {selectedClinicalDiagnosis
+                  ? `Filtrado por ${diagnosisLabel(selectedClinicalDiagnosis)}.`
+                  : "Toda la actividad clínica del paciente."}
+              </p>
+              {selectedClinicalDiagnosis && (
+                <p className="text-sm text-gray-600">
+                  {filteredEvolutions.length} evoluciones · {filteredPlans.length} planes
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div>
+                <label className="text-sm font-medium">Filtrar por diagnóstico</label>
+                <select
+                  className="mt-1 w-full min-w-72 border rounded-lg p-2"
+                  value={selectedClinicalDiagnosisId}
+                  onChange={(event) => setSelectedClinicalDiagnosisId(event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {diagnoses.map((diagnosis) => (
+                    <option key={diagnosis.id} value={diagnosis.id}>
+                      {diagnosis.cie10_code} · {diagnosis.cie10_description}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedClinicalDiagnosisId && (
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                  onClick={() => setSelectedClinicalDiagnosisId("")}
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+          </div>
           {timeline.length === 0 ? (
             <p className="text-sm text-gray-600">Sin actividad registrada.</p>
           ) : (
@@ -1354,20 +1495,35 @@ export default function PatientDetailPage() {
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Panel title="Evoluciones" isLoading={evolutionsQ.isLoading} isError={evolutionsQ.isError} empty={evolutions.length === 0}>
-            {evolutions.map((evolution) => (
+          <Panel
+            title={selectedClinicalDiagnosis ? "Evoluciones del diagnóstico" : "Evoluciones"}
+            isLoading={evolutionsQ.isLoading}
+            isError={evolutionsQ.isError}
+            empty={filteredEvolutions.length === 0}
+          >
+            {filteredEvolutions.map((evolution) => (
               <div key={evolution.id} className="py-3 border-b last:border-b-0">
                 <div className="font-medium">{formatLocalDateTime(evolution.created_at)}</div>
                 {evolution.pain_level != null && (
                   <div className="text-sm text-gray-600">Dolor: {evolution.pain_level}/10</div>
+                )}
+                {evolution.patient_diagnosis_id && diagnosisById.has(evolution.patient_diagnosis_id) && (
+                  <div className="text-sm text-gray-600">
+                    Diagnóstico: {diagnosisLabel(diagnosisById.get(evolution.patient_diagnosis_id))}
+                  </div>
                 )}
                 <p className="text-sm text-gray-700 mt-1">{evolution.notes}</p>
               </div>
             ))}
           </Panel>
 
-          <Panel title="Planes" isLoading={plansQ.isLoading} isError={plansQ.isError} empty={plans.length === 0}>
-            {plans.map((plan) => (
+          <Panel
+            title={selectedClinicalDiagnosis ? "Planes del diagnóstico" : "Planes"}
+            isLoading={plansQ.isLoading}
+            isError={plansQ.isError}
+            empty={filteredPlans.length === 0}
+          >
+            {filteredPlans.map((plan) => (
               <div key={plan.id} className="py-3 border-b last:border-b-0">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -1375,6 +1531,11 @@ export default function PatientDetailPage() {
                       {plan.frequency === "daily" ? "Diario" : "Semanal"} · {plan.duration_weeks} semanas
                     </div>
                     <div className="text-sm text-gray-600">Estado: {plan.status === "closed" ? "Cerrado" : "Activo"}</div>
+                    {plan.patient_diagnosis_id && diagnosisById.has(plan.patient_diagnosis_id) && (
+                      <div className="text-sm text-gray-600">
+                        Diagnóstico: {diagnosisLabel(diagnosisById.get(plan.patient_diagnosis_id))}
+                      </div>
+                    )}
                     <div className="text-sm text-gray-600">Ejercicios: {plan.items.length}</div>
                     <div className="text-sm text-gray-600">
                       Creado: {formatLocalDateTime(plan.created_at)}
@@ -1468,4 +1629,14 @@ function diagnosisStatusLabel(status: string) {
   if (status === "confirmed") return "Confirmado";
   if (status === "resolved") return "Resuelto";
   return "Sospechado";
+}
+
+function diagnosisLabel(diagnosis: PatientDiagnosis | undefined) {
+  if (!diagnosis) return "";
+  return `${diagnosis.cie10_code} · ${diagnosis.cie10_description}`;
+}
+
+function diagnosisSummary(diagnosis: PatientDiagnosis | undefined) {
+  const label = diagnosisLabel(diagnosis);
+  return label ? `${label} · ` : "";
 }

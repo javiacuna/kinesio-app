@@ -42,6 +42,7 @@ func (r *Repository) Update(ctx context.Context, p domain.ExercisePlan) (domain.
 		}
 
 		current.KinesiologistID = m.KinesiologistID
+		current.DiagnosisID = m.DiagnosisID
 		current.Frequency = m.Frequency
 		current.DurationWeeks = m.DurationWeeks
 		current.Observations = m.Observations
@@ -109,10 +110,17 @@ func (r *Repository) ListByPatient(ctx context.Context, patientID uuid.UUID) ([]
 }
 
 func toModel(p domain.ExercisePlan) ExercisePlanModel {
+	var diagnosis *string
+	if p.DiagnosisID != nil {
+		s := p.DiagnosisID.String()
+		diagnosis = &s
+	}
+
 	m := ExercisePlanModel{
 		ID:              p.ID.String(),
 		PatientID:       p.PatientID.String(),
 		KinesiologistID: p.KinesiologistID.String(),
+		DiagnosisID:     diagnosis,
 		Frequency:       string(p.Frequency),
 		DurationWeeks:   p.DurationWeeks,
 		Observations:    p.Observations,
@@ -144,10 +152,17 @@ func toModel(p domain.ExercisePlan) ExercisePlanModel {
 }
 
 func toDomain(m ExercisePlanModel) domain.ExercisePlan {
+	var diagnosis *uuid.UUID
+	if m.DiagnosisID != nil && *m.DiagnosisID != "" {
+		id := uuid.MustParse(*m.DiagnosisID)
+		diagnosis = &id
+	}
+
 	p := domain.ExercisePlan{
 		ID:              uuid.MustParse(m.ID),
 		PatientID:       uuid.MustParse(m.PatientID),
 		KinesiologistID: uuid.MustParse(m.KinesiologistID),
+		DiagnosisID:     diagnosis,
 		Frequency:       domain.Frequency(m.Frequency),
 		DurationWeeks:   m.DurationWeeks,
 		Observations:    m.Observations,

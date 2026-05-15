@@ -11,6 +11,7 @@ type PatientEvolution struct {
 	PatientID       uuid.UUID
 	KinesiologistID uuid.UUID
 	AppointmentID   *uuid.UUID
+	DiagnosisID     *uuid.UUID
 
 	PainLevel *int   // 0..10
 	Notes     string // requerido

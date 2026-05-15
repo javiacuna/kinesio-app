@@ -24,6 +24,7 @@ type CreatePlanItemInput struct {
 type CreatePlanInput struct {
 	PatientID       string                `json:"patient_id"`
 	KinesiologistID string                `json:"kinesiologist_id"`
+	DiagnosisID     *string               `json:"patient_diagnosis_id"`
 	Frequency       string                `json:"frequency"`      // daily|weekly
 	DurationWeeks   int                   `json:"duration_weeks"` // >=1
 	Observations    *string               `json:"observations"`
@@ -50,6 +51,15 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, in CreatePlanInput) (d
 	kID, err := uuid.Parse(strings.TrimSpace(in.KinesiologistID))
 	if err != nil {
 		validation["kinesiologist_id"] = "invalid_uuid"
+	}
+	var diagnosisID *uuid.UUID
+	if in.DiagnosisID != nil && strings.TrimSpace(*in.DiagnosisID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.DiagnosisID))
+		if err != nil {
+			validation["patient_diagnosis_id"] = "invalid_uuid"
+		} else {
+			diagnosisID = &id
+		}
 	}
 
 	freq := domain.Frequency(strings.TrimSpace(in.Frequency))
@@ -82,6 +92,7 @@ func (uc *CreatePlanUseCase) Execute(ctx context.Context, in CreatePlanInput) (d
 		ID:              uuid.New(),
 		PatientID:       patientID,
 		KinesiologistID: kID,
+		DiagnosisID:     diagnosisID,
 		Frequency:       freq,
 		DurationWeeks:   in.DurationWeeks,
 		Observations:    in.Observations,
