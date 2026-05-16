@@ -28,6 +28,8 @@ type UpdateAppointmentPackageInput struct {
 	StartDate     *string
 	StartTime     *string
 	DurationMin   *int
+	PracticeID    *string
+	FinancierID   *string
 	WorkDays      []int
 	Notes         *string
 	WorkStartTime string
@@ -88,6 +90,32 @@ func (uc *UpdateAppointmentPackageUseCase) Execute(
 		newDuration = *in.DurationMin
 		if newDuration <= 0 {
 			errs["duration_min"] = "Debe ser mayor a 0"
+		}
+	}
+
+	newPracticeID := pkg.PracticeID
+	if in.PracticeID != nil {
+		newPracticeID = nil
+		if strings.TrimSpace(*in.PracticeID) != "" {
+			id, err := uuid.Parse(strings.TrimSpace(*in.PracticeID))
+			if err != nil {
+				errs["practice_id"] = "UUID inválido"
+			} else {
+				newPracticeID = &id
+			}
+		}
+	}
+
+	newFinancierID := pkg.FinancierID
+	if in.FinancierID != nil {
+		newFinancierID = nil
+		if strings.TrimSpace(*in.FinancierID) != "" {
+			id, err := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+			if err != nil {
+				errs["financier_id"] = "UUID inválido"
+			} else {
+				newFinancierID = &id
+			}
 		}
 	}
 
@@ -191,6 +219,12 @@ func (uc *UpdateAppointmentPackageUseCase) Execute(
 		if in.Notes != nil {
 			next.Notes = trimPtr(in.Notes)
 		}
+		if in.PracticeID != nil {
+			next.PracticeID = newPracticeID
+		}
+		if in.FinancierID != nil {
+			next.FinancierID = newFinancierID
+		}
 
 		stored, err := uc.repo.Update(ctx, next)
 		if err != nil {
@@ -202,6 +236,8 @@ func (uc *UpdateAppointmentPackageUseCase) Execute(
 	pkg.StartTime = newStartTime
 	pkg.DurationMin = newDuration
 	pkg.StartDate = newStartDate
+	pkg.PracticeID = newPracticeID
+	pkg.FinancierID = newFinancierID
 	pkg.WorkDays = packageDays
 	if in.Notes != nil {
 		pkg.Notes = trimPtr(in.Notes)

@@ -14,6 +14,8 @@ export function listPatientAppointments(params: { from: string; to: string; pati
 export type CreateAppointmentInput = {
   patient_id?: string;
   kinesiologist_id: string;
+  practice_id?: string;
+  financier_id?: string;
   start_at: string;
   end_at: string;
   notes?: string;
@@ -30,6 +32,8 @@ export type AppointmentPackage = {
   id: string;
   patient_id: string;
   kinesiologist_id: string;
+  practice_id?: string | null;
+  financier_id?: string | null;
   sessions_count: number;
   duration_min: number;
   start_date: string;
@@ -49,6 +53,8 @@ export type AppointmentPackageWriteResponse = {
 export type CreateAppointmentPackageInput = {
   patient_id: string;
   kinesiologist_id: string;
+  practice_id?: string;
+  financier_id?: string;
   start_date: string;
   start_time: string;
   duration_min: number;
@@ -69,6 +75,8 @@ export type UpdateAppointmentPackageInput = {
   start_date?: string;
   start_time?: string;
   duration_min?: number;
+  practice_id?: string;
+  financier_id?: string;
   work_days?: number[];
   notes?: string;
 };
@@ -83,7 +91,9 @@ export function updateAppointmentPackage(input: UpdateAppointmentPackageInput) {
 
 export type UpdateAppointmentInput = {
   id: string;
-  status?: "scheduled" | "cancelled";
+  status?: "scheduled" | "cancelled" | "completed";
+  practice_id?: string;
+  financier_id?: string;
   cancelled_reason?: string;
   notes?: string;
   start_at?: string;

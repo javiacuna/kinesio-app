@@ -12,6 +12,7 @@ import {
   updateAppointmentPackage,
 } from "../features/appointments/api";
 import { listPatients } from "@/features/patients/api";
+import { completeAppointment, listFinanciers } from "@/features/finance/api";
 import { addMinutesToHHmm, localDateTimeToUTC } from "../shared/time/rfc3339";
 import { formatLocalTime } from "../shared/time/format";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
@@ -117,7 +118,9 @@ function weekDaysFor(dateISO: string) {
 }
 
 function statusLabel(status: Appointment["status"], t: (key: string) => string) {
-  return status === "cancelled" ? t("agenda.cancelled") : t("agenda.scheduled");
+  if (status === "cancelled") return t("agenda.cancelled");
+  if (status === "completed") return "Realizado";
+  return t("agenda.scheduled");
 }
 
 function patientName(patient?: Patient) {
@@ -154,6 +157,8 @@ export default function AgendaPage() {
   const [apptDate, setApptDate] = useState(todayISO());
   const [startTime, setStartTime] = useState("09:00");
   const [durationMin, setDurationMin] = useState(45);
+  const [practiceId, setPracticeId] = useState("");
+  const [financierId, setFinancierId] = useState("");
   const [sessionsCount, setSessionsCount] = useState(8);
   const [notes, setNotes] = useState("");
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
@@ -163,9 +168,14 @@ export default function AgendaPage() {
   const [editDate, setEditDate] = useState(todayISO());
   const [editStartTime, setEditStartTime] = useState("09:00");
   const [editDurationMin, setEditDurationMin] = useState(45);
+  const [editPracticeId, setEditPracticeId] = useState("");
+  const [editFinancierId, setEditFinancierId] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [cancelAppointmentTarget, setCancelAppointmentTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [completeTarget, setCompleteTarget] = useState<Appointment | null>(null);
+  const [completePracticeId, setCompletePracticeId] = useState("");
+  const [completeFinancierId, setCompleteFinancierId] = useState("");
 
   useEffect(() => {
     const last = localStorage.getItem("last_patient_id");
@@ -186,6 +196,11 @@ export default function AgendaPage() {
     queryFn: () => listPatients(500, true),
   });
 
+  const financiersQ = useQuery({
+    queryKey: ["financiers", "agenda"],
+    queryFn: () => listFinanciers(),
+  });
+
   const kinesios = useMemo(() => kinesioQ.data ?? [], [kinesioQ.data]);
   const patients = patientsQ.data ?? [];
   const patientById = useMemo(
@@ -196,6 +211,7 @@ export default function AgendaPage() {
     () => kinesios.find((k) => k.id === kinesiologistId),
     [kinesiologistId, kinesios],
   );
+  const financiers = financiersQ.data ?? [];
   const weekDays = useMemo(() => weekDaysFor(date), [date]);
   const weekStart = weekDays[0] ?? date;
   const weekEnd = weekDays[6] ?? date;
@@ -210,6 +226,19 @@ export default function AgendaPage() {
       setKinesiologistId(ownProfile.id);
     }
   }, [isKinesiologist, kinesiologistId, kinesios, user?.email]);
+
+  useEffect(() => {
+    const practices = selectedKinesiologist?.practices?.filter((practice) => practice.active) ?? [];
+    if (practices.length > 0 && !practices.some((practice) => practice.id === practiceId)) {
+      setPracticeId(practices[0].id);
+    }
+  }, [practiceId, selectedKinesiologist]);
+
+  useEffect(() => {
+    if (financiers.length > 0 && !financiers.some((financier) => financier.id === financierId)) {
+      setFinancierId(financiers[0].id);
+    }
+  }, [financierId, financiers]);
 
   const canLoadAgenda = Boolean(kinesiologistId);
 
@@ -276,17 +305,37 @@ export default function AgendaPage() {
   });
 
   const packageUpdateM = useMutation({
-    mutationFn: (args: { id: string; start_date: string; start_time: string; duration_min: number; work_days: number[]; notes?: string }) =>
+    mutationFn: (args: {
+      id: string;
+      start_date: string;
+      start_time: string;
+      duration_min: number;
+      practice_id?: string;
+      financier_id?: string;
+      work_days: number[];
+      notes?: string;
+    }) =>
       updateAppointmentPackage({
         id: args.id,
         start_date: args.start_date,
         start_time: args.start_time,
         duration_min: args.duration_min,
+        practice_id: args.practice_id,
+        financier_id: args.financier_id,
         work_days: args.work_days,
         notes: args.notes,
       }),
     onSuccess: () => {
       setEditingPackageId(null);
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
+  });
+
+  const completeM = useMutation({
+    mutationFn: completeAppointment,
+    onSuccess: () => {
+      setCompleteTarget(null);
       agendaQ.refetch();
       weekAgendaQ.refetch();
     },
@@ -302,6 +351,8 @@ export default function AgendaPage() {
       createPackageM.mutate({
         patient_id: patientId.trim(),
         kinesiologist_id: kinesiologistId,
+        practice_id: practiceId || undefined,
+        financier_id: financierId || undefined,
         start_date: apptDate,
         start_time: startTime,
         duration_min: durationMin,
@@ -315,6 +366,8 @@ export default function AgendaPage() {
     createM.mutate({
       patient_id: patientId.trim(),
       kinesiologist_id: kinesiologistId,
+      practice_id: practiceId || undefined,
+      financier_id: financierId || undefined,
       start_at: localDateTimeToUTC(apptDate, startTime),
       end_at: localDateTimeToUTC(apptDate, endTime),
       notes: notes.trim() ? notes.trim() : undefined,
@@ -327,6 +380,8 @@ export default function AgendaPage() {
     setEditDate(localDateISO(appt.start_at));
     setEditStartTime(formatLocalTime(appt.start_at));
     setEditDurationMin(durationMinutes(appt.start_at, appt.end_at));
+    setEditPracticeId(appt.practice_id ?? practiceId);
+    setEditFinancierId(appt.financier_id ?? financierId);
     setEditNotes(appt.notes ?? "");
     rescheduleM.reset();
   }
@@ -356,12 +411,14 @@ export default function AgendaPage() {
   }
 
   function submitEditPackage() {
-    if (!editingPackageId || isPackageEditOutsideWorkingHours) return;
+    if (!editingPackageId || isPackageEditOutsideWorkingHours || !editPracticeId || !editFinancierId) return;
     packageUpdateM.mutate({
       id: editingPackageId,
       start_date: editPackageDate,
       start_time: editStartTime,
       duration_min: editDurationMin,
+      practice_id: editPracticeId,
+      financier_id: editFinancierId,
       work_days: editPackageDays,
       notes: editNotes.trim() ? editNotes.trim() : undefined,
     });
@@ -378,6 +435,22 @@ export default function AgendaPage() {
     cancelM.mutate({
       id: cancelAppointmentTarget.id,
       reason: cancelReason.trim() || undefined,
+    });
+  }
+
+  function openCompleteAppointment(appt: Appointment) {
+    setCompleteTarget(appt);
+    setCompletePracticeId(appt.practice_id ?? practiceId);
+    setCompleteFinancierId(appt.financier_id ?? financierId);
+    completeM.reset();
+  }
+
+  function submitCompleteAppointment() {
+    if (!completeTarget || !completePracticeId || !completeFinancierId) return;
+    completeM.mutate({
+      appointment_id: completeTarget.id,
+      practice_id: completePracticeId,
+      financier_id: completeFinancierId,
     });
   }
 
@@ -526,6 +599,7 @@ export default function AgendaPage() {
                 <option value="all">{t("agenda.statusAll")}</option>
                 <option value="scheduled">{t("agenda.statusScheduled")}</option>
                 <option value="cancelled">{t("agenda.statusCancelled")}</option>
+                <option value="completed">Realizado</option>
               </select>
             </div>
 
@@ -641,6 +715,45 @@ export default function AgendaPage() {
               />
             </div>
 
+            {(
+              <>
+                <div>
+                  <label className="text-sm font-medium">Práctica</label>
+                  <select
+                    className="mt-1 w-full border rounded-lg p-2"
+                    value={practiceId}
+                    onChange={(event) => setPracticeId(event.target.value)}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {(selectedKinesiologist?.practices ?? []).filter((practice) => practice.active).map((practice) => (
+                      <option key={practice.id} value={practice.id}>
+                        {practice.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedKinesiologist && selectedKinesiologist.practices.length === 0 && (
+                    <p className="text-xs text-amber-700 mt-1">Este kinesiólogo no tiene prácticas asignadas.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Financiador</label>
+                  <select
+                    className="mt-1 w-full border rounded-lg p-2"
+                    value={financierId}
+                    onChange={(event) => setFinancierId(event.target.value)}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {financiers.map((financier) => (
+                      <option key={financier.id} value={financier.id}>
+                        {financier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
             {createMode === "package" && (
               <div>
                 <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.sessionsCount")}</RequiredLabel></label>
@@ -664,6 +777,8 @@ export default function AgendaPage() {
             disabled={
               !patientId.trim() ||
               !kinesiologistId ||
+              !practiceId ||
+              !financierId ||
               isCreateInPast ||
               isCreateOutsideWorkingHours ||
               (createMode === "package" && sessionsCount <= 0) ||
@@ -792,10 +907,20 @@ export default function AgendaPage() {
                           <div className="text-xs text-gray-500 font-mono">{a.id}</div>
                         )}
 
-                        {canManageAppointments && a.status !== "cancelled" ? (
+                        {canManageAppointments && a.status === "scheduled" && (
+                          <button
+                            className="px-3 py-1 rounded-lg border text-sm hover:bg-green-50 disabled:opacity-50"
+                            disabled={completeM.isPending}
+                            onClick={() => openCompleteAppointment(a)}
+                          >
+                            {completeM.isPending ? "..." : "Realizado"}
+                          </button>
+                        )}
+
+                        {canManageAppointments && a.status === "scheduled" ? (
                           <button
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                            disabled={cancelM.isPending || rescheduleM.isPending}
+                            disabled={cancelM.isPending || rescheduleM.isPending || completeM.isPending}
                             onClick={() => {
                               openCancelAppointment(a);
                             }}
@@ -806,16 +931,20 @@ export default function AgendaPage() {
                           <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
                             {t("agenda.cancelled")}
                           </span>
+                        ) : a.status === "completed" ? (
+                          <span className="text-xs px-2 py-1 rounded-md bg-green-100 text-green-700">
+                            Realizado
+                          </span>
                         ) : (
                           <span className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700">
                             {t("agenda.scheduled")}
                           </span>
                         )}
 
-                        {canManageAppointments && (
+                        {canManageAppointments && a.status === "scheduled" && (
                           <button
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
-                            disabled={rescheduleM.isPending || cancelM.isPending}
+                            disabled={rescheduleM.isPending || cancelM.isPending || completeM.isPending}
                             onClick={() => {
                               openEditAppointment(a);
                             }}
@@ -824,7 +953,7 @@ export default function AgendaPage() {
                           </button>
                         )}
 
-                        {canManageAppointments && a.package_id && a.status !== "cancelled" && (
+                        {canManageAppointments && a.package_id && a.status === "scheduled" && (
                           <button
                             className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-100 disabled:opacity-50"
                             disabled={packageUpdateM.isPending}
@@ -895,8 +1024,15 @@ export default function AgendaPage() {
                             )}
                             {appointment.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {appointment.notes}</div>}
                           </div>
-                          {canManageAppointments && appointment.status !== "cancelled" && (
+                          {canManageAppointments && appointment.status === "scheduled" && (
                             <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                className="px-3 py-1 rounded-lg border text-sm hover:bg-green-50"
+                                onClick={() => openCompleteAppointment(appointment)}
+                              >
+                                Realizado
+                              </button>
                               {appointment.package_id && (
                                 <button
                                   type="button"
@@ -1106,6 +1242,38 @@ export default function AgendaPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="text-sm font-medium">Práctica</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editPracticeId}
+                  onChange={(event) => setEditPracticeId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {(selectedKinesiologist?.practices ?? []).filter((practice) => practice.active).map((practice) => (
+                    <option key={practice.id} value={practice.id}>
+                      {practice.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Financiador</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editFinancierId}
+                  onChange={(event) => setEditFinancierId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {financiers.map((financier) => (
+                    <option key={financier.id} value={financier.id}>
+                      {financier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="text-sm font-medium">{t("agenda.notes")}</label>
                 <input
@@ -1160,6 +1328,10 @@ export default function AgendaPage() {
               <p className="text-sm text-red-600">{t("agenda.packageDaysRequired")}</p>
             )}
 
+            {(!editPracticeId || !editFinancierId) && (
+              <p className="text-sm text-red-600">Seleccioná práctica y financiador para el paquete.</p>
+            )}
+
             {packageUpdateM.isError && (
               <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
                 {hasPackageUpdateOverlap ? (
@@ -1187,10 +1359,106 @@ export default function AgendaPage() {
               <button
                 type="button"
                 className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-                disabled={isPackageEditOutsideWorkingHours || isPackageEditDaysInvalid || packageUpdateM.isPending}
+                disabled={isPackageEditOutsideWorkingHours || isPackageEditDaysInvalid || !editPracticeId || !editFinancierId || packageUpdateM.isPending}
                 onClick={submitEditPackage}
               >
                 {packageUpdateM.isPending ? t("common.saving") : t("common.saveChanges")}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {completeTarget && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <section className="bg-white rounded-xl shadow-xl p-4 w-full max-w-lg space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Marcar turno realizado</h2>
+                <p className="text-sm text-gray-600">
+                  {formatLocalTime(completeTarget.start_at)} a {formatLocalTime(completeTarget.end_at)} ·{" "}
+                  {patientName(patientById.get(completeTarget.patient_id))}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                onClick={() => setCompleteTarget(null)}
+              >
+                {t("agenda.close")}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <div>
+                <label className="text-sm font-medium">Práctica facturable</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={completePracticeId}
+                  onChange={(event) => setCompletePracticeId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {(selectedKinesiologist?.practices ?? []).filter((practice) => practice.active).map((practice) => (
+                    <option key={practice.id} value={practice.id}>
+                      {practice.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Financiador</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={completeFinancierId}
+                  onChange={(event) => setCompleteFinancierId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {financiers.map((financier) => (
+                    <option key={financier.id} value={financier.id}>
+                      {financier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {completeM.isError && (
+              <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
+                {(completeM.error as any)?.message === "tariff_not_found" ? (
+                  <>
+                    <div className="font-medium">Falta tarifario</div>
+                    <div>Configurá el valor de facturación para esa práctica y financiador en Finanzas.</div>
+                  </>
+                ) : (completeM.error as any)?.message === "financial_movement_already_generated" ? (
+                  <>
+                    <div className="font-medium">Ya fue liquidado</div>
+                    <div>Este turno ya tiene un movimiento financiero generado.</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium">No se pudo marcar como realizado</div>
+                    <div>{String((completeM.error as any)?.message)}</div>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg border hover:bg-gray-50"
+                onClick={() => setCompleteTarget(null)}
+              >
+                {t("common.back")}
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={!completePracticeId || !completeFinancierId || completeM.isPending}
+                onClick={submitCompleteAppointment}
+              >
+                {completeM.isPending ? "Generando..." : "Generar movimiento"}
               </button>
             </div>
           </section>

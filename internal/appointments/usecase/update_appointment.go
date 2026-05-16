@@ -13,7 +13,9 @@ import (
 type UpdateAppointmentInput struct {
 	StartAt         *string // RFC3339 (opcional)
 	EndAt           *string // RFC3339 (opcional)
-	Status          *string // "scheduled" | "cancelled" (opcional)
+	Status          *string // "scheduled" | "cancelled" | "completed" (opcional)
+	PracticeID      *string // opcional
+	FinancierID     *string // opcional
 	CancelledReason *string // opcional
 	Notes           *string // opcional
 }
@@ -48,10 +50,33 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 	// Status
 	if in.Status != nil {
 		switch domain.Status(strings.TrimSpace(*in.Status)) {
-		case domain.StatusScheduled, domain.StatusCancelled:
+		case domain.StatusScheduled, domain.StatusCancelled, domain.StatusCompleted:
 			current.Status = domain.Status(strings.TrimSpace(*in.Status))
 		default:
-			errs["status"] = "Valor inválido (scheduled|cancelled)"
+			errs["status"] = "Valor inválido (scheduled|cancelled|completed)"
+		}
+	}
+
+	if in.PracticeID != nil {
+		current.PracticeID = nil
+		if strings.TrimSpace(*in.PracticeID) != "" {
+			id, err := uuid.Parse(strings.TrimSpace(*in.PracticeID))
+			if err != nil {
+				errs["practice_id"] = "UUID inválido"
+			} else {
+				current.PracticeID = &id
+			}
+		}
+	}
+	if in.FinancierID != nil {
+		current.FinancierID = nil
+		if strings.TrimSpace(*in.FinancierID) != "" {
+			id, err := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+			if err != nil {
+				errs["financier_id"] = "UUID inválido"
+			} else {
+				current.FinancierID = &id
+			}
 		}
 	}
 

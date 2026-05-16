@@ -93,11 +93,12 @@ export function AgendaGrid({
           // Turno que empieza en este slot
           if (appt) {
             const cancelled = appt.status === "cancelled";
+            const completed = appt.status === "completed";
             return (
               <div
                 key={hhmm}
                 className={`flex items-center justify-between border rounded-lg p-2 ${
-                  cancelled ? "bg-gray-50" : "bg-blue-50"
+                  cancelled ? "bg-gray-50" : completed ? "bg-green-50" : "bg-blue-50"
                 }`}
               >
                 <div className="flex flex-col">
@@ -117,6 +118,10 @@ export function AgendaGrid({
                   {cancelled ? (
                     <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
                       {t("agenda.cancelled")}
+                    </span>
+                  ) : completed ? (
+                    <span className="text-xs px-2 py-1 rounded-md bg-green-100 text-green-700">
+                      Realizado
                     </span>
                   ) : canManageAppointments ? (
                     <>

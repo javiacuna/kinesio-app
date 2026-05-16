@@ -76,6 +76,8 @@ func NewHandler(
 type createReq struct {
 	PatientID       string  `json:"patient_id"`
 	KinesiologistID string  `json:"kinesiologist_id"`
+	PracticeID      *string `json:"practice_id,omitempty"`
+	FinancierID     *string `json:"financier_id,omitempty"`
 	StartAt         string  `json:"start_at"` // RFC3339
 	EndAt           string  `json:"end_at"`   // RFC3339
 	Notes           *string `json:"notes,omitempty"`
@@ -85,6 +87,8 @@ type updateReq struct {
 	StartAt         *string `json:"start_at,omitempty"`
 	EndAt           *string `json:"end_at,omitempty"`
 	Status          *string `json:"status,omitempty"` // scheduled|cancelled
+	PracticeID      *string `json:"practice_id,omitempty"`
+	FinancierID     *string `json:"financier_id,omitempty"`
 	CancelledReason *string `json:"cancelled_reason,omitempty"`
 	Notes           *string `json:"notes,omitempty"`
 }
@@ -96,6 +100,8 @@ type cancelReq struct {
 type createPackageReq struct {
 	PatientID       string  `json:"patient_id"`
 	KinesiologistID string  `json:"kinesiologist_id"`
+	PracticeID      *string `json:"practice_id,omitempty"`
+	FinancierID     *string `json:"financier_id,omitempty"`
 	StartDate       string  `json:"start_date"`
 	StartTime       string  `json:"start_time"`
 	DurationMin     int     `json:"duration_min"`
@@ -108,6 +114,8 @@ type updatePackageReq struct {
 	StartDate   *string `json:"start_date,omitempty"`
 	StartTime   *string `json:"start_time,omitempty"`
 	DurationMin *int    `json:"duration_min,omitempty"`
+	PracticeID  *string `json:"practice_id,omitempty"`
+	FinancierID *string `json:"financier_id,omitempty"`
 	WorkDays    []int   `json:"work_days,omitempty"`
 	Notes       *string `json:"notes,omitempty"`
 }
@@ -116,6 +124,8 @@ type resp struct {
 	ID                   string  `json:"id"`
 	PatientID            string  `json:"patient_id"`
 	KinesiologistID      string  `json:"kinesiologist_id"`
+	PracticeID           *string `json:"practice_id,omitempty"`
+	FinancierID          *string `json:"financier_id,omitempty"`
 	PackageID            *string `json:"package_id,omitempty"`
 	PackageSessionNumber *int    `json:"package_session_number,omitempty"`
 	StartAt              string  `json:"start_at"`
@@ -131,6 +141,8 @@ type appointmentPackageResp struct {
 	ID              string  `json:"id"`
 	PatientID       string  `json:"patient_id"`
 	KinesiologistID string  `json:"kinesiologist_id"`
+	PracticeID      *string `json:"practice_id,omitempty"`
+	FinancierID     *string `json:"financier_id,omitempty"`
 	SessionsCount   int     `json:"sessions_count"`
 	DurationMin     int     `json:"duration_min"`
 	StartDate       string  `json:"start_date"`
@@ -174,6 +186,8 @@ func (h *Handler) Create(c *gin.Context) {
 	out, details, err := h.create.Execute(c.Request.Context(), usecase.CreateAppointmentInput{
 		PatientID:       req.PatientID,
 		KinesiologistID: req.KinesiologistID,
+		PracticeID:      req.PracticeID,
+		FinancierID:     req.FinancierID,
 		StartAt:         req.StartAt,
 		EndAt:           req.EndAt,
 		Notes:           req.Notes,
@@ -236,6 +250,8 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 	pkg, appointments, details, err := h.createPackage.Execute(c.Request.Context(), usecase.CreateAppointmentPackageInput{
 		PatientID:       req.PatientID,
 		KinesiologistID: req.KinesiologistID,
+		PracticeID:      req.PracticeID,
+		FinancierID:     req.FinancierID,
 		StartDate:       req.StartDate,
 		StartTime:       req.StartTime,
 		DurationMin:     req.DurationMin,
@@ -287,6 +303,8 @@ func (h *Handler) UpdatePackage(c *gin.Context) {
 		StartTime:     req.StartTime,
 		StartDate:     req.StartDate,
 		DurationMin:   req.DurationMin,
+		PracticeID:    req.PracticeID,
+		FinancierID:   req.FinancierID,
 		WorkDays:      req.WorkDays,
 		Notes:         req.Notes,
 		WorkStartTime: workStartTime,
@@ -367,6 +385,8 @@ func (h *Handler) Update(c *gin.Context) {
 		StartAt:         req.StartAt,
 		EndAt:           req.EndAt,
 		Status:          req.Status,
+		PracticeID:      req.PracticeID,
+		FinancierID:     req.FinancierID,
 		CancelledReason: req.CancelledReason,
 		Notes:           req.Notes,
 	})
@@ -437,11 +457,23 @@ func toResp(a domain.Appointment) resp {
 		value := a.PackageID.String()
 		packageID = &value
 	}
+	var practiceID *string
+	if a.PracticeID != nil {
+		value := a.PracticeID.String()
+		practiceID = &value
+	}
+	var financierID *string
+	if a.FinancierID != nil {
+		value := a.FinancierID.String()
+		financierID = &value
+	}
 
 	return resp{
 		ID:                   a.ID.String(),
 		PatientID:            a.PatientID.String(),
 		KinesiologistID:      a.KinesiologistID.String(),
+		PracticeID:           practiceID,
+		FinancierID:          financierID,
 		PackageID:            packageID,
 		PackageSessionNumber: a.PackageSessionNumber,
 		StartAt:              a.StartAt.UTC().Format(timeRFC3339()),
@@ -468,10 +500,22 @@ func toPackageWriteResp(pkg domain.AppointmentPackage, appointments []domain.App
 }
 
 func toPackageResp(pkg domain.AppointmentPackage) appointmentPackageResp {
+	var practiceID *string
+	if pkg.PracticeID != nil {
+		value := pkg.PracticeID.String()
+		practiceID = &value
+	}
+	var financierID *string
+	if pkg.FinancierID != nil {
+		value := pkg.FinancierID.String()
+		financierID = &value
+	}
 	return appointmentPackageResp{
 		ID:              pkg.ID.String(),
 		PatientID:       pkg.PatientID.String(),
 		KinesiologistID: pkg.KinesiologistID.String(),
+		PracticeID:      practiceID,
+		FinancierID:     financierID,
 		SessionsCount:   pkg.SessionsCount,
 		DurationMin:     pkg.DurationMin,
 		StartDate:       pkg.StartDate.In(clinicLocation()).Format("2006-01-02"),

@@ -13,6 +13,8 @@ import (
 type CreateAppointmentInput struct {
 	PatientID       string
 	KinesiologistID string
+	PracticeID      *string
+	FinancierID     *string
 	StartAt         string // RFC3339
 	EndAt           string // RFC3339
 	Notes           *string
@@ -36,6 +38,24 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 	kid, err := uuid.Parse(strings.TrimSpace(in.KinesiologistID))
 	if err != nil {
 		errs["kinesiologist_id"] = "UUID inválido"
+	}
+	var practiceID *uuid.UUID
+	if in.PracticeID != nil && strings.TrimSpace(*in.PracticeID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.PracticeID))
+		if err != nil {
+			errs["practice_id"] = "UUID inválido"
+		} else {
+			practiceID = &id
+		}
+	}
+	var financierID *uuid.UUID
+	if in.FinancierID != nil && strings.TrimSpace(*in.FinancierID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+		if err != nil {
+			errs["financier_id"] = "UUID inválido"
+		} else {
+			financierID = &id
+		}
 	}
 
 	startAt, startErr := time.Parse(time.RFC3339, strings.TrimSpace(in.StartAt))
@@ -77,6 +97,8 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 		ID:              uuid.New(),
 		PatientID:       pid,
 		KinesiologistID: kid,
+		PracticeID:      practiceID,
+		FinancierID:     financierID,
 		StartAt:         startAt.UTC(),
 		EndAt:           endAt.UTC(),
 		Status:          domain.StatusScheduled,

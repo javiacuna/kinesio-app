@@ -40,6 +40,9 @@ import (
 	evoGorm "github.com/javiacuna/kinesio-backend/internal/evolutions/infra/gorm"
 	evoUC "github.com/javiacuna/kinesio-backend/internal/evolutions/usecase"
 
+	financeHTTP "github.com/javiacuna/kinesio-backend/internal/finance/http"
+	financeGorm "github.com/javiacuna/kinesio-backend/internal/finance/infra/gorm"
+
 	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
 	matUC "github.com/javiacuna/kinesio-backend/internal/materials/usecase"
@@ -164,6 +167,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir, patientRepo)
 	kineAttachmentRepo := kineAttachmentsGorm.NewRepository(db)
 	kineAttachmentHandler := kineAttachmentsHTTP.NewHandler(kineAttachmentRepo, cfg.KinesiologistFilesDir)
+	financeRepo := financeGorm.NewRepository(db)
+	financeHandler := financeHTTP.NewHandler(financeRepo)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -244,6 +249,19 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.PATCH("/patient-attachments/:attachment_id", attachmentHandler.Update)
 	v1.DELETE("/patient-attachments/:attachment_id", attachmentHandler.Delete)
 	v1.GET("/kinesiologist-attachments/:attachment_id/download", middleware.RequireRole("recepcionista", "kinesiologo"), kineAttachmentHandler.Download)
+
+	v1.GET("/financiers", middleware.RequireRole("admin", "recepcionista", "kinesiologo"), financeHandler.ListFinanciers)
+	v1.POST("/financiers", middleware.RequireRole("admin", "recepcionista"), financeHandler.CreateFinancier)
+	v1.PUT("/financiers/:id", middleware.RequireRole("admin", "recepcionista"), financeHandler.UpdateFinancier)
+	v1.GET("/financial/tariffs", middleware.RequireRole("admin", "recepcionista", "kinesiologo"), financeHandler.ListTariffs)
+	v1.POST("/financial/tariffs", middleware.RequireRole("admin", "recepcionista"), financeHandler.CreateTariff)
+	v1.PUT("/financial/tariffs/:id", middleware.RequireRole("admin", "recepcionista"), financeHandler.UpdateTariff)
+	v1.GET("/financial/fee-rules", middleware.RequireRole("admin", "recepcionista"), financeHandler.ListFeeRules)
+	v1.POST("/financial/fee-rules", middleware.RequireRole("admin", "recepcionista"), financeHandler.CreateFeeRule)
+	v1.PUT("/financial/fee-rules/:id", middleware.RequireRole("admin", "recepcionista"), financeHandler.UpdateFeeRule)
+	v1.GET("/financial/movements", middleware.RequireRole("admin", "recepcionista"), financeHandler.ListMovements)
+	v1.PATCH("/financial/movements/:movement_id/status", middleware.RequireRole("admin", "recepcionista"), financeHandler.UpdateMovementStatuses)
+	v1.POST("/financial/appointments/:appointment_id/complete", middleware.RequireRole("admin", "recepcionista", "kinesiologo"), financeHandler.CompleteAppointment)
 
 	_ = db
 

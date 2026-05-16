@@ -23,6 +23,8 @@ type appointmentPackageCreator interface {
 type CreateAppointmentPackageInput struct {
 	PatientID       string
 	KinesiologistID string
+	PracticeID      *string
+	FinancierID     *string
 	StartDate       string
 	StartTime       string
 	DurationMin     int
@@ -59,6 +61,24 @@ func (uc *CreateAppointmentPackageUseCase) Execute(
 	kid, err := uuid.Parse(strings.TrimSpace(in.KinesiologistID))
 	if err != nil {
 		errs["kinesiologist_id"] = "UUID inválido"
+	}
+	var practiceID *uuid.UUID
+	if in.PracticeID != nil && strings.TrimSpace(*in.PracticeID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.PracticeID))
+		if err != nil {
+			errs["practice_id"] = "UUID inválido"
+		} else {
+			practiceID = &id
+		}
+	}
+	var financierID *uuid.UUID
+	if in.FinancierID != nil && strings.TrimSpace(*in.FinancierID) != "" {
+		id, err := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+		if err != nil {
+			errs["financier_id"] = "UUID inválido"
+		} else {
+			financierID = &id
+		}
 	}
 
 	slots, slotErrs, _ := BuildPackageSlots(in.StartDate, in.StartTime, in.DurationMin, in.SessionsCount, in.WeekdaysOnly, in.WorkDays)
@@ -97,6 +117,8 @@ func (uc *CreateAppointmentPackageUseCase) Execute(
 			ID:                   uuid.New(),
 			PatientID:            pid,
 			KinesiologistID:      kid,
+			PracticeID:           practiceID,
+			FinancierID:          financierID,
 			PackageID:            &packageID,
 			PackageSessionNumber: &sessionNumber,
 			StartAt:              slot.StartAt,
@@ -112,6 +134,8 @@ func (uc *CreateAppointmentPackageUseCase) Execute(
 		ID:              packageID,
 		PatientID:       pid,
 		KinesiologistID: kid,
+		PracticeID:      practiceID,
+		FinancierID:     financierID,
 		SessionsCount:   in.SessionsCount,
 		DurationMin:     in.DurationMin,
 		StartDate:       startDate,
