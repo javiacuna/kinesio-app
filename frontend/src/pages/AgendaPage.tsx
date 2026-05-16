@@ -891,6 +891,9 @@ export default function AgendaPage() {
                           </Link>
                         </div>
                         <div className="text-sm text-gray-600">{t("agenda.status")}: {statusLabel(a.status, t)}</div>
+                        {a.status === "completed" && (
+                          <div className="text-sm text-green-700">Movimiento financiero generado.</div>
+                        )}
                         {a.status === "cancelled" && a.cancelled_reason && (
                           <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {a.cancelled_reason}</div>
                         )}
@@ -1014,6 +1017,9 @@ export default function AgendaPage() {
                             <div className="text-sm text-gray-600">
                               {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status, t)}
                             </div>
+                            {appointment.status === "completed" && (
+                              <div className="text-sm text-green-700">Movimiento financiero generado.</div>
+                            )}
                             {appointment.status === "cancelled" && appointment.cancelled_reason && (
                               <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
                             )}

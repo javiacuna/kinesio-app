@@ -77,6 +77,16 @@ export default function FinancePage() {
   const [financierForm, setFinancierForm] = useState<FinancierForm>(emptyFinancierForm);
   const [tariffForm, setTariffForm] = useState<TariffForm>(emptyTariffForm);
   const [feeRuleForm, setFeeRuleForm] = useState<FeeRuleForm>(emptyFeeRuleForm);
+  const [movementFrom, setMovementFrom] = useState(monthStartISO());
+  const [movementTo, setMovementTo] = useState(todayISO());
+  const [movementKinesiologistId, setMovementKinesiologistId] = useState("");
+  const [movementPracticeId, setMovementPracticeId] = useState("");
+  const [movementFinancierId, setMovementFinancierId] = useState("");
+  const [movementCollectionStatus, setMovementCollectionStatus] = useState("");
+  const [movementProfessionalPaymentStatus, setMovementProfessionalPaymentStatus] = useState("");
+  const [cancellingMovementId, setCancellingMovementId] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [isPayingSettlement, setIsPayingSettlement] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -101,8 +111,27 @@ export default function FinancePage() {
     queryFn: () => listProfessionalFeeRules({ includeInactive: true }),
   });
   const movementsQ = useQuery({
-    queryKey: ["financial", "movements"],
-    queryFn: () => listFinancialMovements(),
+    queryKey: [
+      "financial",
+      "movements",
+      movementFrom,
+      movementTo,
+      movementKinesiologistId,
+      movementPracticeId,
+      movementFinancierId,
+      movementCollectionStatus,
+      movementProfessionalPaymentStatus,
+    ],
+    queryFn: () =>
+      listFinancialMovements({
+        from: movementFrom ? localDateStartISO(movementFrom) : undefined,
+        to: movementTo ? nextLocalDateStartISO(movementTo) : undefined,
+        kinesiologist_id: movementKinesiologistId || undefined,
+        practice_id: movementPracticeId || undefined,
+        financier_id: movementFinancierId || undefined,
+        collection_status: movementCollectionStatus || undefined,
+        professional_payment_status: movementProfessionalPaymentStatus || undefined,
+      }),
   });
   const patientsQ = useQuery({
     queryKey: ["patients", "finance", "all"],
@@ -160,6 +189,8 @@ export default function FinancePage() {
     onSuccess: async () => {
       setMessage("Estado financiero actualizado.");
       setError("");
+      setCancellingMovementId("");
+      setCancellationReason("");
       await movementsQ.refetch();
     },
     onError: (err) => setError((err as Error).message),
@@ -230,12 +261,43 @@ export default function FinancePage() {
     });
   }
 
+  async function markSettlementPaid() {
+    const pending = settlementMovements.filter((movement) => movement.professional_payment_status !== "paid");
+    if (pending.length === 0) return;
+    setMessage("");
+    setError("");
+    setIsPayingSettlement(true);
+    try {
+      await Promise.all(
+        pending.map((movement) =>
+          updateFinancialMovementStatus({
+            movement_id: movement.id,
+            professional_payment_status: "paid",
+          }),
+        ),
+      );
+      setMessage("Liquidación marcada como pagada.");
+      await movementsQ.refetch();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsPayingSettlement(false);
+    }
+  }
+
   const totalBilling = movements.reduce((sum, item) => sum + item.billing_value_cents, 0);
   const totalCenter = movements.reduce((sum, item) => sum + item.center_amount_cents, 0);
   const totalCollected = movements
     .filter((item) => item.collection_status === "collected")
     .reduce((sum, item) => sum + item.billing_value_cents, 0);
   const totalPendingProfessional = movements
+    .filter((item) => item.professional_payment_status !== "paid")
+    .reduce((sum, item) => sum + item.professional_fee_cents, 0);
+  const settlementMovements = movementKinesiologistId
+    ? movements.filter((item) => item.professional_payment_status !== "cancelled" && item.collection_status !== "cancelled")
+    : [];
+  const settlementTotal = settlementMovements.reduce((sum, item) => sum + item.professional_fee_cents, 0);
+  const settlementPendingTotal = settlementMovements
     .filter((item) => item.professional_payment_status !== "paid")
     .reduce((sum, item) => sum + item.professional_fee_cents, 0);
 
@@ -417,6 +479,90 @@ export default function FinancePage() {
             <p className="text-sm text-gray-600">Se generan al marcar un turno como realizado.</p>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <InputField label="Desde" type="date" value={movementFrom} onChange={setMovementFrom} required={false} />
+            <InputField label="Hasta" type="date" value={movementTo} onChange={setMovementTo} required={false} />
+            <SelectField label="Kinesiólogo" value={movementKinesiologistId} onChange={setMovementKinesiologistId} required={false}>
+              <option value="">Todos</option>
+              {kinesiologists.map((kinesiologist) => (
+                <option key={kinesiologist.id} value={kinesiologist.id}>
+                  {kinesiologist.last_name}, {kinesiologist.first_name}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Práctica" value={movementPracticeId} onChange={setMovementPracticeId} required={false}>
+              <option value="">Todas</option>
+              {practices.map((practice) => (
+                <option key={practice.id} value={practice.id}>
+                  {practice.name}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Financiador" value={movementFinancierId} onChange={setMovementFinancierId} required={false}>
+              <option value="">Todos</option>
+              {financiers.map((financier) => (
+                <option key={financier.id} value={financier.id}>
+                  {financier.name}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField label="Cobro" value={movementCollectionStatus} onChange={setMovementCollectionStatus} required={false}>
+              <option value="">Todos</option>
+              <option value="pending">Pendiente</option>
+              <option value="collected">Cobrado</option>
+              <option value="cancelled">Anulado</option>
+            </SelectField>
+            <SelectField label="Pago profesional" value={movementProfessionalPaymentStatus} onChange={setMovementProfessionalPaymentStatus} required={false}>
+              <option value="">Todos</option>
+              <option value="pending">Pendiente</option>
+              <option value="paid">Pagado</option>
+              <option value="cancelled">Anulado</option>
+            </SelectField>
+            <div className="flex items-end">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                onClick={() => {
+                  setMovementFrom(monthStartISO());
+                  setMovementTo(todayISO());
+                  setMovementKinesiologistId("");
+                  setMovementPracticeId("");
+                  setMovementFinancierId("");
+                  setMovementCollectionStatus("");
+                  setMovementProfessionalPaymentStatus("");
+                }}
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-3 space-y-3">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="font-medium">Liquidación por kinesiólogo</h3>
+                <p className="text-sm text-gray-600">
+                  {movementKinesiologistId
+                    ? `${kinesiologistName(kinesiologistById.get(movementKinesiologistId))} · ${movementFrom || "sin inicio"} a ${movementTo || "sin fin"}`
+                    : "Seleccioná un kinesiólogo en los filtros para liquidar honorarios."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-50"
+                disabled={!movementKinesiologistId || settlementPendingTotal <= 0 || isPayingSettlement}
+                onClick={markSettlementPaid}
+              >
+                {isPayingSettlement ? "Liquidando..." : "Marcar liquidación pagada"}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <SummaryBox label="Sesiones" value={String(settlementMovements.length)} />
+              <SummaryBox label="Honorarios período" value={formatMoney(settlementTotal)} />
+              <SummaryBox label="Pendiente de pago" value={formatMoney(settlementPendingTotal)} />
+            </div>
+          </div>
+
           {movementsQ.isLoading && <p className="text-sm text-gray-600">Cargando movimientos...</p>}
           {movementsQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los movimientos.</p>}
           {!movementsQ.isLoading && movements.length === 0 && <p className="text-sm text-gray-600">Todavía no hay movimientos.</p>}
@@ -447,7 +593,12 @@ export default function FinancePage() {
                       <td className="py-2 pr-3">{practiceById.get(movement.practice_id)?.name ?? movement.practice_id}</td>
                       <td className="py-2 pr-3">{financierById.get(movement.financier_id)?.name ?? movement.financier_id}</td>
                       <td className="py-2 pr-3">{formatMoney(movement.billing_value_cents)}</td>
-                      <td className="py-2 pr-3">{collectionStatusLabel(movement.collection_status)}</td>
+                      <td className="py-2 pr-3">
+                        {collectionStatusLabel(movement.collection_status)}
+                        {movement.cancellation_reason && (
+                          <div className="text-xs text-gray-500 mt-1">Motivo: {movement.cancellation_reason}</div>
+                        )}
+                      </td>
                       <td className="py-2 pr-3">{formatMoney(movement.professional_fee_cents)}</td>
                       <td className="py-2 pr-3">{professionalPaymentStatusLabel(movement.professional_payment_status)}</td>
                       <td className="py-2 pr-3">{formatMoney(movement.center_amount_cents)}</td>
@@ -457,7 +608,7 @@ export default function FinancePage() {
                             <button
                               type="button"
                               className="px-2 py-1 rounded-lg border text-xs hover:bg-green-50 disabled:opacity-50"
-                              disabled={updateMovementStatusM.isPending}
+                              disabled={updateMovementStatusM.isPending || movement.collection_status === "cancelled"}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, collection_status: "collected" })}
                             >
                               Marcar cobrado
@@ -476,7 +627,7 @@ export default function FinancePage() {
                             <button
                               type="button"
                               className="px-2 py-1 rounded-lg border text-xs hover:bg-green-50 disabled:opacity-50"
-                              disabled={updateMovementStatusM.isPending}
+                              disabled={updateMovementStatusM.isPending || movement.professional_payment_status === "cancelled"}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, professional_payment_status: "paid" })}
                             >
                               Pagar prof.
@@ -490,6 +641,71 @@ export default function FinancePage() {
                             >
                               Reabrir pago
                             </button>
+                          )}
+                          {movement.collection_status === "cancelled" || movement.professional_payment_status === "cancelled" ? (
+                            <button
+                              type="button"
+                              className="px-2 py-1 rounded-lg border text-xs hover:bg-gray-50 disabled:opacity-50"
+                              disabled={updateMovementStatusM.isPending}
+                              onClick={() =>
+                                updateMovementStatusM.mutate({
+                                  movement_id: movement.id,
+                                  collection_status: "pending",
+                                  professional_payment_status: "pending",
+                                })
+                              }
+                            >
+                              Reabrir movimiento
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-2 py-1 rounded-lg border text-xs hover:bg-red-50 disabled:opacity-50"
+                              disabled={updateMovementStatusM.isPending}
+                              onClick={() => {
+                                setCancellingMovementId(movement.id);
+                                setCancellationReason("");
+                              }}
+                            >
+                              Anular
+                            </button>
+                          )}
+                          {cancellingMovementId === movement.id && (
+                            <div className="w-full min-w-56 rounded-lg border bg-gray-50 p-2 space-y-2">
+                              <label className="text-xs font-medium">Motivo de anulación</label>
+                              <textarea
+                                className="w-full border rounded-lg p-2 text-xs min-h-20"
+                                value={cancellationReason}
+                                onChange={(event) => setCancellationReason(event.target.value)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 rounded-lg bg-black text-white text-xs disabled:opacity-50"
+                                  disabled={!cancellationReason.trim() || updateMovementStatusM.isPending}
+                                  onClick={() =>
+                                    updateMovementStatusM.mutate({
+                                      movement_id: movement.id,
+                                      collection_status: "cancelled",
+                                      professional_payment_status: "cancelled",
+                                      cancellation_reason: cancellationReason.trim(),
+                                    })
+                                  }
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 rounded-lg border text-xs"
+                                  onClick={() => {
+                                    setCancellingMovementId("");
+                                    setCancellationReason("");
+                                  }}
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -540,15 +756,17 @@ function SelectField({
   value,
   onChange,
   children,
+  required = true,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   children: ReactNode;
+  required?: boolean;
 }) {
   return (
     <div>
-      <label className="text-sm font-medium"><RequiredLabel required>{label}</RequiredLabel></label>
+      <label className="text-sm font-medium"><RequiredLabel required={required}>{label}</RequiredLabel></label>
       <select className="mt-1 w-full border rounded-lg p-2" value={value} onChange={(event) => onChange(event.target.value)}>
         {children}
       </select>
@@ -587,6 +805,23 @@ function editFeeRule(rule: ProfessionalFeeRule, setForm: (form: FeeRuleForm) => 
 function todayISO() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function monthStartISO() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function localDateStartISO(dateISO: string) {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+}
+
+function nextLocalDateStartISO(dateISO: string) {
+  const [year, month, day] = dateISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+  date.setDate(date.getDate() + 1);
+  return date.toISOString();
 }
 
 function parseNumber(value: string) {

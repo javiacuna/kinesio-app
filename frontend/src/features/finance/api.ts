@@ -54,6 +54,7 @@ export type FinancialMovement = {
   professional_payment_status: "pending" | "paid" | "cancelled" | string;
   collected_at?: string | null;
   professional_paid_at?: string | null;
+  cancellation_reason?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -126,12 +127,25 @@ export function saveProfessionalFeeRule(input: SaveProfessionalFeeRuleInput) {
   });
 }
 
-export function listFinancialMovements(params?: { from?: string; to?: string; status?: string; kinesiologist_id?: string }) {
+export function listFinancialMovements(params?: {
+  from?: string;
+  to?: string;
+  status?: string;
+  kinesiologist_id?: string;
+  practice_id?: string;
+  financier_id?: string;
+  collection_status?: string;
+  professional_payment_status?: string;
+}) {
   const q = new URLSearchParams();
   if (params?.from) q.set("from", params.from);
   if (params?.to) q.set("to", params.to);
   if (params?.status) q.set("status", params.status);
   if (params?.kinesiologist_id) q.set("kinesiologist_id", params.kinesiologist_id);
+  if (params?.practice_id) q.set("practice_id", params.practice_id);
+  if (params?.financier_id) q.set("financier_id", params.financier_id);
+  if (params?.collection_status) q.set("collection_status", params.collection_status);
+  if (params?.professional_payment_status) q.set("professional_payment_status", params.professional_payment_status);
   const query = q.toString();
   return apiFetch<FinancialMovement[]>(`/api/v1/financial/movements${query ? `?${query}` : ""}`);
 }
@@ -140,6 +154,7 @@ export function updateFinancialMovementStatus(input: {
   movement_id: string;
   collection_status?: "pending" | "collected" | "cancelled";
   professional_payment_status?: "pending" | "paid" | "cancelled";
+  cancellation_reason?: string;
 }) {
   const { movement_id, ...body } = input;
   return apiFetch<FinancialMovement>(`/api/v1/financial/movements/${movement_id}/status`, {

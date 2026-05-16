@@ -66,6 +66,7 @@ type FinancialMovementModel struct {
 	ProfessionalPayStatus string     `gorm:"column:professional_payment_status"`
 	CollectedAt           *time.Time `gorm:"column:collected_at"`
 	ProfessionalPaidAt    *time.Time `gorm:"column:professional_paid_at"`
+	CancellationReason    *string    `gorm:"column:cancellation_reason"`
 	CreatedAt             time.Time  `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt             time.Time  `gorm:"column:updated_at;autoUpdateTime"`
 }

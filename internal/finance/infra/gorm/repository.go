@@ -107,20 +107,32 @@ func (r *Repository) SaveFeeRule(ctx context.Context, item domain.ProfessionalFe
 	return toFeeRuleDomain(m), err
 }
 
-func (r *Repository) ListMovements(ctx context.Context, from, to *time.Time, status, kinesiologistID string) ([]domain.FinancialMovement, error) {
+func (r *Repository) ListMovements(ctx context.Context, filters domain.MovementFilters) ([]domain.FinancialMovement, error) {
 	var ms []FinancialMovementModel
 	q := r.db.WithContext(ctx).Order("created_at DESC")
-	if from != nil {
-		q = q.Where("created_at >= ?", *from)
+	if filters.From != nil {
+		q = q.Where("created_at >= ?", *filters.From)
 	}
-	if to != nil {
-		q = q.Where("created_at < ?", *to)
+	if filters.To != nil {
+		q = q.Where("created_at < ?", *filters.To)
 	}
-	if status != "" {
-		q = q.Where("status = ?", status)
+	if filters.Status != "" {
+		q = q.Where("status = ?", filters.Status)
 	}
-	if kinesiologistID != "" {
-		q = q.Where("kinesiologist_id = ?", kinesiologistID)
+	if filters.KinesiologistID != "" {
+		q = q.Where("kinesiologist_id = ?", filters.KinesiologistID)
+	}
+	if filters.PracticeID != "" {
+		q = q.Where("practice_id = ?", filters.PracticeID)
+	}
+	if filters.FinancierID != "" {
+		q = q.Where("financier_id = ?", filters.FinancierID)
+	}
+	if filters.CollectionStatus != "" {
+		q = q.Where("collection_status = ?", filters.CollectionStatus)
+	}
+	if filters.ProfessionalPaymentStatus != "" {
+		q = q.Where("professional_payment_status = ?", filters.ProfessionalPaymentStatus)
 	}
 	if err := q.Find(&ms).Error; err != nil {
 		return nil, err
@@ -137,6 +149,7 @@ func (r *Repository) UpdateMovementStatuses(
 	id uuid.UUID,
 	collectionStatus *string,
 	professionalPaymentStatus *string,
+	cancellationReason *string,
 ) (domain.FinancialMovement, error) {
 	updates := map[string]any{
 		"updated_at": time.Now().UTC(),
@@ -159,6 +172,9 @@ func (r *Repository) UpdateMovementStatuses(
 		if *professionalPaymentStatus == "pending" || *professionalPaymentStatus == "cancelled" {
 			updates["professional_paid_at"] = nil
 		}
+	}
+	if cancellationReason != nil {
+		updates["cancellation_reason"] = cancellationReason
 	}
 	if err := r.db.WithContext(ctx).Model(&FinancialMovementModel{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return domain.FinancialMovement{}, err
@@ -342,6 +358,7 @@ func toMovementDomain(m FinancialMovementModel) domain.FinancialMovement {
 		ProfessionalPayStatus: m.ProfessionalPayStatus,
 		CollectedAt:           m.CollectedAt,
 		ProfessionalPaidAt:    m.ProfessionalPaidAt,
+		CancellationReason:    m.CancellationReason,
 		CreatedAt:             m.CreatedAt,
 		UpdatedAt:             m.UpdatedAt,
 	}

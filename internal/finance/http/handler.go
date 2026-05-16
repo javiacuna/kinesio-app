@@ -19,8 +19,8 @@ type Store interface {
 	SaveTariff(ctx context.Context, item domain.PracticeTariff) (domain.PracticeTariff, error)
 	ListFeeRules(ctx context.Context, includeInactive bool) ([]domain.ProfessionalFeeRule, error)
 	SaveFeeRule(ctx context.Context, item domain.ProfessionalFeeRule) (domain.ProfessionalFeeRule, error)
-	ListMovements(ctx context.Context, from, to *time.Time, status, kinesiologistID string) ([]domain.FinancialMovement, error)
-	UpdateMovementStatuses(ctx context.Context, id uuid.UUID, collectionStatus *string, professionalPaymentStatus *string) (domain.FinancialMovement, error)
+	ListMovements(ctx context.Context, filters domain.MovementFilters) ([]domain.FinancialMovement, error)
+	UpdateMovementStatuses(ctx context.Context, id uuid.UUID, collectionStatus *string, professionalPaymentStatus *string, cancellationReason *string) (domain.FinancialMovement, error)
 	CompleteAppointment(ctx context.Context, appointmentID, practiceID, financierID uuid.UUID) (domain.FinancialMovement, error)
 }
 
@@ -117,6 +117,7 @@ type movementResp struct {
 	ProfessionalPayStatus string  `json:"professional_payment_status"`
 	CollectedAt           *string `json:"collected_at,omitempty"`
 	ProfessionalPaidAt    *string `json:"professional_paid_at,omitempty"`
+	CancellationReason    *string `json:"cancellation_reason,omitempty"`
 	CreatedAt             string  `json:"created_at"`
 	UpdatedAt             string  `json:"updated_at"`
 }
@@ -124,6 +125,7 @@ type movementResp struct {
 type movementStatusReq struct {
 	CollectionStatus          *string `json:"collection_status"`
 	ProfessionalPaymentStatus *string `json:"professional_payment_status"`
+	CancellationReason        *string `json:"cancellation_reason"`
 }
 
 func (h *Handler) ListFinanciers(c *gin.Context) {
@@ -288,10 +290,16 @@ func (h *Handler) ListMovements(c *gin.Context) {
 	}
 	items, err := h.store.ListMovements(
 		c.Request.Context(),
-		from,
-		to,
-		strings.TrimSpace(c.Query("status")),
-		strings.TrimSpace(c.Query("kinesiologist_id")),
+		domain.MovementFilters{
+			From:                      from,
+			To:                        to,
+			Status:                    strings.TrimSpace(c.Query("status")),
+			KinesiologistID:           strings.TrimSpace(c.Query("kinesiologist_id")),
+			PracticeID:                strings.TrimSpace(c.Query("practice_id")),
+			FinancierID:               strings.TrimSpace(c.Query("financier_id")),
+			CollectionStatus:          strings.TrimSpace(c.Query("collection_status")),
+			ProfessionalPaymentStatus: strings.TrimSpace(c.Query("professional_payment_status")),
+		},
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
@@ -327,7 +335,12 @@ func (h *Handler) UpdateMovementStatuses(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": gin.H{"professional_payment_status": "Valor inválido"}})
 		return
 	}
-	out, err := h.store.UpdateMovementStatuses(c.Request.Context(), id, req.CollectionStatus, req.ProfessionalPaymentStatus)
+	if isCancelling(req.CollectionStatus, req.ProfessionalPaymentStatus) && strings.TrimSpace(optionalString(req.CancellationReason)) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": gin.H{"cancellation_reason": "Completá el motivo de anulación"}})
+		return
+	}
+	reason := trimOptionalString(req.CancellationReason)
+	out, err := h.store.UpdateMovementStatuses(c.Request.Context(), id, req.CollectionStatus, req.ProfessionalPaymentStatus, reason)
 	if err != nil {
 		writeFinanceError(c, err)
 		return
@@ -542,6 +555,29 @@ func validProfessionalPaymentStatus(value string) bool {
 	}
 }
 
+func isCancelling(collectionStatus *string, professionalPaymentStatus *string) bool {
+	return (collectionStatus != nil && strings.TrimSpace(*collectionStatus) == "cancelled") ||
+		(professionalPaymentStatus != nil && strings.TrimSpace(*professionalPaymentStatus) == "cancelled")
+}
+
+func optionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func trimOptionalString(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
 func toFinancierResp(item domain.Financier) financierResp {
 	return financierResp{
 		ID:        item.ID.String(),
@@ -623,6 +659,7 @@ func toMovementResp(item domain.FinancialMovement) movementResp {
 		ProfessionalPayStatus: valueOrDefault(item.ProfessionalPayStatus, "pending"),
 		CollectedAt:           collectedAt,
 		ProfessionalPaidAt:    professionalPaidAt,
+		CancellationReason:    item.CancellationReason,
 		CreatedAt:             item.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:             item.UpdatedAt.Format(time.RFC3339),
 	}

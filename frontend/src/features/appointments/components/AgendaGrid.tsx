@@ -112,6 +112,9 @@ export function AgendaGrid({
                   {cancelled && appt.cancelled_reason && (
                     <div className="text-xs text-gray-600">{t("agenda.cancelReason")}: {appt.cancelled_reason}</div>
                   )}
+                  {completed && (
+                    <div className="text-xs text-green-700">Movimiento financiero generado.</div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

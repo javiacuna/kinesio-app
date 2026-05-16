@@ -60,8 +60,20 @@ type FinancialMovement struct {
 	ProfessionalPayStatus string
 	CollectedAt           *time.Time
 	ProfessionalPaidAt    *time.Time
+	CancellationReason    *string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+type MovementFilters struct {
+	From                      *time.Time
+	To                        *time.Time
+	Status                    string
+	KinesiologistID           string
+	PracticeID                string
+	FinancierID               string
+	CollectionStatus          string
+	ProfessionalPaymentStatus string
 }
 
 type AppointmentSnapshot struct {
