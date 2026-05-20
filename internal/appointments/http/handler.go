@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	kinePorts "github.com/javiacuna/kinesio-backend/internal/kinesiologists/ports"
+	notificationDomain "github.com/javiacuna/kinesio-backend/internal/notifications/domain"
 	patientDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
 )
 
@@ -27,10 +29,20 @@ type Handler struct {
 	updatePackage *usecase.UpdateAppointmentPackageUseCase
 	kinesios      kinePorts.Repository
 	patients      patientSearcher
+	patientGetter patientGetter
+	notifier      notificationCreator
 }
 
 type patientSearcher interface {
 	Search(ctx context.Context, query string, limit int, includeInactive bool) ([]patientDomain.Patient, error)
+}
+
+type patientGetter interface {
+	GetByID(ctx context.Context, id string) (patientDomain.Patient, bool, error)
+}
+
+type notificationCreator interface {
+	Create(ctx context.Context, item notificationDomain.Notification) error
 }
 
 func NewHandler(
@@ -44,18 +56,27 @@ func NewHandler(
 ) *Handler {
 	var kineRepo kinePorts.Repository
 	var patientRepo patientSearcher
+	var patientByID patientGetter
 	var createPackage *usecase.CreateAppointmentPackageUseCase
 	var updatePackage *usecase.UpdateAppointmentPackageUseCase
+	var notifier notificationCreator
 	for _, lookup := range lookups {
+		if repo, ok := lookup.(patientSearcher); ok {
+			patientRepo = repo
+		}
+		if repo, ok := lookup.(patientGetter); ok {
+			patientByID = repo
+		}
+
 		switch repo := lookup.(type) {
 		case kinePorts.Repository:
 			kineRepo = repo
-		case patientSearcher:
-			patientRepo = repo
 		case *usecase.CreateAppointmentPackageUseCase:
 			createPackage = repo
 		case *usecase.UpdateAppointmentPackageUseCase:
 			updatePackage = repo
+		case notificationCreator:
+			notifier = repo
 		}
 	}
 
@@ -70,6 +91,8 @@ func NewHandler(
 		updatePackage: updatePackage,
 		kinesios:      kineRepo,
 		patients:      patientRepo,
+		patientGetter: patientByID,
+		notifier:      notifier,
 	}
 }
 
@@ -211,6 +234,7 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
+	h.notifyAppointment(c.Request.Context(), out, "appointment_created", "Turno confirmado", "Se registró un nuevo turno.")
 	c.JSON(http.StatusCreated, toResp(out))
 }
 
@@ -265,6 +289,7 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 		return
 	}
 
+	h.notifyPackage(c.Request.Context(), pkg, "appointment_package_created", "Paquete de turnos confirmado", "Se registró un nuevo paquete de sesiones.")
 	c.JSON(http.StatusCreated, toPackageWriteResp(pkg, appointments))
 }
 
@@ -316,6 +341,7 @@ func (h *Handler) UpdatePackage(c *gin.Context) {
 		return
 	}
 
+	h.notifyPackage(c.Request.Context(), updatedPackage, "appointment_package_updated", "Paquete de turnos actualizado", "Se modificó un paquete de sesiones.")
 	c.JSON(http.StatusOK, toPackageWriteResp(updatedPackage, appointments))
 }
 
@@ -409,6 +435,9 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	if req.StartAt != nil || req.EndAt != nil {
+		h.notifyAppointment(c.Request.Context(), out, "appointment_rescheduled", "Turno reprogramado", "Se modificó la fecha u horario de un turno.")
+	}
 	c.JSON(http.StatusOK, toResp(out))
 }
 
@@ -448,6 +477,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 		return
 	}
 
+	h.notifyAppointment(c.Request.Context(), out, "appointment_cancelled", "Turno cancelado", cancelMessage(out.CancelledReason))
 	c.JSON(http.StatusOK, toResp(out))
 }
 
@@ -487,6 +517,110 @@ func toResp(a domain.Appointment) resp {
 }
 
 func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
+
+func (h *Handler) notifyAppointment(ctx context.Context, appointment domain.Appointment, notificationType, title, message string) {
+	if h.notifier == nil {
+		return
+	}
+
+	detail := appointmentTimeDetail(appointment.StartAt, appointment.EndAt)
+	fullMessage := strings.TrimSpace(message)
+	if detail != "" {
+		fullMessage = fullMessage + " " + detail
+	}
+	entityType := "appointment"
+	patientRole := "paciente"
+	kinesiologistRole := "kinesiologo"
+
+	if h.patientGetter != nil {
+		patient, found, err := h.patientGetter.GetByID(ctx, appointment.PatientID.String())
+		if err == nil && found && strings.TrimSpace(patient.Email) != "" {
+			_ = h.notifier.Create(ctx, notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+				RecipientEmail: patient.Email,
+				RecipientRole:  &patientRole,
+				Type:           notificationType,
+				Title:          title,
+				Message:        fullMessage,
+				EntityType:     &entityType,
+				EntityID:       &appointment.ID,
+			}))
+		}
+	}
+
+	if h.kinesios != nil {
+		kinesiologist, found, err := h.kinesios.GetByID(ctx, appointment.KinesiologistID.String())
+		if err == nil && found && strings.TrimSpace(kinesiologist.Email) != "" {
+			_ = h.notifier.Create(ctx, notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+				RecipientEmail: kinesiologist.Email,
+				RecipientRole:  &kinesiologistRole,
+				Type:           notificationType,
+				Title:          title,
+				Message:        fullMessage,
+				EntityType:     &entityType,
+				EntityID:       &appointment.ID,
+			}))
+		}
+	}
+}
+
+func (h *Handler) notifyPackage(ctx context.Context, pkg domain.AppointmentPackage, notificationType, title, message string) {
+	if h.notifier == nil {
+		return
+	}
+
+	entityType := "appointment_package"
+	patientRole := "paciente"
+	kinesiologistRole := "kinesiologo"
+	fullMessage := strings.TrimSpace(message)
+	if pkg.SessionsCount > 0 {
+		fullMessage = fullMessage + " Sesiones: " + strconv.Itoa(pkg.SessionsCount) + "."
+	}
+
+	if h.patientGetter != nil {
+		patient, found, err := h.patientGetter.GetByID(ctx, pkg.PatientID.String())
+		if err == nil && found && strings.TrimSpace(patient.Email) != "" {
+			_ = h.notifier.Create(ctx, notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+				RecipientEmail: patient.Email,
+				RecipientRole:  &patientRole,
+				Type:           notificationType,
+				Title:          title,
+				Message:        fullMessage,
+				EntityType:     &entityType,
+				EntityID:       &pkg.ID,
+			}))
+		}
+	}
+
+	if h.kinesios != nil {
+		kinesiologist, found, err := h.kinesios.GetByID(ctx, pkg.KinesiologistID.String())
+		if err == nil && found && strings.TrimSpace(kinesiologist.Email) != "" {
+			_ = h.notifier.Create(ctx, notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+				RecipientEmail: kinesiologist.Email,
+				RecipientRole:  &kinesiologistRole,
+				Type:           notificationType,
+				Title:          title,
+				Message:        fullMessage,
+				EntityType:     &entityType,
+				EntityID:       &pkg.ID,
+			}))
+		}
+	}
+}
+
+func appointmentTimeDetail(startAt time.Time, endAt time.Time) string {
+	loc, err := time.LoadLocation("America/Argentina/Cordoba")
+	if err != nil {
+		loc = time.FixedZone("ART", -3*60*60)
+	}
+	return startAt.In(loc).Format("02/01/2006 15:04") + " a " + endAt.In(loc).Format("15:04") + "."
+}
+
+func cancelMessage(reason *string) string {
+	if reason == nil || strings.TrimSpace(*reason) == "" {
+		return "Se canceló un turno."
+	}
+	return "Se canceló un turno. Motivo: " + strings.TrimSpace(*reason) + "."
+}
 
 func toPackageWriteResp(pkg domain.AppointmentPackage, appointments []domain.Appointment) packageWriteResp {
 	out := make([]resp, 0, len(appointments))

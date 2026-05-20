@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { queryClient } from "./queryClient";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { NotificationBell } from "@/features/notifications/NotificationBell";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export function AppShell() {
@@ -89,7 +90,7 @@ export function AppShell() {
                 className={navClass(location.pathname === "/finance")}
                 to="/finance"
               >
-                Finanzas
+                {t("nav.finance")}
               </Link>
             )}
             {canSeeStaff && (
@@ -109,6 +110,7 @@ export function AppShell() {
           </nav>
 
           <div className="space-y-3">
+            <NotificationBell />
             <LanguageSelect compact />
             <button
               type="button"

@@ -12,34 +12,62 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/exerciseplans/domain"
 	"github.com/javiacuna/kinesio-backend/internal/exerciseplans/usecase"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
+	notificationDomain "github.com/javiacuna/kinesio-backend/internal/notifications/domain"
 	patientDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
 )
 
 type Handler struct {
-	createUC *usecase.CreatePlanUseCase
-	listUC   *usecase.ListPlansByPatientUseCase
-	getUC    *usecase.GetPlanByIDUseCase
-	updateUC *usecase.UpdatePlanUseCase
-	patients patientSearcher
+	createUC      *usecase.CreatePlanUseCase
+	listUC        *usecase.ListPlansByPatientUseCase
+	getUC         *usecase.GetPlanByIDUseCase
+	updateUC      *usecase.UpdatePlanUseCase
+	patients      patientSearcher
+	patientGetter patientGetter
+	notifier      notificationCreator
 }
 
 type patientSearcher interface {
 	Search(ctx context.Context, query string, limit int, includeInactive bool) ([]patientDomain.Patient, error)
 }
 
+type patientGetter interface {
+	GetByID(ctx context.Context, id string) (patientDomain.Patient, bool, error)
+}
+
+type notificationCreator interface {
+	Create(ctx context.Context, item notificationDomain.Notification) error
+}
+
 func NewHandler(createUC *usecase.CreatePlanUseCase, listUC *usecase.ListPlansByPatientUseCase, getUC *usecase.GetPlanByIDUseCase, lookups ...any) *Handler {
 	var updateUC *usecase.UpdatePlanUseCase
 	var patientRepo patientSearcher
+	var patientByID patientGetter
+	var notifier notificationCreator
 	for _, lookup := range lookups {
+		if repo, ok := lookup.(patientSearcher); ok {
+			patientRepo = repo
+		}
+		if repo, ok := lookup.(patientGetter); ok {
+			patientByID = repo
+		}
+
 		switch repo := lookup.(type) {
 		case *usecase.UpdatePlanUseCase:
 			updateUC = repo
-		case patientSearcher:
-			patientRepo = repo
+		case notificationCreator:
+			notifier = repo
 		}
 	}
 
-	return &Handler{createUC: createUC, listUC: listUC, getUC: getUC, updateUC: updateUC, patients: patientRepo}
+	return &Handler{
+		createUC:      createUC,
+		listUC:        listUC,
+		getUC:         getUC,
+		updateUC:      updateUC,
+		patients:      patientRepo,
+		patientGetter: patientByID,
+		notifier:      notifier,
+	}
 }
 
 type createPlanRequest struct {
@@ -115,6 +143,7 @@ func (h *Handler) create(c *gin.Context, patientID string, req createPlanRequest
 		return
 	}
 
+	h.notifyPlan(c.Request.Context(), out, "exercise_plan_created", "Plan de ejercicios creado", "Se registró un nuevo plan de ejercicios.")
 	c.JSON(http.StatusCreated, toResponse(out))
 }
 
@@ -193,6 +222,7 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	h.notifyPlan(c.Request.Context(), out, "exercise_plan_updated", "Plan de ejercicios actualizado", "Se modificó tu plan de ejercicios.")
 	c.JSON(http.StatusOK, toResponse(out))
 }
 
@@ -257,6 +287,29 @@ func (h *Handler) patientIDForCurrentPatient(c *gin.Context, requestedPatientID 
 func (h *Handler) isCurrentPatient(c *gin.Context) bool {
 	user, ok := middleware.CurrentUser(c)
 	return ok && strings.EqualFold(user.Role, "paciente")
+}
+
+func (h *Handler) notifyPlan(ctx context.Context, plan domain.ExercisePlan, notificationType string, title string, message string) {
+	if h.notifier == nil || h.patientGetter == nil {
+		return
+	}
+
+	patient, found, err := h.patientGetter.GetByID(ctx, plan.PatientID.String())
+	if err != nil || !found || strings.TrimSpace(patient.Email) == "" {
+		return
+	}
+
+	entityType := "exercise_plan"
+	patientRole := "paciente"
+	_ = h.notifier.Create(ctx, notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+		RecipientEmail: patient.Email,
+		RecipientRole:  &patientRole,
+		Type:           notificationType,
+		Title:          title,
+		Message:        strings.TrimSpace(message),
+		EntityType:     &entityType,
+		EntityID:       &plan.ID,
+	}))
 }
 
 func actorEmail(c *gin.Context) string {

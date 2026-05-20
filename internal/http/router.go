@@ -43,6 +43,9 @@ import (
 	financeHTTP "github.com/javiacuna/kinesio-backend/internal/finance/http"
 	financeGorm "github.com/javiacuna/kinesio-backend/internal/finance/infra/gorm"
 
+	notificationsHTTP "github.com/javiacuna/kinesio-backend/internal/notifications/http"
+	notificationsGorm "github.com/javiacuna/kinesio-backend/internal/notifications/infra/gorm"
+
 	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
 	matUC "github.com/javiacuna/kinesio-backend/internal/materials/usecase"
@@ -116,6 +119,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	cancelApptUC := appointmentsUC.NewCancelAppointmentUseCase(apptRepo)
 	createApptPackageUC := appointmentsUC.NewCreateAppointmentPackageUseCase(apptRepo)
 	updateApptPackageUC := appointmentsUC.NewUpdateAppointmentPackageUseCase(apptRepo)
+	notificationRepo := notificationsGorm.NewRepository(db)
+	notificationHandler := notificationsHTTP.NewHandler(notificationRepo)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
@@ -131,6 +136,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		patientRepo,
 		createApptPackageUC,
 		updateApptPackageUC,
+		notificationRepo,
 	)
 
 	planRepo := exercisePlanGorm.NewRepository(db)
@@ -138,7 +144,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	planListUC := exercisePlanUC.NewListPlansByPatientUseCase(planRepo)
 	planGetUC := exercisePlanUC.NewGetPlanByIDUseCase(planRepo)
 	planUpdateUC := exercisePlanUC.NewUpdatePlanUseCase(planRepo)
-	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC, planUpdateUC, patientRepo)
+	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC, planUpdateUC, patientRepo, notificationRepo)
 
 	evoRepo := evoGorm.NewRepository(db)
 	evoCreateUC := evoUC.NewCreateEvolutionUseCase(evoRepo)
@@ -180,6 +186,10 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
 	v1.GET("/auth/me", authHandler.Me)
 	v1.POST("/auth/change-password", authHandler.ChangePassword)
+	v1.GET("/notifications", middleware.RequireAuth(), notificationHandler.List)
+	v1.GET("/notifications/unread-count", middleware.RequireAuth(), notificationHandler.UnreadCount)
+	v1.POST("/notifications/:notification_id/read", middleware.RequireAuth(), notificationHandler.MarkRead)
+	v1.POST("/notifications/read-all", middleware.RequireAuth(), notificationHandler.MarkAllRead)
 	v1.GET("/admin/users", authHandler.ListUsers)
 	v1.POST("/admin/users/invite", authHandler.InviteUser)
 	v1.POST("/admin/users/role", authHandler.AssignRole)
