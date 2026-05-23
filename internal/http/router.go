@@ -43,8 +43,10 @@ import (
 	financeHTTP "github.com/javiacuna/kinesio-backend/internal/finance/http"
 	financeGorm "github.com/javiacuna/kinesio-backend/internal/finance/infra/gorm"
 
+	notificationsEmail "github.com/javiacuna/kinesio-backend/internal/notifications/email"
 	notificationsHTTP "github.com/javiacuna/kinesio-backend/internal/notifications/http"
 	notificationsGorm "github.com/javiacuna/kinesio-backend/internal/notifications/infra/gorm"
+	notificationsService "github.com/javiacuna/kinesio-backend/internal/notifications/service"
 
 	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
@@ -120,7 +122,17 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	createApptPackageUC := appointmentsUC.NewCreateAppointmentPackageUseCase(apptRepo)
 	updateApptPackageUC := appointmentsUC.NewUpdateAppointmentPackageUseCase(apptRepo)
 	notificationRepo := notificationsGorm.NewRepository(db)
-	notificationHandler := notificationsHTTP.NewHandler(notificationRepo)
+	notificationMailer := notificationsEmail.NewMailer(notificationsEmail.Config{
+		Enabled:   cfg.NotificationEmailEnabled,
+		Host:      cfg.SMTPHost,
+		Port:      cfg.SMTPPort,
+		Username:  cfg.SMTPUsername,
+		Password:  cfg.SMTPPassword,
+		FromEmail: cfg.SMTPFromEmail,
+		FromName:  cfg.SMTPFromName,
+	})
+	notificationService := notificationsService.New(notificationRepo, notificationMailer)
+	notificationHandler := notificationsHTTP.NewHandler(notificationService)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
@@ -136,7 +148,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		patientRepo,
 		createApptPackageUC,
 		updateApptPackageUC,
-		notificationRepo,
+		notificationService,
 	)
 
 	planRepo := exercisePlanGorm.NewRepository(db)
@@ -144,7 +156,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	planListUC := exercisePlanUC.NewListPlansByPatientUseCase(planRepo)
 	planGetUC := exercisePlanUC.NewGetPlanByIDUseCase(planRepo)
 	planUpdateUC := exercisePlanUC.NewUpdatePlanUseCase(planRepo)
-	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC, planUpdateUC, patientRepo, notificationRepo)
+	planHandler := exercisePlanHTTP.NewHandler(planCreateUC, planListUC, planGetUC, planUpdateUC, patientRepo, notificationService)
 
 	evoRepo := evoGorm.NewRepository(db)
 	evoCreateUC := evoUC.NewCreateEvolutionUseCase(evoRepo)

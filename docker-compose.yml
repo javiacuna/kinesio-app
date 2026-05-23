@@ -16,6 +16,13 @@ services:
       timeout: 5s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: kinesio_mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   api:
     build:
       context: .
@@ -24,6 +31,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     env_file:
       - .env
     environment:
@@ -37,6 +46,13 @@ services:
       GOOSE_DBSTRING: host=db port=5432 user=kinesio password=kinesio dbname=kinesio sslmode=disable
       GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-service-account.json
       PATIENT_FILES_DIR: /app/uploads/patient-attachments
+      NOTIFICATIONS_EMAIL_ENABLED: ${NOTIFICATIONS_EMAIL_ENABLED:-true}
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-no-reply@kinesio.local}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Kinesio App}
     ports:
       - "8080:8080"
     volumes:

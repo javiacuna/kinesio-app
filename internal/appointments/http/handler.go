@@ -619,7 +619,8 @@ func cancelMessage(reason *string) string {
 	if reason == nil || strings.TrimSpace(*reason) == "" {
 		return "Se canceló un turno."
 	}
-	return "Se canceló un turno. Motivo: " + strings.TrimSpace(*reason) + "."
+	cleanReason := strings.TrimRight(strings.TrimSpace(*reason), ".")
+	return "Se canceló un turno. Motivo: " + cleanReason + "."
 }
 
 func toPackageWriteResp(pkg domain.AppointmentPackage, appointments []domain.Appointment) packageWriteResp {

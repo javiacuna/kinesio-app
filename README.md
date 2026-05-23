@@ -79,6 +79,31 @@ El resto de endpoints puede recibir el token con:
 Authorization: Bearer <firebase_id_token>
 ```
 
+### Notificaciones por email
+
+Las notificaciones in-app pueden enviarse también por email usando SMTP. Si no se activa esta configuración,
+la aplicación sigue guardando las notificaciones dentro del sistema.
+
+```bash
+NOTIFICATIONS_EMAIL_ENABLED=true
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=usuario
+SMTP_PASSWORD=password
+SMTP_FROM_EMAIL=no-reply@example.com
+SMTP_FROM_NAME=Kinesio App
+```
+
+En Docker local el proyecto incluye Mailpit:
+
+- SMTP interno para la API: `mailpit:1025`
+- Bandeja web: `http://localhost:8025`
+
+Eventos incluidos en esta versión:
+- turno creado, reprogramado y cancelado;
+- paquete de turnos creado y actualizado;
+- plan de ejercicios creado y actualizado.
+
 En el frontend:
 
 - `/login`: formulario de ingreso con email y contraseña.

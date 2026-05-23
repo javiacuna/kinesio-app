@@ -25,24 +25,39 @@ type Config struct {
 
 	PatientFilesDir       string
 	KinesiologistFilesDir string
+
+	NotificationEmailEnabled bool
+	SMTPHost                 string
+	SMTPPort                 string
+	SMTPUsername             string
+	SMTPPassword             string
+	SMTPFromEmail            string
+	SMTPFromName             string
 }
 
 func MustLoad() Config {
 	cfg := Config{
-		AppName:                 getenv("APP_NAME", "kinesio-app"),
-		Env:                     getenv("ENV", "local"),
-		HTTPPort:                getenv("HTTP_PORT", "8080"),
-		DBHost:                  getenv("DB_HOST", "localhost"),
-		DBPort:                  getenv("DB_PORT", "5432"),
-		DBName:                  getenv("DB_NAME", "kinesio"),
-		DBUser:                  getenv("DB_USER", "kinesio"),
-		DBPassword:              getenv("DB_PASSWORD", "kinesio"),
-		DBSSLMode:               getenv("DB_SSLMODE", "disable"),
-		FirebaseProjectID:       getenv("FIREBASE_PROJECT_ID", ""),
-		FirebaseWebAPIKey:       getenv("FIREBASE_WEB_API_KEY", ""),
-		FirebaseCredentialsFile: getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
-		PatientFilesDir:         getenv("PATIENT_FILES_DIR", "uploads/patient-attachments"),
-		KinesiologistFilesDir:   getenv("KINESIOLOGIST_FILES_DIR", "uploads/kinesiologist-attachments"),
+		AppName:                  getenv("APP_NAME", "kinesio-app"),
+		Env:                      getenv("ENV", "local"),
+		HTTPPort:                 getenv("HTTP_PORT", "8080"),
+		DBHost:                   getenv("DB_HOST", "localhost"),
+		DBPort:                   getenv("DB_PORT", "5432"),
+		DBName:                   getenv("DB_NAME", "kinesio"),
+		DBUser:                   getenv("DB_USER", "kinesio"),
+		DBPassword:               getenv("DB_PASSWORD", "kinesio"),
+		DBSSLMode:                getenv("DB_SSLMODE", "disable"),
+		FirebaseProjectID:        getenv("FIREBASE_PROJECT_ID", ""),
+		FirebaseWebAPIKey:        getenv("FIREBASE_WEB_API_KEY", ""),
+		FirebaseCredentialsFile:  getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+		PatientFilesDir:          getenv("PATIENT_FILES_DIR", "uploads/patient-attachments"),
+		KinesiologistFilesDir:    getenv("KINESIOLOGIST_FILES_DIR", "uploads/kinesiologist-attachments"),
+		NotificationEmailEnabled: getenvBool("NOTIFICATIONS_EMAIL_ENABLED", false),
+		SMTPHost:                 getenv("SMTP_HOST", ""),
+		SMTPPort:                 getenv("SMTP_PORT", "587"),
+		SMTPUsername:             getenv("SMTP_USERNAME", ""),
+		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
+		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
+		SMTPFromName:             getenv("SMTP_FROM_NAME", "Kinesio App"),
 	}
 
 	// Validaciones mínimas
@@ -71,4 +86,17 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+func getenvBool(k string, def bool) bool {
+	value := os.Getenv(k)
+	if value == "" {
+		return def
+	}
+	switch value {
+	case "1", "true", "TRUE", "True", "yes", "YES", "Yes", "on", "ON", "On":
+		return true
+	default:
+		return false
+	}
 }
