@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -13,6 +14,8 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	"github.com/javiacuna/kinesio-backend/internal/materials/domain"
 	"github.com/javiacuna/kinesio-backend/internal/materials/usecase"
+	notificationDomain "github.com/javiacuna/kinesio-backend/internal/notifications/domain"
+	staffDomain "github.com/javiacuna/kinesio-backend/internal/staff/domain"
 )
 
 type Handler struct {
@@ -23,6 +26,22 @@ type Handler struct {
 	returnUC           *usecase.ReturnMaterialUseCase
 	listAllLoansUC     *usecase.ListLoansUseCase
 	listPatientLoansUC *usecase.ListLoansByPatientUseCase
+	materials          materialGetter
+	staff              staffLister
+	notifier           notificationStore
+}
+
+type materialGetter interface {
+	GetMaterialByID(ctx context.Context, id uuid.UUID) (domain.Material, bool, error)
+}
+
+type staffLister interface {
+	List(ctx context.Context, includeInactive bool) ([]staffDomain.StaffMember, error)
+}
+
+type notificationStore interface {
+	Create(ctx context.Context, item notificationDomain.Notification) error
+	ListByRecipient(ctx context.Context, email string, limit int, unreadOnly bool) ([]notificationDomain.Notification, error)
 }
 
 func NewHandler(
@@ -33,7 +52,23 @@ func NewHandler(
 	returnUC *usecase.ReturnMaterialUseCase,
 	listAllLoansUC *usecase.ListLoansUseCase,
 	listPatientLoansUC *usecase.ListLoansByPatientUseCase,
+	lookups ...any,
 ) *Handler {
+	var materials materialGetter
+	var staff staffLister
+	var notifier notificationStore
+	for _, lookup := range lookups {
+		if repo, ok := lookup.(materialGetter); ok {
+			materials = repo
+		}
+		if repo, ok := lookup.(staffLister); ok {
+			staff = repo
+		}
+		if repo, ok := lookup.(notificationStore); ok {
+			notifier = repo
+		}
+	}
+
 	return &Handler{
 		createMaterialUC:   createMaterialUC,
 		updateMaterialUC:   updateMaterialUC,
@@ -42,6 +77,9 @@ func NewHandler(
 		returnUC:           returnUC,
 		listAllLoansUC:     listAllLoansUC,
 		listPatientLoansUC: listPatientLoansUC,
+		materials:          materials,
+		staff:              staff,
+		notifier:           notifier,
 	}
 }
 
@@ -140,6 +178,7 @@ func (h *Handler) CreateMaterial(c *gin.Context) {
 		}
 	}
 
+	h.notifyLowStock(c, out)
 	c.JSON(http.StatusCreated, toMaterialResp(out))
 }
 
@@ -170,6 +209,7 @@ func (h *Handler) UpdateMaterial(c *gin.Context) {
 		}
 	}
 
+	h.notifyLowStock(c, out)
 	c.JSON(http.StatusOK, toMaterialResp(out))
 }
 
@@ -221,6 +261,7 @@ func (h *Handler) LoanMaterial(c *gin.Context) {
 		}
 	}
 
+	h.notifyLowStockAfterLoan(c, out)
 	c.JSON(http.StatusCreated, toLoanResp(out))
 }
 
@@ -313,4 +354,122 @@ func actorRole(c *gin.Context) string {
 		return user.Role
 	}
 	return ""
+}
+
+const lowStockThreshold = 1
+
+type notificationRecipient struct {
+	email string
+	role  string
+}
+
+func (h *Handler) notifyLowStockAfterLoan(c *gin.Context, loan domain.MaterialLoan) {
+	if h.materials == nil {
+		return
+	}
+	material, found, err := h.materials.GetMaterialByID(c.Request.Context(), loan.MaterialID)
+	if err != nil || !found {
+		return
+	}
+	h.notifyLowStock(c, material)
+}
+
+func (h *Handler) notifyLowStock(c *gin.Context, material domain.Material) {
+	if h.notifier == nil || !isLowStock(material) {
+		return
+	}
+
+	recipients := h.notificationRecipients(c)
+	if len(recipients) == 0 {
+		return
+	}
+
+	entityType := "material"
+	notificationType := "material_low_stock"
+	title := "Stock bajo de material"
+	message := "El material " + strings.TrimSpace(material.Name) + " tiene " + strconv.Itoa(material.AvailableQty) + " disponibles de " + strconv.Itoa(material.TotalQty) + "."
+
+	for _, recipient := range recipients {
+		if h.hasUnreadLowStockNotification(c.Request.Context(), recipient.email, material.ID) {
+			continue
+		}
+
+		role := strings.TrimSpace(recipient.role)
+		var recipientRole *string
+		if role != "" {
+			recipientRole = &role
+		}
+
+		_ = h.notifier.Create(c.Request.Context(), notificationDomain.NewNotification(notificationDomain.NewNotificationInput{
+			RecipientEmail: recipient.email,
+			RecipientRole:  recipientRole,
+			Type:           notificationType,
+			Title:          title,
+			Message:        message,
+			EntityType:     &entityType,
+			EntityID:       &material.ID,
+		}))
+	}
+}
+
+func (h *Handler) notificationRecipients(c *gin.Context) []notificationRecipient {
+	byEmail := map[string]notificationRecipient{}
+
+	if h.staff != nil {
+		members, err := h.staff.List(c.Request.Context(), false)
+		if err == nil {
+			for _, member := range members {
+				if !member.Active || !canReceiveStockAlert(string(member.Role)) {
+					continue
+				}
+				email := strings.ToLower(strings.TrimSpace(member.Email))
+				if email == "" {
+					continue
+				}
+				byEmail[email] = notificationRecipient{email: email, role: string(member.Role)}
+			}
+		}
+	}
+
+	if user, ok := middleware.CurrentUser(c); ok && canReceiveStockAlert(user.Role) {
+		email := strings.ToLower(strings.TrimSpace(user.Email))
+		if email != "" {
+			byEmail[email] = notificationRecipient{email: email, role: strings.TrimSpace(user.Role)}
+		}
+	}
+
+	out := make([]notificationRecipient, 0, len(byEmail))
+	for _, recipient := range byEmail {
+		out = append(out, recipient)
+	}
+	return out
+}
+
+func (h *Handler) hasUnreadLowStockNotification(ctx context.Context, email string, materialID uuid.UUID) bool {
+	items, err := h.notifier.ListByRecipient(ctx, email, 100, true)
+	if err != nil {
+		return false
+	}
+	for _, item := range items {
+		if item.EntityID == nil || *item.EntityID != materialID {
+			continue
+		}
+		if item.EntityType != nil && *item.EntityType == "material" && item.Type == "material_low_stock" {
+			return true
+		}
+	}
+	return false
+}
+
+func isLowStock(material domain.Material) bool {
+	return material.TotalQty > 0 && material.AvailableQty <= lowStockThreshold
+}
+
+func canReceiveStockAlert(role string) bool {
+	switch strings.ToLower(strings.TrimSpace(role)) {
+	case "admin", "recepcionista", "kinesiologo":
+		return true
+	default:
+		return false
+	}
 }

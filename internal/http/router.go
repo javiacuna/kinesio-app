@@ -172,7 +172,18 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	matReturnUC := matUC.NewReturnMaterialUseCase(matRepo)
 	matListAllLoansUC := matUC.NewListLoansUseCase(matRepo)
 	matListLoansUC := matUC.NewListLoansByPatientUseCase(matRepo)
-	matHandler := matHTTP.NewHandler(matCreateUC, matUpdateUC, matListUC, matLoanUC, matReturnUC, matListAllLoansUC, matListLoansUC)
+	matHandler := matHTTP.NewHandler(
+		matCreateUC,
+		matUpdateUC,
+		matListUC,
+		matLoanUC,
+		matReturnUC,
+		matListAllLoansUC,
+		matListLoansUC,
+		matRepo,
+		staffRepository,
+		notificationRepo,
+	)
 
 	diagnosesRepo := diagnosesGorm.NewRepository(db)
 	diagnosesSearchUC := diagnosesUC.NewSearchCIE10UseCase(diagnosesRepo)
