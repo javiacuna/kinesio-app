@@ -55,6 +55,8 @@ import (
 	attachmentsHTTP "github.com/javiacuna/kinesio-backend/internal/patientattachments/http"
 	attachmentsGorm "github.com/javiacuna/kinesio-backend/internal/patientattachments/infra/gorm"
 
+	reportsHTTP "github.com/javiacuna/kinesio-backend/internal/reports/http"
+
 	staffHTTP "github.com/javiacuna/kinesio-backend/internal/staff/http"
 	staffRepo "github.com/javiacuna/kinesio-backend/internal/staff/infra/gorm"
 	staffUC "github.com/javiacuna/kinesio-backend/internal/staff/usecase"
@@ -162,7 +164,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	evoCreateUC := evoUC.NewCreateEvolutionUseCase(evoRepo)
 	evoListUC := evoUC.NewListEvolutionsByPatientUseCase(evoRepo)
 	evoGetUC := evoUC.NewGetEvolutionByIDUseCase(evoRepo)
-	evoHandler := evoHTTP.NewHandler(evoCreateUC, evoListUC, evoGetUC)
+	evoHandler := evoHTTP.NewHandler(evoCreateUC, evoListUC, evoGetUC, patientRepo)
 
 	matRepo := matGorm.NewRepository(db)
 	matCreateUC := matUC.NewCreateMaterialUseCase(matRepo)
@@ -198,6 +200,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	kineAttachmentHandler := kineAttachmentsHTTP.NewHandler(kineAttachmentRepo, cfg.KinesiologistFilesDir)
 	financeRepo := financeGorm.NewRepository(db)
 	financeHandler := financeHTTP.NewHandler(financeRepo)
+	reportsHandler := reportsHTTP.NewHandler(db)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -226,7 +229,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.POST("/patients/:patient_id/plans", planHandler.CreateForPatient)
 	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
 	v1.POST("/patients/:patient_id/evolutions", middleware.RequireRole("kinesiologo"), evoHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/evolutions", middleware.RequireRole("recepcionista", "kinesiologo"), evoHandler.ListByPatient)
+	v1.GET("/patients/:patient_id/evolutions", middleware.RequireAuth(), evoHandler.ListByPatient)
 	v1.GET("/patients/:patient_id/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ListLoansByPatient)
 	v1.GET("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.ListByPatient)
 	v1.POST("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.CreateForPatient)
@@ -295,6 +298,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/financial/movements", middleware.RequireRole("admin", "recepcionista"), financeHandler.ListMovements)
 	v1.PATCH("/financial/movements/:movement_id/status", middleware.RequireRole("admin", "recepcionista"), financeHandler.UpdateMovementStatuses)
 	v1.POST("/financial/appointments/:appointment_id/complete", middleware.RequireRole("admin", "recepcionista", "kinesiologo"), financeHandler.CompleteAppointment)
+	v1.GET("/reports/summary", middleware.RequireRole("admin", "recepcionista"), reportsHandler.Summary)
 
 	_ = db
 

@@ -34,6 +34,9 @@ export type PatientEvolution = {
   appointment_id?: string | null;
   patient_diagnosis_id?: string | null;
   pain_level?: number | null;
+  mobility_score?: number | null;
+  strength_score?: number | null;
+  functional_score?: number | null;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -44,6 +47,9 @@ export type CreatePatientEvolutionInput = {
   appointment_id?: string | null;
   patient_diagnosis_id?: string | null;
   pain_level?: number | null;
+  mobility_score?: number | null;
+  strength_score?: number | null;
+  functional_score?: number | null;
   notes: string;
 };
 
@@ -168,6 +174,11 @@ export function listMyPatientPlans() {
 export function listPatientEvolutions(patientId: string, limit = 50) {
   const qs = new URLSearchParams({ limit: String(limit) });
   return apiFetch<PatientEvolution[]>(`/api/v1/patients/${patientId}/evolutions?${qs.toString()}`);
+}
+
+export function listMyPatientEvolutions(limit = 20) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<PatientEvolution[]>(`/api/v1/patients/me/evolutions?${qs.toString()}`);
 }
 
 export function createPatientEvolution(patientId: string, input: CreatePatientEvolutionInput) {

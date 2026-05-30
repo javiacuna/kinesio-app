@@ -17,6 +17,9 @@ type CreateEvolutionInput struct {
 	AppointmentID   *string                     `json:"appointment_id,omitempty"`
 	DiagnosisID     *string                     `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                        `json:"pain_level,omitempty"`
+	MobilityScore   *int                        `json:"mobility_score,omitempty"`
+	StrengthScore   *int                        `json:"strength_score,omitempty"`
+	FunctionalScore *int                        `json:"functional_score,omitempty"`
 	Notes           string                      `json:"notes"`
 	Photos          []CreateEvolutionPhotoInput `json:"photos,omitempty"`
 }
@@ -77,6 +80,9 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 			validation["pain_level"] = "must_be_between_0_and_10"
 		}
 	}
+	validatePercentScore(validation, "mobility_score", in.MobilityScore)
+	validatePercentScore(validation, "strength_score", in.StrengthScore)
+	validatePercentScore(validation, "functional_score", in.FunctionalScore)
 	for i, photo := range in.Photos {
 		if strings.TrimSpace(photo.URL) == "" {
 			validation["photos["+strconv.Itoa(i)+"].url"] = "required"
@@ -96,6 +102,9 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		AppointmentID:   apptID,
 		DiagnosisID:     diagnosisID,
 		PainLevel:       in.PainLevel,
+		MobilityScore:   in.MobilityScore,
+		StrengthScore:   in.StrengthScore,
+		FunctionalScore: in.FunctionalScore,
 		Notes:           notes,
 		Photos:          make([]domain.PatientEvolutionPhoto, 0, len(in.Photos)),
 		CreatedAt:       now,
@@ -117,6 +126,15 @@ func (uc *CreateEvolutionUseCase) Execute(ctx context.Context, in CreateEvolutio
 		return domain.PatientEvolution{}, nil, err
 	}
 	return out, nil, nil
+}
+
+func validatePercentScore(validation map[string]string, field string, value *int) {
+	if value == nil {
+		return
+	}
+	if *value < 0 || *value > 100 {
+		validation[field] = "must_be_between_0_and_100"
+	}
 }
 
 func trimPtr(s *string) *string {

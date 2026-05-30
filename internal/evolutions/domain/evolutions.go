@@ -13,9 +13,12 @@ type PatientEvolution struct {
 	AppointmentID   *uuid.UUID
 	DiagnosisID     *uuid.UUID
 
-	PainLevel *int   // 0..10
-	Notes     string // requerido
-	Photos    []PatientEvolutionPhoto
+	PainLevel       *int // 0..10
+	MobilityScore   *int // 0..100
+	StrengthScore   *int // 0..100
+	FunctionalScore *int // 0..100
+	Notes           string
+	Photos          []PatientEvolutionPhoto
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

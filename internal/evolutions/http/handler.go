@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -12,16 +13,29 @@ import (
 
 	"github.com/javiacuna/kinesio-backend/internal/evolutions/domain"
 	"github.com/javiacuna/kinesio-backend/internal/evolutions/usecase"
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
+	patientDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
 )
 
 type Handler struct {
 	createUC *usecase.CreateEvolutionUseCase
 	listUC   *usecase.ListEvolutionsByPatientUseCase
 	getUC    *usecase.GetEvolutionByIDUseCase
+	patients patientSearcher
 }
 
-func NewHandler(createUC *usecase.CreateEvolutionUseCase, listUC *usecase.ListEvolutionsByPatientUseCase, getUC *usecase.GetEvolutionByIDUseCase) *Handler {
-	return &Handler{createUC: createUC, listUC: listUC, getUC: getUC}
+type patientSearcher interface {
+	Search(ctx context.Context, query string, limit int, includeInactive bool) ([]patientDomain.Patient, error)
+}
+
+func NewHandler(createUC *usecase.CreateEvolutionUseCase, listUC *usecase.ListEvolutionsByPatientUseCase, getUC *usecase.GetEvolutionByIDUseCase, lookups ...any) *Handler {
+	var patientRepo patientSearcher
+	for _, lookup := range lookups {
+		if repo, ok := lookup.(patientSearcher); ok {
+			patientRepo = repo
+		}
+	}
+	return &Handler{createUC: createUC, listUC: listUC, getUC: getUC, patients: patientRepo}
 }
 
 type createEvolutionRequest struct {
@@ -29,6 +43,9 @@ type createEvolutionRequest struct {
 	AppointmentID   *string                             `json:"appointment_id,omitempty"`
 	DiagnosisID     *string                             `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                                `json:"pain_level,omitempty"`
+	MobilityScore   *int                                `json:"mobility_score,omitempty"`
+	StrengthScore   *int                                `json:"strength_score,omitempty"`
+	FunctionalScore *int                                `json:"functional_score,omitempty"`
 	Notes           string                              `json:"notes"`
 	Photos          []usecase.CreateEvolutionPhotoInput `json:"photos,omitempty"`
 }
@@ -40,6 +57,9 @@ type evolutionResponse struct {
 	AppointmentID   *string                  `json:"appointment_id,omitempty"`
 	DiagnosisID     *string                  `json:"patient_diagnosis_id,omitempty"`
 	PainLevel       *int                     `json:"pain_level,omitempty"`
+	MobilityScore   *int                     `json:"mobility_score,omitempty"`
+	StrengthScore   *int                     `json:"strength_score,omitempty"`
+	FunctionalScore *int                     `json:"functional_score,omitempty"`
 	Notes           string                   `json:"notes"`
 	Photos          []evolutionPhotoResponse `json:"photos"`
 	CreatedAt       string                   `json:"created_at"`
@@ -72,6 +92,9 @@ func (h *Handler) create(c *gin.Context, patientID string, req createEvolutionRe
 		AppointmentID:   req.AppointmentID,
 		DiagnosisID:     req.DiagnosisID,
 		PainLevel:       req.PainLevel,
+		MobilityScore:   req.MobilityScore,
+		StrengthScore:   req.StrengthScore,
+		FunctionalScore: req.FunctionalScore,
 		Notes:           req.Notes,
 		Photos:          req.Photos,
 	})
@@ -89,7 +112,19 @@ func (h *Handler) create(c *gin.Context, patientID string, req createEvolutionRe
 }
 
 func (h *Handler) ListByPatient(c *gin.Context) {
-	pid, err := uuid.Parse(c.Param("patient_id"))
+	patientID := strings.TrimSpace(c.Param("patient_id"))
+	if strings.EqualFold(patientID, "me") || h.isCurrentPatient(c) {
+		resolvedPatientID, ok := h.patientIDForCurrentPatient(c, patientID)
+		if !ok {
+			return
+		}
+		patientID = resolvedPatientID
+	} else if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	pid, err := uuid.Parse(patientID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_patient_id"})
 		return
@@ -135,6 +170,46 @@ func (h *Handler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, toResponse(e))
 }
 
+func (h *Handler) patientIDForCurrentPatient(c *gin.Context, requestedPatientID string) (string, bool) {
+	user, _ := middleware.CurrentUser(c)
+	if h.patients == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return "", false
+	}
+
+	email := strings.TrimSpace(user.Email)
+	if email == "" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "patient_profile_not_found"})
+		return "", false
+	}
+
+	patients, err := h.patients.Search(c.Request.Context(), email, 10, false)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return "", false
+	}
+
+	for _, patient := range patients {
+		if strings.EqualFold(patient.Email, email) && patient.Active {
+			ownID := patient.ID.String()
+			requested := strings.TrimSpace(requestedPatientID)
+			if requested != "" && !strings.EqualFold(requested, "me") && requested != ownID {
+				c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+				return "", false
+			}
+			return ownID, true
+		}
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{"error": "patient_profile_not_found"})
+	return "", false
+}
+
+func (h *Handler) isCurrentPatient(c *gin.Context) bool {
+	user, ok := middleware.CurrentUser(c)
+	return ok && strings.EqualFold(user.Role, "paciente")
+}
+
 func toResponse(e domain.PatientEvolution) evolutionResponse {
 	var appt *string
 	if e.AppointmentID != nil {
@@ -164,6 +239,9 @@ func toResponse(e domain.PatientEvolution) evolutionResponse {
 		AppointmentID:   appt,
 		DiagnosisID:     diagnosis,
 		PainLevel:       e.PainLevel,
+		MobilityScore:   e.MobilityScore,
+		StrengthScore:   e.StrengthScore,
+		FunctionalScore: e.FunctionalScore,
 		Notes:           e.Notes,
 		Photos:          photos,
 		CreatedAt:       e.CreatedAt.UTC().Format(time.RFC3339),

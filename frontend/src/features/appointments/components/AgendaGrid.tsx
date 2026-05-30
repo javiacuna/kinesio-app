@@ -64,7 +64,7 @@ export function AgendaGrid({
 
   return (
     <section className="border rounded-lg p-3 space-y-3">
-      <div className="flex items-baseline justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
         <h2 className="text-lg font-semibold">{t("agenda.grid")}</h2>
         <div className="text-sm text-gray-600">
           {date} · {workStartTime} a {workEndTime}
@@ -82,7 +82,7 @@ export function AgendaGrid({
             return (
               <div
                 key={hhmm}
-                className="flex items-center justify-between border rounded-lg p-2 bg-gray-50"
+                className="flex flex-col gap-2 border rounded-lg p-2 bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="text-sm font-mono text-gray-700">{hhmm}</div>
                 <div className="text-sm text-gray-700">{t("agenda.occupied")}</div>
@@ -97,7 +97,7 @@ export function AgendaGrid({
             return (
               <div
                 key={hhmm}
-                className={`flex items-center justify-between border rounded-lg p-2 ${
+                className={`flex flex-col gap-3 border rounded-lg p-2 sm:flex-row sm:items-center sm:justify-between ${
                   cancelled ? "bg-gray-50" : completed ? "bg-green-50" : "bg-blue-50"
                 }`}
               >
@@ -117,7 +117,7 @@ export function AgendaGrid({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {cancelled ? (
                     <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700">
                       {t("agenda.cancelled")}
@@ -155,7 +155,7 @@ export function AgendaGrid({
 
           // Slot libre
           return (
-            <div key={hhmm} className="flex items-center justify-between border rounded-lg p-2">
+            <div key={hhmm} className="flex flex-col gap-2 border rounded-lg p-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm font-mono">{hhmm}</div>
               {canManageAppointments ? (
                 <button

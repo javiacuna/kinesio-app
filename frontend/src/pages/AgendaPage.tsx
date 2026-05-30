@@ -147,7 +147,7 @@ export default function AgendaPage() {
   // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
-  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+  const [viewMode, setViewMode] = useState<"day" | "week">("week");
   const [statusFilter, setStatusFilter] = useState<"all" | Appointment["status"]>("all");
   const [filterPatient, setFilterPatient] = useState<Patient | null>(null);
 
@@ -510,7 +510,7 @@ export default function AgendaPage() {
 
   return (
     <main>
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold">{t("agenda.title")}</h1>
@@ -1001,75 +1001,23 @@ export default function AgendaPage() {
             <div className="space-y-3">
               {weekAgendaQ.isLoading && <p className="text-sm text-gray-600">{t("dashboard.loadingAppointments")}</p>}
               {weekAgendaQ.isError && <p className="text-sm text-red-600">{t("agenda.error")}: {String(weekAgendaQ.error?.message)}</p>}
-              {weekAppointments.map((group) => (
-                <section key={group.day} className="border rounded-lg p-3">
-                  <div className="font-medium">{group.day}</div>
-                  {group.appointments.length === 0 ? (
-                    <p className="text-sm text-gray-600 mt-2">{t("agenda.noAppointments")}</p>
-                  ) : (
-                    <div className="divide-y mt-2">
-                      {group.appointments.map((appointment) => (
-                        <div key={appointment.id} className="py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                          <div>
-                            <div className="font-medium">
-                              {formatLocalTime(appointment.start_at)} → {formatLocalTime(appointment.end_at)}
-                            </div>
-                            <div className="text-sm text-gray-600">
-                              {patientName(patientById.get(appointment.patient_id))} · {statusLabel(appointment.status, t)}
-                            </div>
-                            {appointment.status === "completed" && (
-                              <div className="text-sm text-green-700">Movimiento financiero generado.</div>
-                            )}
-                            {appointment.status === "cancelled" && appointment.cancelled_reason && (
-                              <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
-                            )}
-                            {appointment.package_id && (
-                              <div className="text-sm text-gray-600">
-                                {t("agenda.packageSession")} {appointment.package_session_number ?? "-"}
-                              </div>
-                            )}
-                            {appointment.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {appointment.notes}</div>}
-                          </div>
-                          {canManageAppointments && appointment.status === "scheduled" && (
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                className="px-3 py-1 rounded-lg border text-sm hover:bg-green-50"
-                                onClick={() => openCompleteAppointment(appointment)}
-                              >
-                                Realizado
-                              </button>
-                              {appointment.package_id && (
-                                <button
-                                  type="button"
-                                  className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
-                                  onClick={() => openEditPackage(appointment)}
-                                >
-                                  {t("agenda.editPackage")}
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
-                                onClick={() => openEditAppointment(appointment)}
-                              >
-                                {t("agenda.reschedule")}
-                              </button>
-                              <button
-                                type="button"
-                                className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
-                                onClick={() => openCancelAppointment(appointment)}
-                              >
-                                {t("agenda.cancel")}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-              ))}
+              {!weekAgendaQ.isLoading && !weekAgendaQ.isError && (
+                <WeeklyCalendar
+                  groups={weekAppointments}
+                  canManageAppointments={canManageAppointments}
+                  getPatientName={(patientId) => patientName(patientById.get(patientId))}
+                  onPickDay={(day) => {
+                    setDate(day);
+                    setApptDate(day);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  onComplete={openCompleteAppointment}
+                  onEditPackage={openEditPackage}
+                  onReschedule={openEditAppointment}
+                  onCancel={openCancelAppointment}
+                  t={t}
+                />
+              )}
             </div>
           )}
         </section>
@@ -1528,4 +1476,202 @@ export default function AgendaPage() {
       )}
     </main>
   );
+}
+
+function WeeklyCalendar({
+  groups,
+  canManageAppointments,
+  getPatientName,
+  onPickDay,
+  onComplete,
+  onEditPackage,
+  onReschedule,
+  onCancel,
+  t,
+}: {
+  groups: Array<{ day: string; appointments: Appointment[] }>;
+  canManageAppointments: boolean;
+  getPatientName: (patientId: string) => string;
+  onPickDay: (day: string) => void;
+  onComplete: (appointment: Appointment) => void;
+  onEditPackage: (appointment: Appointment) => void;
+  onReschedule: (appointment: Appointment) => void;
+  onCancel: (appointment: Appointment) => void;
+  t: (key: string) => string;
+}) {
+  return (
+    <>
+      <div className="hidden lg:grid lg:grid-cols-7 gap-3">
+        {groups.map((group) => (
+          <section key={group.day} className="border rounded-lg min-h-72 bg-gray-50 overflow-hidden">
+            <button
+              type="button"
+              className="w-full text-left px-3 py-2 bg-white border-b hover:bg-gray-50"
+              onClick={() => onPickDay(group.day)}
+            >
+              <div className="text-sm font-semibold">{weekDayTitle(group.day)}</div>
+              <div className="text-xs text-gray-600">{group.day}</div>
+            </button>
+
+            <div className="p-2 space-y-2">
+              {group.appointments.length === 0 ? (
+                <button
+                  type="button"
+                  className="w-full min-h-40 rounded-lg border border-dashed bg-white text-sm text-gray-500 hover:bg-gray-50"
+                  onClick={() => onPickDay(group.day)}
+                >
+                  {t("agenda.noAppointments")}
+                </button>
+              ) : (
+                group.appointments.map((appointment) => (
+                  <article
+                    key={appointment.id}
+                    className={`rounded-lg border p-2 text-sm ${appointmentCardClass(appointment.status)}`}
+                  >
+                    <div className="font-medium">
+                      {formatLocalTime(appointment.start_at)} → {formatLocalTime(appointment.end_at)}
+                    </div>
+                    <div className="text-gray-700">{getPatientName(appointment.patient_id)}</div>
+                    <div className="text-xs text-gray-600">{statusLabel(appointment.status, t)}</div>
+                    {appointment.package_id && (
+                      <div className="text-xs text-gray-600">
+                        {t("agenda.packageSession")} {appointment.package_session_number ?? "-"}
+                      </div>
+                    )}
+                    {appointment.status === "cancelled" && appointment.cancelled_reason && (
+                      <div className="text-xs text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
+                    )}
+                    {appointment.notes && <div className="text-xs text-gray-600">{appointment.notes}</div>}
+
+                    {canManageAppointments && appointment.status === "scheduled" && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-md border bg-white text-xs hover:bg-green-50"
+                          onClick={() => onComplete(appointment)}
+                        >
+                          Realizado
+                        </button>
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-md border bg-white text-xs hover:bg-gray-50"
+                          onClick={() => onReschedule(appointment)}
+                        >
+                          {t("agenda.reschedule")}
+                        </button>
+                        {appointment.package_id && (
+                          <button
+                            type="button"
+                            className="px-2 py-1 rounded-md border bg-white text-xs hover:bg-gray-50"
+                            onClick={() => onEditPackage(appointment)}
+                          >
+                            {t("agenda.editPackage")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="px-2 py-1 rounded-md border bg-white text-xs hover:bg-gray-50"
+                          onClick={() => onCancel(appointment)}
+                        >
+                          {t("agenda.cancel")}
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div className="space-y-3 lg:hidden">
+        {groups.map((group) => (
+          <section key={group.day} className="border rounded-lg p-3">
+            <button type="button" className="text-left" onClick={() => onPickDay(group.day)}>
+              <div className="font-medium">{weekDayTitle(group.day)}</div>
+              <div className="text-sm text-gray-600">{group.day}</div>
+            </button>
+            {group.appointments.length === 0 ? (
+              <p className="text-sm text-gray-600 mt-2">{t("agenda.noAppointments")}</p>
+            ) : (
+              <div className="divide-y mt-2">
+                {group.appointments.map((appointment) => (
+                  <div key={appointment.id} className="py-2 flex flex-col gap-2">
+                    <div>
+                      <div className="font-medium">
+                        {formatLocalTime(appointment.start_at)} → {formatLocalTime(appointment.end_at)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {getPatientName(appointment.patient_id)} · {statusLabel(appointment.status, t)}
+                      </div>
+                      {appointment.status === "completed" && (
+                        <div className="text-sm text-green-700">Movimiento financiero generado.</div>
+                      )}
+                      {appointment.status === "cancelled" && appointment.cancelled_reason && (
+                        <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {appointment.cancelled_reason}</div>
+                      )}
+                      {appointment.package_id && (
+                        <div className="text-sm text-gray-600">
+                          {t("agenda.packageSession")} {appointment.package_session_number ?? "-"}
+                        </div>
+                      )}
+                      {appointment.notes && <div className="text-sm text-gray-600">{t("agenda.notes")}: {appointment.notes}</div>}
+                    </div>
+                    {canManageAppointments && appointment.status === "scheduled" && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="px-3 py-1 rounded-lg border text-sm hover:bg-green-50"
+                          onClick={() => onComplete(appointment)}
+                        >
+                          Realizado
+                        </button>
+                        {appointment.package_id && (
+                          <button
+                            type="button"
+                            className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                            onClick={() => onEditPackage(appointment)}
+                          >
+                            {t("agenda.editPackage")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                          onClick={() => onReschedule(appointment)}
+                        >
+                          {t("agenda.reschedule")}
+                        </button>
+                        <button
+                          type="button"
+                          className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
+                          onClick={() => onCancel(appointment)}
+                        >
+                          {t("agenda.cancel")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function weekDayTitle(dayISO: string) {
+  const [year, month, day] = dayISO.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const isoDay = date.getDay() === 0 ? 7 : date.getDay();
+  return workDayLabels[isoDay] ?? dayISO;
+}
+
+function appointmentCardClass(status: Appointment["status"]) {
+  if (status === "cancelled") return "bg-gray-100 border-gray-200";
+  if (status === "completed") return "bg-green-50 border-green-200";
+  return "bg-blue-50 border-blue-200";
 }

@@ -11,6 +11,7 @@ import PatientPortalPage from "../pages/PatientPortalPage";
 import PatientDetailPage from "../pages/PatientDetailPage";
 import PatientsPage from "../pages/PatientsPage";
 import ProfilePage from "../pages/ProfilePage";
+import ReportsPage from "../pages/ReportsPage";
 import StaffPage from "../pages/StaffPage";
 import MaterialsPage from "../pages/MaterialsPage";
 import UnauthorizedPage from "../pages/UnauthorizedPage";
@@ -34,7 +35,10 @@ export const router = createBrowserRouter([
     children: [
       {
         element: <AppShell />,
-        children: [{ path: "/finance", element: <FinancePage /> }],
+        children: [
+          { path: "/finance", element: <FinancePage /> },
+          { path: "/reports", element: <ReportsPage /> },
+        ],
       },
     ],
   },

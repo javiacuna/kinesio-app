@@ -14,6 +14,7 @@ import (
 
 	"github.com/javiacuna/kinesio-backend/internal/evolutions/domain"
 	"github.com/javiacuna/kinesio-backend/internal/evolutions/usecase"
+	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 )
 
 type evolutionRepo struct {
@@ -42,6 +43,9 @@ func TestCreateEvolutionEndpoint(t *testing.T) {
 	patientID := uuid.New()
 	kinesiologistID := uuid.New()
 	painLevel := 4
+	mobilityScore := 70
+	strengthScore := 65
+	functionalScore := 80
 
 	tests := []struct {
 		name       string
@@ -56,6 +60,9 @@ func TestCreateEvolutionEndpoint(t *testing.T) {
 			body: map[string]any{
 				"kinesiologist_id": kinesiologistID.String(),
 				"pain_level":       painLevel,
+				"mobility_score":   mobilityScore,
+				"strength_score":   strengthScore,
+				"functional_score": functionalScore,
 				"notes":            " Mejor movilidad ",
 				"photos": []map[string]any{
 					{
@@ -72,6 +79,7 @@ func TestCreateEvolutionEndpoint(t *testing.T) {
 			body: map[string]any{
 				"kinesiologist_id": "bad-kine",
 				"pain_level":       99,
+				"mobility_score":   101,
 				"notes":            "",
 				"photos": []map[string]any{
 					{"url": ""},
@@ -127,6 +135,9 @@ func TestCreateEvolutionEndpoint(t *testing.T) {
 			if repo.created.PatientID != patientID {
 				t.Fatalf("created patient id = %s, want %s", repo.created.PatientID, patientID)
 			}
+			if repo.created.MobilityScore == nil || *repo.created.MobilityScore != mobilityScore {
+				t.Fatalf("mobility score = %v, want %d", repo.created.MobilityScore, mobilityScore)
+			}
 		})
 	}
 }
@@ -139,6 +150,7 @@ func TestListPatientEvolutionsEndpoint(t *testing.T) {
 	evolutionID := uuid.New()
 	now := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	painLevel := 3
+	mobilityScore := 75
 
 	tests := []struct {
 		name       string
@@ -168,6 +180,7 @@ func TestListPatientEvolutionsEndpoint(t *testing.T) {
 						PatientID:       patientID,
 						KinesiologistID: kinesiologistID,
 						PainLevel:       &painLevel,
+						MobilityScore:   &mobilityScore,
 						Notes:           "Mejor movilidad",
 						CreatedAt:       now,
 						UpdatedAt:       now,
@@ -181,6 +194,7 @@ func TestListPatientEvolutionsEndpoint(t *testing.T) {
 			router.GET("/patients/:patient_id/evolutions", handler.ListByPatient)
 
 			req := httptest.NewRequest(http.MethodGet, tt.route, nil)
+			req.Header.Set("Authorization", middleware.DemoReceptionistToken)
 			rec := httptest.NewRecorder()
 
 			router.ServeHTTP(rec, req)
@@ -213,6 +227,9 @@ func TestListPatientEvolutionsEndpoint(t *testing.T) {
 			}
 			if got[0]["id"] != evolutionID.String() {
 				t.Fatalf("id = %v, want %s", got[0]["id"], evolutionID.String())
+			}
+			if got[0]["mobility_score"] != float64(mobilityScore) {
+				t.Fatalf("mobility_score = %v, want %d", got[0]["mobility_score"], mobilityScore)
 			}
 		})
 	}

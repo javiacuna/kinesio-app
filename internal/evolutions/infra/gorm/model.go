@@ -9,6 +9,9 @@ type PatientEvolutionModel struct {
 	AppointmentID   *string `gorm:"type:uuid"`
 	DiagnosisID     *string `gorm:"type:uuid;column:patient_diagnosis_id"`
 	PainLevel       *int
+	MobilityScore   *int
+	StrengthScore   *int
+	FunctionalScore *int
 	Notes           string `gorm:"not null"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time

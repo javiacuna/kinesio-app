@@ -12,6 +12,7 @@ import {
   type ExercisePlan,
   type PatientDiagnosis,
   type PatientAttachment,
+  type PatientEvolution,
   createPatientDiagnosis,
   createPatientPlan,
   createPatientEvolution,
@@ -98,6 +99,9 @@ export default function PatientDetailPage() {
   const [evolutionAppointmentId, setEvolutionAppointmentId] = useState("");
   const [evolutionDiagnosisId, setEvolutionDiagnosisId] = useState("");
   const [painLevel, setPainLevel] = useState("");
+  const [mobilityScore, setMobilityScore] = useState("");
+  const [strengthScore, setStrengthScore] = useState("");
+  const [functionalScore, setFunctionalScore] = useState("");
   const [evolutionNotes, setEvolutionNotes] = useState("");
   const [planKinesiologistId, setPlanKinesiologistId] = useState("");
   const [planDiagnosisId, setPlanDiagnosisId] = useState("");
@@ -250,12 +254,18 @@ export default function PatientDetailPage() {
         appointment_id: evolutionAppointmentId || null,
         patient_diagnosis_id: evolutionDiagnosisId || null,
         pain_level: painLevel === "" ? null : Number(painLevel),
+        mobility_score: mobilityScore === "" ? null : Number(mobilityScore),
+        strength_score: strengthScore === "" ? null : Number(strengthScore),
+        functional_score: functionalScore === "" ? null : Number(functionalScore),
         notes: evolutionNotes,
       }),
     onSuccess: () => {
       setEvolutionAppointmentId("");
       setEvolutionDiagnosisId("");
       setPainLevel("");
+      setMobilityScore("");
+      setStrengthScore("");
+      setFunctionalScore("");
       setEvolutionNotes("");
       evolutionsQ.refetch();
     },
@@ -396,7 +406,7 @@ export default function PatientDetailPage() {
           id: `evolution:${evolution.id}`,
           at: evolution.created_at,
           kind: "Evolución",
-          title: evolution.pain_level != null ? `Dolor ${evolution.pain_level}/10` : "Evolución clínica",
+          title: evolutionMetricSummary(evolution) || "Evolución clínica",
           detail: `${diagnosisSummary(diagnosisById.get(evolution.patient_diagnosis_id ?? ""))}${evolution.notes}`,
         })),
         ...filteredPlans.map((plan) => ({
@@ -1083,7 +1093,7 @@ export default function PatientDetailPage() {
               <p className="text-sm text-gray-600">Nueva nota clínica asociada a este paciente.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
                 <label className="text-sm font-medium">Kinesiólogo</label>
                 <select
@@ -1116,7 +1126,46 @@ export default function PatientDetailPage() {
                 </select>
               </div>
 
-              <div className="md:col-span-3">
+              <div>
+                <label className="text-sm font-medium">Movilidad</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full border rounded-lg p-2"
+                  placeholder="0 a 100"
+                  value={mobilityScore}
+                  onChange={(event) => setMobilityScore(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Fuerza</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full border rounded-lg p-2"
+                  placeholder="0 a 100"
+                  value={strengthScore}
+                  onChange={(event) => setStrengthScore(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Funcionalidad</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  className="mt-1 w-full border rounded-lg p-2"
+                  placeholder="0 a 100"
+                  value={functionalScore}
+                  onChange={(event) => setFunctionalScore(event.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-2">
                 <label className="text-sm font-medium">Turno asociado</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
@@ -1132,7 +1181,7 @@ export default function PatientDetailPage() {
                 </select>
               </div>
 
-              <div className="md:col-span-3">
+              <div className="md:col-span-2">
                 <label className="text-sm font-medium">Diagnóstico asociado</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
@@ -1148,7 +1197,7 @@ export default function PatientDetailPage() {
                 </select>
               </div>
 
-              <div className="md:col-span-3">
+              <div className="md:col-span-4">
                 <label className="text-sm font-medium">Notas</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-28"
@@ -1494,6 +1543,16 @@ export default function PatientDetailPage() {
           )}
         </section>
 
+        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {selectedClinicalDiagnosis ? "Evolución clínica del diagnóstico" : "Evolución clínica"}
+            </h2>
+            <p className="text-sm text-gray-600">Dolor, movilidad, fuerza y funcionalidad registrados en cada evolución.</p>
+          </div>
+          <ClinicalEvolutionChart evolutions={filteredEvolutions} />
+        </section>
+
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Panel
             title={selectedClinicalDiagnosis ? "Evoluciones del diagnóstico" : "Evoluciones"}
@@ -1504,9 +1563,7 @@ export default function PatientDetailPage() {
             {filteredEvolutions.map((evolution) => (
               <div key={evolution.id} className="py-3 border-b last:border-b-0">
                 <div className="font-medium">{formatLocalDateTime(evolution.created_at)}</div>
-                {evolution.pain_level != null && (
-                  <div className="text-sm text-gray-600">Dolor: {evolution.pain_level}/10</div>
-                )}
+                <EvolutionMetrics evolution={evolution} />
                 {evolution.patient_diagnosis_id && diagnosisById.has(evolution.patient_diagnosis_id) && (
                   <div className="text-sm text-gray-600">
                     Diagnóstico: {diagnosisLabel(diagnosisById.get(evolution.patient_diagnosis_id))}
@@ -1619,6 +1676,151 @@ function Panel({
       )}
     </section>
   );
+}
+
+type EvolutionMetricKey = "pain_level" | "mobility_score" | "strength_score" | "functional_score";
+
+const evolutionMetricDefs: Array<{
+  key: EvolutionMetricKey;
+  label: string;
+  color: string;
+  max: number;
+}> = [
+  { key: "pain_level", label: "Dolor", color: "#dc2626", max: 10 },
+  { key: "mobility_score", label: "Movilidad", color: "#2563eb", max: 100 },
+  { key: "strength_score", label: "Fuerza", color: "#16a34a", max: 100 },
+  { key: "functional_score", label: "Funcionalidad", color: "#9333ea", max: 100 },
+];
+
+function ClinicalEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] }) {
+  const points = [...evolutions]
+    .filter((evolution) => evolutionMetricDefs.some((metric) => evolution[metric.key] != null))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  if (points.length === 0) {
+    return <p className="text-sm text-gray-600">Todavía no hay métricas clínicas registradas.</p>;
+  }
+
+  const width = 760;
+  const height = 280;
+  const padding = { top: 22, right: 28, bottom: 54, left: 46 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const xFor = (index: number) => padding.left + (points.length === 1 ? chartWidth / 2 : (chartWidth * index) / (points.length - 1));
+  const yFor = (normalizedValue: number) => padding.top + chartHeight - (chartHeight * normalizedValue) / 100;
+  const labelIndexes = new Set([0, Math.floor((points.length - 1) / 2), points.length - 1]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-3">
+        {evolutionMetricDefs.map((metric) => (
+          <div key={metric.key} className="flex items-center gap-2 text-sm text-gray-700">
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: metric.color }} />
+            {metric.label}
+          </div>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <svg className="min-w-[680px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Gráfico de evolución clínica">
+          {[0, 25, 50, 75, 100].map((value) => (
+            <g key={value}>
+              <line
+                x1={padding.left}
+                x2={width - padding.right}
+                y1={yFor(value)}
+                y2={yFor(value)}
+                stroke="#e5e7eb"
+              />
+              <text x={padding.left - 10} y={yFor(value) + 4} textAnchor="end" className="fill-gray-500 text-[11px]">
+                {value}
+              </text>
+            </g>
+          ))}
+
+          {evolutionMetricDefs.map((metric) => {
+            const metricPoints = points
+              .map((evolution, index) => {
+                const rawValue = evolution[metric.key];
+                if (rawValue == null) return null;
+                return {
+                  x: xFor(index),
+                  y: yFor(metric.key === "pain_level" ? rawValue * 10 : rawValue),
+                  label: `${metric.label}: ${rawValue}/${metric.max}`,
+                };
+              })
+              .filter((point): point is { x: number; y: number; label: string } => point != null);
+
+            return (
+              <g key={metric.key}>
+                {metricPoints.length > 1 && (
+                  <polyline
+                    fill="none"
+                    stroke={metric.color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={metricPoints.map((point) => `${point.x},${point.y}`).join(" ")}
+                  />
+                )}
+                {metricPoints.map((point) => (
+                  <circle key={`${metric.key}-${point.x}-${point.y}`} cx={point.x} cy={point.y} r="4" fill={metric.color}>
+                    <title>{point.label}</title>
+                  </circle>
+                ))}
+              </g>
+            );
+          })}
+
+          {points.map((evolution, index) => (
+            <g key={evolution.id}>
+              <line
+                x1={xFor(index)}
+                x2={xFor(index)}
+                y1={padding.top}
+                y2={height - padding.bottom}
+                stroke="#f3f4f6"
+              />
+              {labelIndexes.has(index) && (
+                <text x={xFor(index)} y={height - 18} textAnchor="middle" className="fill-gray-600 text-[11px]">
+                  {formatLocalDateTime(evolution.created_at)}
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function EvolutionMetrics({ evolution }: { evolution: PatientEvolution }) {
+  const values = evolutionMetricDefs
+    .map((metric) => {
+      const value = evolution[metric.key];
+      return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
+    })
+    .filter((value): value is string => value != null);
+
+  if (values.length === 0) return null;
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
+      {values.map((value) => (
+        <span key={value}>{value}</span>
+      ))}
+    </div>
+  );
+}
+
+function evolutionMetricSummary(evolution: PatientEvolution) {
+  return evolutionMetricDefs
+    .map((metric) => {
+      const value = evolution[metric.key];
+      return value == null ? null : `${metric.label} ${value}/${metric.max}`;
+    })
+    .filter((value): value is string => value != null)
+    .join(" · ");
 }
 
 function diagnosisKindLabel(kind: string) {

@@ -21,6 +21,7 @@ export function AppShell() {
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeFinance = user?.role === "admin" || user?.role === "recepcionista";
+  const canSeeReports = user?.role === "admin" || user?.role === "recepcionista";
   const canSeeStaff = user?.role === "admin";
   const roleText =
     user?.role === "admin"
@@ -91,6 +92,14 @@ export function AppShell() {
                 to="/finance"
               >
                 {t("nav.finance")}
+              </Link>
+            )}
+            {canSeeReports && (
+              <Link
+                className={navClass(location.pathname === "/reports")}
+                to="/reports"
+              >
+                {t("nav.reports")}
               </Link>
             )}
             {canSeeStaff && (
