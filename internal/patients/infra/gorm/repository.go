@@ -220,11 +220,11 @@ func (r *Repository) Search(ctx context.Context, query string, limit int, includ
 		tx = tx.Where("dni LIKE ?", q+"%")
 	} else {
 		like := "%" + q + "%"
-		tx = tx.Where(`
+		tx = tx.Where(`(
 			lower(email) LIKE ? OR
 			lower(first_name) LIKE ? OR
 			lower(last_name) LIKE ?
-		`, like, like, like)
+		)`, like, like, like)
 	}
 
 	if limit <= 0 || limit > 50 {

@@ -15,14 +15,18 @@ import ReportsPage from "../pages/ReportsPage";
 import StaffPage from "../pages/StaffPage";
 import MaterialsPage from "../pages/MaterialsPage";
 import UnauthorizedPage from "../pages/UnauthorizedPage";
+import { ErrorPage } from "./ErrorPage";
+
+const errorElement = <ErrorPage />;
 
 export const router = createBrowserRouter([
-  { path: "/", element: <RoleRedirect /> },
-  { path: "/login", element: <LoginPage /> },
-  { path: "/forgot-password", element: <ForgotPasswordPage /> },
-  { path: "/unauthorized", element: <UnauthorizedPage /> },
+  { path: "/", element: <RoleRedirect />, errorElement },
+  { path: "/login", element: <LoginPage />, errorElement },
+  { path: "/forgot-password", element: <ForgotPasswordPage />, errorElement },
+  { path: "/unauthorized", element: <UnauthorizedPage />, errorElement },
   {
     element: <ProtectedRoute />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -32,6 +36,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["admin", "recepcionista"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -44,6 +49,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -56,6 +62,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["paciente"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -65,6 +72,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["recepcionista"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -74,6 +82,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -83,6 +92,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
@@ -92,6 +102,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute roles={["admin"]} />,
+    errorElement,
     children: [
       {
         element: <AppShell />,
