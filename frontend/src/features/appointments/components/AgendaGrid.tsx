@@ -108,6 +108,22 @@ export function AgendaGrid({
                   <div className="text-sm text-gray-800">
                     {t("agenda.patient")}: {getPatientName(appt.patient_id)}
                   </div>
+                  <div className="text-xs text-gray-600">
+                    {appt.modality === "virtual" ? t("agenda.virtual") : t("agenda.inPerson")}
+                    {appt.modality === "virtual" && appt.video_call_url && (
+                      <>
+                        {" · "}
+                        <a
+                          className="underline text-blue-700"
+                          href={appt.video_call_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t("agenda.openVideoCall")}
+                        </a>
+                      </>
+                    )}
+                  </div>
                   {appt.notes && <div className="text-xs text-gray-600">{t("agenda.notes")}: {appt.notes}</div>}
                   {cancelled && appt.cancelled_reason && (
                     <div className="text-xs text-gray-600">{t("agenda.cancelReason")}: {appt.cancelled_reason}</div>

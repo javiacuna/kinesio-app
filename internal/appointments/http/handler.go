@@ -25,6 +25,7 @@ type Handler struct {
 	cancel        *usecase.CancelAppointmentUseCase
 	getByID       *usecase.GetAppointmentByIDUseCase
 	listByPatient *usecase.ListAppointmentsByPatientUseCase
+	generateVideo *usecase.GenerateAppointmentVideoCallUseCase
 	createPackage *usecase.CreateAppointmentPackageUseCase
 	updatePackage *usecase.UpdateAppointmentPackageUseCase
 	kinesios      kinePorts.Repository
@@ -59,6 +60,7 @@ func NewHandler(
 	var patientByID patientGetter
 	var createPackage *usecase.CreateAppointmentPackageUseCase
 	var updatePackage *usecase.UpdateAppointmentPackageUseCase
+	var generateVideo *usecase.GenerateAppointmentVideoCallUseCase
 	var notifier notificationCreator
 	for _, lookup := range lookups {
 		if repo, ok := lookup.(patientSearcher); ok {
@@ -75,6 +77,8 @@ func NewHandler(
 			createPackage = repo
 		case *usecase.UpdateAppointmentPackageUseCase:
 			updatePackage = repo
+		case *usecase.GenerateAppointmentVideoCallUseCase:
+			generateVideo = repo
 		case notificationCreator:
 			notifier = repo
 		}
@@ -87,6 +91,7 @@ func NewHandler(
 		cancel:        cancel,
 		getByID:       getByID,
 		listByPatient: listByPatient,
+		generateVideo: generateVideo,
 		createPackage: createPackage,
 		updatePackage: updatePackage,
 		kinesios:      kineRepo,
@@ -103,6 +108,8 @@ type createReq struct {
 	FinancierID     *string `json:"financier_id,omitempty"`
 	StartAt         string  `json:"start_at"` // RFC3339
 	EndAt           string  `json:"end_at"`   // RFC3339
+	Modality        *string `json:"modality,omitempty"`
+	VideoCallURL    *string `json:"video_call_url,omitempty"`
 	Notes           *string `json:"notes,omitempty"`
 }
 
@@ -112,6 +119,8 @@ type updateReq struct {
 	Status          *string `json:"status,omitempty"` // scheduled|cancelled
 	PracticeID      *string `json:"practice_id,omitempty"`
 	FinancierID     *string `json:"financier_id,omitempty"`
+	Modality        *string `json:"modality,omitempty"`
+	VideoCallURL    *string `json:"video_call_url,omitempty"`
 	CancelledReason *string `json:"cancelled_reason,omitempty"`
 	Notes           *string `json:"notes,omitempty"`
 }
@@ -154,6 +163,10 @@ type resp struct {
 	StartAt              string  `json:"start_at"`
 	EndAt                string  `json:"end_at"`
 	Status               string  `json:"status"`
+	Modality             string  `json:"modality"`
+	VideoCallURL         *string `json:"video_call_url,omitempty"`
+	VideoProvider        *string `json:"video_provider,omitempty"`
+	VideoMeetingID       *string `json:"video_meeting_id,omitempty"`
 	Notes                *string `json:"notes,omitempty"`
 	CancelledReason      *string `json:"cancelled_reason,omitempty"`
 	CreatedAt            string  `json:"created_at"`
@@ -213,6 +226,8 @@ func (h *Handler) Create(c *gin.Context) {
 		FinancierID:     req.FinancierID,
 		StartAt:         req.StartAt,
 		EndAt:           req.EndAt,
+		Modality:        req.Modality,
+		VideoCallURL:    req.VideoCallURL,
 		Notes:           req.Notes,
 	})
 
@@ -413,6 +428,8 @@ func (h *Handler) Update(c *gin.Context) {
 		Status:          req.Status,
 		PracticeID:      req.PracticeID,
 		FinancierID:     req.FinancierID,
+		Modality:        req.Modality,
+		VideoCallURL:    req.VideoCallURL,
 		CancelledReason: req.CancelledReason,
 		Notes:           req.Notes,
 	})
@@ -481,6 +498,36 @@ func (h *Handler) Cancel(c *gin.Context) {
 	c.JSON(http.StatusOK, toResp(out))
 }
 
+func (h *Handler) GenerateVideoCall(c *gin.Context) {
+	if !middleware.HasRole(c, "recepcionista") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if h.generateVideo == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "video_provider_not_configured"})
+		return
+	}
+
+	out, details, err := h.generateVideo.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrValidation):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": details})
+		case errors.Is(err, domain.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		case errors.Is(err, domain.ErrVideoProviderMissing):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "video_provider_not_configured"})
+		case errors.Is(err, domain.ErrVideoProviderFailed):
+			c.JSON(http.StatusBadGateway, gin.H{"error": "video_provider_error"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, toResp(out))
+}
+
 func toResp(a domain.Appointment) resp {
 	var packageID *string
 	if a.PackageID != nil {
@@ -509,6 +556,10 @@ func toResp(a domain.Appointment) resp {
 		StartAt:              a.StartAt.UTC().Format(timeRFC3339()),
 		EndAt:                a.EndAt.UTC().Format(timeRFC3339()),
 		Status:               string(a.Status),
+		Modality:             string(appointmentModality(a.Modality)),
+		VideoCallURL:         a.VideoCallURL,
+		VideoProvider:        a.VideoProvider,
+		VideoMeetingID:       a.VideoMeetingID,
 		Notes:                a.Notes,
 		CancelledReason:      a.CancelledReason,
 		CreatedAt:            a.CreatedAt.UTC().Format(timeRFC3339()),
@@ -517,6 +568,13 @@ func toResp(a domain.Appointment) resp {
 }
 
 func timeRFC3339() string { return "2006-01-02T15:04:05Z07:00" }
+
+func appointmentModality(modality domain.Modality) domain.Modality {
+	if modality == "" {
+		return domain.ModalityInPerson
+	}
+	return modality
+}
 
 func (h *Handler) notifyAppointment(ctx context.Context, appointment domain.Appointment, notificationType, title, message string) {
 	if h.notifier == nil {

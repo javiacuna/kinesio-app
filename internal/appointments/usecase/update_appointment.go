@@ -16,6 +16,8 @@ type UpdateAppointmentInput struct {
 	Status          *string // "scheduled" | "cancelled" | "completed" (opcional)
 	PracticeID      *string // opcional
 	FinancierID     *string // opcional
+	Modality        *string // "in_person" | "virtual" (opcional)
+	VideoCallURL    *string // opcional
 	CancelledReason *string // opcional
 	Notes           *string // opcional
 }
@@ -78,6 +80,30 @@ func (uc *UpdateAppointmentUseCase) Execute(ctx context.Context, id string, in U
 				current.FinancierID = &id
 			}
 		}
+	}
+	if in.Modality != nil {
+		switch domain.Modality(strings.TrimSpace(*in.Modality)) {
+		case domain.ModalityInPerson, domain.ModalityVirtual:
+			current.Modality = domain.Modality(strings.TrimSpace(*in.Modality))
+		default:
+			errs["modality"] = "Valor inválido (in_person|virtual)"
+		}
+	}
+	if current.Modality == "" {
+		current.Modality = domain.ModalityInPerson
+	}
+	if in.VideoCallURL != nil {
+		current.VideoCallURL = trimPtr(in.VideoCallURL)
+		current.VideoProvider = nil
+		current.VideoMeetingID = nil
+	}
+	if current.Modality == domain.ModalityInPerson {
+		current.VideoCallURL = nil
+		current.VideoProvider = nil
+		current.VideoMeetingID = nil
+	}
+	if current.VideoCallURL != nil && !isValidVideoCallURL(*current.VideoCallURL) {
+		errs["video_call_url"] = "URL inválida"
 	}
 
 	// Notes

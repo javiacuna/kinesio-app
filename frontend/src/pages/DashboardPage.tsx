@@ -132,6 +132,9 @@ export default function DashboardPage() {
                 kinesiologist={kinesiologistById.get(appointment.kinesiologist_id)}
                 patientFallback={t("agenda.patient")}
                 kinesiologistFallback={t("agenda.kinesiologist")}
+                inPersonLabel={t("agenda.inPerson")}
+                virtualLabel={t("agenda.virtual")}
+                openVideoCallLabel={t("agenda.openVideoCall")}
               />
             ))}
           </div>
@@ -202,12 +205,18 @@ function AppointmentLine({
   kinesiologist,
   patientFallback,
   kinesiologistFallback,
+  inPersonLabel,
+  virtualLabel,
+  openVideoCallLabel,
 }: {
   appointment: Appointment;
   patient?: Patient;
   kinesiologist?: Kinesiologist;
   patientFallback: string;
   kinesiologistFallback: string;
+  inPersonLabel: string;
+  virtualLabel: string;
+  openVideoCallLabel: string;
 }) {
   return (
     <div className="py-3">
@@ -216,6 +225,17 @@ function AppointmentLine({
       </div>
       <div className="text-sm text-gray-600">{patientName(patient, patientFallback)}</div>
       <div className="text-xs text-gray-500">{kinesiologistName(kinesiologist, kinesiologistFallback)}</div>
+      <div className="text-xs text-gray-500">
+        {appointment.modality === "virtual" ? virtualLabel : inPersonLabel}
+        {appointment.modality === "virtual" && appointment.video_call_url && (
+          <>
+            {" · "}
+            <a className="underline text-blue-700" href={appointment.video_call_url} target="_blank" rel="noreferrer">
+              {openVideoCallLabel}
+            </a>
+          </>
+        )}
+      </div>
     </div>
   );
 }

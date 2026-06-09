@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ type CreateAppointmentInput struct {
 	FinancierID     *string
 	StartAt         string // RFC3339
 	EndAt           string // RFC3339
+	Modality        *string
+	VideoCallURL    *string
 	Notes           *string
 }
 
@@ -72,6 +75,22 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 	if startErr == nil && endErr == nil && !endAt.After(startAt) {
 		errs["end_at"] = "Debe ser mayor a start_at"
 	}
+	modality := domain.ModalityInPerson
+	if in.Modality != nil && strings.TrimSpace(*in.Modality) != "" {
+		switch domain.Modality(strings.TrimSpace(*in.Modality)) {
+		case domain.ModalityInPerson, domain.ModalityVirtual:
+			modality = domain.Modality(strings.TrimSpace(*in.Modality))
+		default:
+			errs["modality"] = "Valor inválido (in_person|virtual)"
+		}
+	}
+	videoCallURL := trimPtr(in.VideoCallURL)
+	if modality == domain.ModalityInPerson {
+		videoCallURL = nil
+	}
+	if videoCallURL != nil && !isValidVideoCallURL(*videoCallURL) {
+		errs["video_call_url"] = "URL inválida"
+	}
 
 	if len(errs) > 0 {
 		return domain.Appointment{}, errs, domain.ErrValidation
@@ -102,6 +121,8 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 		StartAt:         startAt.UTC(),
 		EndAt:           endAt.UTC(),
 		Status:          domain.StatusScheduled,
+		Modality:        modality,
+		VideoCallURL:    videoCallURL,
 		Notes:           trimPtr(in.Notes),
 	}
 	created, err := uc.repo.Create(ctx, a)
@@ -109,6 +130,14 @@ func (uc *CreateAppointmentUseCase) Execute(ctx context.Context, in CreateAppoin
 		return domain.Appointment{}, nil, err
 	}
 	return created, nil, nil
+}
+
+func isValidVideoCallURL(value string) bool {
+	parsed, err := url.ParseRequestURI(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 func trimPtr(s *string) *string {

@@ -14,6 +14,13 @@ const (
 	StatusCompleted Status = "completed"
 )
 
+type Modality string
+
+const (
+	ModalityInPerson Modality = "in_person"
+	ModalityVirtual  Modality = "virtual"
+)
+
 type Appointment struct {
 	ID                   uuid.UUID
 	PatientID            uuid.UUID
@@ -25,6 +32,10 @@ type Appointment struct {
 	StartAt              time.Time
 	EndAt                time.Time
 	Status               Status
+	Modality             Modality
+	VideoCallURL         *string
+	VideoProvider        *string
+	VideoMeetingID       *string
 	Notes                *string
 	CancelledReason      *string
 	CreatedAt            time.Time

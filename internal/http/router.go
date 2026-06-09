@@ -47,6 +47,7 @@ import (
 	notificationsHTTP "github.com/javiacuna/kinesio-backend/internal/notifications/http"
 	notificationsGorm "github.com/javiacuna/kinesio-backend/internal/notifications/infra/gorm"
 	notificationsService "github.com/javiacuna/kinesio-backend/internal/notifications/service"
+	"github.com/javiacuna/kinesio-backend/internal/videocalls"
 
 	matHTTP "github.com/javiacuna/kinesio-backend/internal/materials/http"
 	matGorm "github.com/javiacuna/kinesio-backend/internal/materials/infra/gorm"
@@ -121,6 +122,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
 	updateApptUC := appointmentsUC.NewUpdateAppointmentUseCase(apptRepo)
 	cancelApptUC := appointmentsUC.NewCancelAppointmentUseCase(apptRepo)
+	videoProvider := videocalls.NewProvider(cfg)
+	generateVideoCallUC := appointmentsUC.NewGenerateAppointmentVideoCallUseCase(apptRepo, videoProvider)
 	createApptPackageUC := appointmentsUC.NewCreateAppointmentPackageUseCase(apptRepo)
 	updateApptPackageUC := appointmentsUC.NewUpdateAppointmentPackageUseCase(apptRepo)
 	notificationRepo := notificationsGorm.NewRepository(db)
@@ -148,6 +151,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		listByPatientUC,
 		kRepo,
 		patientRepo,
+		generateVideoCallUC,
 		createApptPackageUC,
 		updateApptPackageUC,
 		notificationService,
@@ -250,6 +254,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 	v1.PUT("/appointments/:id", apptHandler.Update)
 	v1.PATCH("/appointments/:id", apptHandler.Update)
+	v1.POST("/appointments/:id/video-call", middleware.RequireRole("recepcionista"), apptHandler.GenerateVideoCall)
 	v1.DELETE("/appointments/:id", apptHandler.Cancel)
 	v1.GET("/appointments/:id", apptHandler.GetByID)
 

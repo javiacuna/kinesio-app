@@ -7,6 +7,7 @@ import {
   cancelAppointment,
   createAppointment,
   createAppointmentPackage,
+  generateAppointmentVideoCall,
   listAppointmentsDay,
   updateAppointment,
   updateAppointmentPackage,
@@ -159,6 +160,9 @@ export default function AgendaPage() {
   const [durationMin, setDurationMin] = useState(45);
   const [practiceId, setPracticeId] = useState("");
   const [financierId, setFinancierId] = useState("");
+  const [modality, setModality] = useState<"in_person" | "virtual">("in_person");
+  const [videoLinkMode, setVideoLinkMode] = useState<"manual" | "auto">("manual");
+  const [videoCallUrl, setVideoCallUrl] = useState("");
   const [sessionsCount, setSessionsCount] = useState(8);
   const [notes, setNotes] = useState("");
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
@@ -170,6 +174,8 @@ export default function AgendaPage() {
   const [editDurationMin, setEditDurationMin] = useState(45);
   const [editPracticeId, setEditPracticeId] = useState("");
   const [editFinancierId, setEditFinancierId] = useState("");
+  const [editModality, setEditModality] = useState<"in_person" | "virtual">("in_person");
+  const [editVideoCallUrl, setEditVideoCallUrl] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [cancelAppointmentTarget, setCancelAppointmentTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -259,9 +265,32 @@ export default function AgendaPage() {
     enabled: canLoadAgenda && viewMode === "week",
   });
 
+  const generateVideoM = useMutation({
+    mutationFn: generateAppointmentVideoCall,
+    onSuccess: (updated) => {
+      if (editingAppointment?.id === updated.id) {
+        setEditingAppointment(updated);
+        setEditModality(updated.modality ?? "virtual");
+        setEditVideoCallUrl(updated.video_call_url ?? "");
+      }
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
+    onSettled: () => {
+      agendaQ.refetch();
+      weekAgendaQ.refetch();
+    },
+  });
+
   const createM = useMutation({
     mutationFn: createAppointment,
-    onSuccess: () => agendaQ.refetch(),
+    onSuccess: (created, variables) => {
+      if (variables.modality === "virtual" && videoLinkMode === "auto" && !created.video_call_url) {
+        generateVideoM.mutate(created.id);
+        return;
+      }
+      agendaQ.refetch();
+    },
     onError: (error) => {
       if (isInactivePatientError(error)) {
         localStorage.removeItem("last_patient_id");
@@ -295,8 +324,22 @@ export default function AgendaPage() {
   });
 
   const rescheduleM = useMutation({
-    mutationFn: (args: { id: string; start_at: string; end_at: string; notes?: string }) =>
-      updateAppointment({ id: args.id, start_at: args.start_at, end_at: args.end_at, notes: args.notes }),
+    mutationFn: (args: {
+      id: string;
+      start_at: string;
+      end_at: string;
+      modality: "in_person" | "virtual";
+      video_call_url?: string;
+      notes?: string;
+    }) =>
+      updateAppointment({
+        id: args.id,
+        start_at: args.start_at,
+        end_at: args.end_at,
+        modality: args.modality,
+        video_call_url: args.video_call_url,
+        notes: args.notes,
+      }),
     onSuccess: () => {
       setEditingAppointment(null);
       agendaQ.refetch();
@@ -370,6 +413,11 @@ export default function AgendaPage() {
       financier_id: financierId || undefined,
       start_at: localDateTimeToUTC(apptDate, startTime),
       end_at: localDateTimeToUTC(apptDate, endTime),
+      modality,
+      video_call_url:
+        modality === "virtual" && videoLinkMode === "manual" && videoCallUrl.trim()
+          ? videoCallUrl.trim()
+          : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
     });
   }
@@ -382,6 +430,8 @@ export default function AgendaPage() {
     setEditDurationMin(durationMinutes(appt.start_at, appt.end_at));
     setEditPracticeId(appt.practice_id ?? practiceId);
     setEditFinancierId(appt.financier_id ?? financierId);
+    setEditModality(appt.modality ?? "in_person");
+    setEditVideoCallUrl(appt.video_call_url ?? "");
     setEditNotes(appt.notes ?? "");
     rescheduleM.reset();
   }
@@ -406,6 +456,8 @@ export default function AgendaPage() {
       id: editingAppointment.id,
       start_at: localDateTimeToUTC(editDate, editStartTime),
       end_at: localDateTimeToUTC(editDate, endTime),
+      modality: editModality,
+      video_call_url: editModality === "virtual" ? editVideoCallUrl.trim() : undefined,
       notes: editNotes.trim() ? editNotes.trim() : undefined,
     });
   }
@@ -456,6 +508,7 @@ export default function AgendaPage() {
 
   const activeCreateError = createMode === "package" ? createPackageM.error : createM.error;
   const createErr: any = activeCreateError;
+  const videoGenerateErr: any = generateVideoM.error;
   const hasCreateOverlap = isOverlapError(activeCreateError);
   const hasCreateInactivePatient = isInactivePatientError(activeCreateError);
   const hasRescheduleOverlap = isOverlapError(rescheduleM.error);
@@ -494,7 +547,8 @@ export default function AgendaPage() {
       )
     : false;
   const isPackageEditDaysInvalid = editPackageDays.length === 0;
-  const isCreating = createM.isPending || createPackageM.isPending;
+  const isGeneratingVideoCall = generateVideoM.isPending;
+  const isCreating = createM.isPending || createPackageM.isPending || isGeneratingVideoCall;
   const dayAppointments = useMemo(
     () => filterAppointments(agendaQ.data ?? [], statusFilter, filterPatient?.id),
     [agendaQ.data, filterPatient?.id, statusFilter],
@@ -715,6 +769,66 @@ export default function AgendaPage() {
               />
             </div>
 
+            {createMode === "single" && (
+              <>
+                <div>
+                  <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.modality")}</RequiredLabel></label>
+                  <select
+                    className="mt-1 w-full border rounded-lg p-2"
+                    value={modality}
+                    onChange={(event) => {
+                      const next = event.target.value as "in_person" | "virtual";
+                      setModality(next);
+                      if (next === "in_person") {
+                        setVideoCallUrl("");
+                        setVideoLinkMode("manual");
+                      }
+                    }}
+                  >
+                    <option value="in_person">{t("agenda.inPerson")}</option>
+                    <option value="virtual">{t("agenda.virtual")}</option>
+                  </select>
+                </div>
+
+                {modality === "virtual" && (
+                  <div className="rounded-lg border bg-blue-50/50 p-3 space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "manual" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                        onClick={() => setVideoLinkMode("manual")}
+                      >
+                        {t("agenda.videoCallManual")}
+                      </button>
+                      <button
+                        type="button"
+                        className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "auto" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                        onClick={() => setVideoLinkMode("auto")}
+                      >
+                        {t("agenda.videoCallAuto")}
+                      </button>
+                    </div>
+
+                    {videoLinkMode === "manual" ? (
+                      <div>
+                        <label className="text-sm font-medium">{t("agenda.videoCallUrl")}</label>
+                        <input
+                          className="mt-1 w-full border rounded-lg p-2 bg-white"
+                          type="url"
+                          placeholder="https://meet.google.com/..."
+                          value={videoCallUrl}
+                          onChange={(event) => setVideoCallUrl(event.target.value)}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">{t("agenda.videoCallUrlHelp")}</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-700">{t("agenda.videoCallAutoHelp")}</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+
             {(
               <>
                 <div>
@@ -787,7 +901,9 @@ export default function AgendaPage() {
             onClick={create}
           >
             {isCreating
-              ? t("agenda.creating")
+              ? isGeneratingVideoCall
+                ? t("agenda.generatingVideoCall")
+                : t("agenda.creating")
               : createMode === "package"
                 ? t("agenda.createPackage")
                 : t("agenda.create")}
@@ -823,6 +939,17 @@ export default function AgendaPage() {
                   <div>{createValidationMessage ?? String(createErr?.message)}</div>
                 </>
               )}
+            </div>
+          )}
+
+          {generateVideoM.isError && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+              <div className="font-medium">{t("agenda.videoCallGenerateError")}</div>
+              <div>
+                {videoGenerateErr?.message === "video_provider_not_configured"
+                  ? t("agenda.videoProviderNotConfigured")
+                  : t("agenda.videoProviderError")}
+              </div>
             </div>
           )}
         </section>
@@ -897,6 +1024,17 @@ export default function AgendaPage() {
                         {a.status === "cancelled" && a.cancelled_reason && (
                           <div className="text-sm text-gray-600">{t("agenda.cancelReason")}: {a.cancelled_reason}</div>
                         )}
+                        <div className="text-sm text-gray-600">
+                          {t("agenda.modality")}: {a.modality === "virtual" ? t("agenda.virtual") : t("agenda.inPerson")}
+                          {a.modality === "virtual" && a.video_call_url && (
+                            <>
+                              {" · "}
+                              <a className="underline text-blue-700" href={a.video_call_url} target="_blank" rel="noreferrer">
+                                {t("agenda.openVideoCall")}
+                              </a>
+                            </>
+                          )}
+                        </div>
                         {a.package_id && (
                           <div className="text-sm text-gray-600">
                             {t("agenda.packageSession")} {a.package_session_number ?? "-"}
@@ -1086,6 +1224,52 @@ export default function AgendaPage() {
                   onChange={(event) => setEditNotes(event.target.value)}
                 />
               </div>
+
+              <div>
+                <label className="text-sm font-medium">{t("agenda.modality")}</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={editModality}
+                  onChange={(event) => {
+                    const next = event.target.value as "in_person" | "virtual";
+                    setEditModality(next);
+                    if (next === "in_person") setEditVideoCallUrl("");
+                  }}
+                >
+                  <option value="in_person">{t("agenda.inPerson")}</option>
+                  <option value="virtual">{t("agenda.virtual")}</option>
+                </select>
+              </div>
+
+              {editModality === "virtual" && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">{t("agenda.videoCallUrl")}</label>
+                  <input
+                    className="mt-1 w-full border rounded-lg p-2"
+                    type="url"
+                    placeholder="https://meet.google.com/..."
+                    value={editVideoCallUrl}
+                    onChange={(event) => setEditVideoCallUrl(event.target.value)}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      className="px-3 py-1 rounded-lg border bg-white text-sm hover:bg-gray-50 disabled:opacity-50"
+                      disabled={generateVideoM.isPending}
+                      onClick={() => {
+                        if (editingAppointment) generateVideoM.mutate(editingAppointment.id);
+                      }}
+                    >
+                      {generateVideoM.isPending ? t("agenda.generatingVideoCall") : t("agenda.generateVideoCall")}
+                    </button>
+                    {editVideoCallUrl && (
+                      <span className="text-xs text-green-700">
+                        {t("agenda.videoCallReady")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {selectedKinesiologist && (
@@ -1117,6 +1301,17 @@ export default function AgendaPage() {
                     <div>{rescheduleValidationMessage ?? String((rescheduleM.error as any)?.message)}</div>
                   </>
                 )}
+              </div>
+            )}
+
+            {generateVideoM.isError && (
+              <div className="border border-amber-200 bg-amber-50 rounded-lg p-3 text-sm text-amber-800">
+                <div className="font-medium">{t("agenda.videoCallGenerateError")}</div>
+                <div>
+                  {videoGenerateErr?.message === "video_provider_not_configured"
+                    ? t("agenda.videoProviderNotConfigured")
+                    : t("agenda.videoProviderError")}
+                </div>
               </div>
             )}
 
@@ -1533,6 +1728,22 @@ function WeeklyCalendar({
                     </div>
                     <div className="text-gray-700">{getPatientName(appointment.patient_id)}</div>
                     <div className="text-xs text-gray-600">{statusLabel(appointment.status, t)}</div>
+                    <div className="text-xs text-gray-600">
+                      {appointment.modality === "virtual" ? t("agenda.virtual") : t("agenda.inPerson")}
+                      {appointment.modality === "virtual" && appointment.video_call_url && (
+                        <>
+                          {" · "}
+                          <a
+                            className="underline text-blue-700"
+                            href={appointment.video_call_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {t("agenda.openVideoCall")}
+                          </a>
+                        </>
+                      )}
+                    </div>
                     {appointment.package_id && (
                       <div className="text-xs text-gray-600">
                         {t("agenda.packageSession")} {appointment.package_session_number ?? "-"}
@@ -1604,6 +1815,22 @@ function WeeklyCalendar({
                       </div>
                       <div className="text-sm text-gray-600">
                         {getPatientName(appointment.patient_id)} · {statusLabel(appointment.status, t)}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {appointment.modality === "virtual" ? t("agenda.virtual") : t("agenda.inPerson")}
+                        {appointment.modality === "virtual" && appointment.video_call_url && (
+                          <>
+                            {" · "}
+                            <a
+                              className="underline text-blue-700"
+                              href={appointment.video_call_url}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              {t("agenda.openVideoCall")}
+                            </a>
+                          </>
+                        )}
                       </div>
                       {appointment.status === "completed" && (
                         <div className="text-sm text-green-700">Movimiento financiero generado.</div>

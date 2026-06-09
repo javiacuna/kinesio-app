@@ -431,6 +431,17 @@ export default function PatientPortalPage() {
                   <div className="text-sm text-gray-600">
                     {formatLocalTime(appointment.start_at)} a {formatLocalTime(appointment.end_at)}
                   </div>
+                  <div className="text-sm text-gray-600">
+                    {appointment.modality === "virtual" ? "Videollamada" : "Presencial"}
+                    {appointment.modality === "virtual" && appointment.video_call_url && (
+                      <>
+                        {" · "}
+                        <a className="underline text-blue-700" href={appointment.video_call_url} target="_blank" rel="noreferrer">
+                          Abrir videollamada
+                        </a>
+                      </>
+                    )}
+                  </div>
                   {appointment.notes && (
                     <div className="text-sm text-gray-600 mt-1">Notas: {appointment.notes}</div>
                   )}

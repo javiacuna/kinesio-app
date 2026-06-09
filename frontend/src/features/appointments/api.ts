@@ -18,6 +18,8 @@ export type CreateAppointmentInput = {
   financier_id?: string;
   start_at: string;
   end_at: string;
+  modality?: "in_person" | "virtual";
+  video_call_url?: string;
   notes?: string;
 };
 
@@ -95,6 +97,8 @@ export type UpdateAppointmentInput = {
   practice_id?: string;
   financier_id?: string;
   cancelled_reason?: string;
+  modality?: "in_person" | "virtual";
+  video_call_url?: string;
   notes?: string;
   start_at?: string;
   end_at?: string;
@@ -105,6 +109,13 @@ export function updateAppointment(input: UpdateAppointmentInput) {
   return apiFetch<Appointment>(`/api/v1/appointments/${id}`, {
     method: "PUT",
     body: JSON.stringify(patch),
+  });
+}
+
+export function generateAppointmentVideoCall(id: string) {
+  return apiFetch<Appointment>(`/api/v1/appointments/${id}/video-call`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

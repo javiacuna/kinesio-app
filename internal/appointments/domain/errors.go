@@ -10,4 +10,6 @@ var (
 	ErrPatientInactive       = errors.New("patient inactive")
 	ErrKinesiologistNotFound = errors.New("kinesiologist not found")
 	ErrInvalidStatus         = errors.New("invalid status")
+	ErrVideoProviderMissing  = errors.New("video provider missing")
+	ErrVideoProviderFailed   = errors.New("video provider failed")
 )

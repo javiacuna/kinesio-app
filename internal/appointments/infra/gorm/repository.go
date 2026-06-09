@@ -36,6 +36,10 @@ func (r *Repository) Create(ctx context.Context, a domain.Appointment) (domain.A
 		StartAt:              a.StartAt,
 		EndAt:                a.EndAt,
 		Status:               string(a.Status),
+		Modality:             appointmentModalityValue(a.Modality),
+		VideoCallURL:         a.VideoCallURL,
+		VideoProvider:        a.VideoProvider,
+		VideoMeetingID:       a.VideoMeetingID,
 		Notes:                a.Notes,
 		CancelledReason:      a.CancelledReason,
 	}
@@ -88,6 +92,10 @@ func (r *Repository) Update(ctx context.Context, a domain.Appointment) (domain.A
 		"start_at":               a.StartAt,
 		"end_at":                 a.EndAt,
 		"status":                 string(a.Status),
+		"modality":               appointmentModalityValue(a.Modality),
+		"video_call_url":         a.VideoCallURL,
+		"video_provider":         a.VideoProvider,
+		"video_meeting_id":       a.VideoMeetingID,
 		"notes":                  a.Notes,
 		"cancelled_reason":       a.CancelledReason,
 		"updated_at":             time.Now().UTC(),
@@ -198,6 +206,10 @@ func toDomain(m AppointmentModel) domain.Appointment {
 		StartAt:              m.StartAt.UTC(),
 		EndAt:                m.EndAt.UTC(),
 		Status:               domain.Status(m.Status),
+		Modality:             appointmentModalityFromDB(m.Modality),
+		VideoCallURL:         m.VideoCallURL,
+		VideoProvider:        m.VideoProvider,
+		VideoMeetingID:       m.VideoMeetingID,
 		Notes:                m.Notes,
 		CancelledReason:      m.CancelledReason,
 		CreatedAt:            m.CreatedAt,
@@ -224,6 +236,10 @@ func (r *Repository) CreatePackageWithAppointments(
 			StartAt:              appointment.StartAt,
 			EndAt:                appointment.EndAt,
 			Status:               string(appointment.Status),
+			Modality:             appointmentModalityValue(appointment.Modality),
+			VideoCallURL:         appointment.VideoCallURL,
+			VideoProvider:        appointment.VideoProvider,
+			VideoMeetingID:       appointment.VideoMeetingID,
 			Notes:                appointment.Notes,
 			CancelledReason:      appointment.CancelledReason,
 		})
@@ -256,6 +272,20 @@ func (r *Repository) CreatePackageWithAppointments(
 		out = append(out, toDomain(model))
 	}
 	return created, out, nil
+}
+
+func appointmentModalityValue(modality domain.Modality) string {
+	if modality == "" {
+		return string(domain.ModalityInPerson)
+	}
+	return string(modality)
+}
+
+func appointmentModalityFromDB(modality string) domain.Modality {
+	if strings.TrimSpace(modality) == "" {
+		return domain.ModalityInPerson
+	}
+	return domain.Modality(modality)
 }
 
 func (r *Repository) GetPackageByID(ctx context.Context, id uuid.UUID) (domain.AppointmentPackage, bool, error) {

@@ -17,6 +17,7 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	kineDomain "github.com/javiacuna/kinesio-backend/internal/kinesiologists/domain"
 	patientDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
+	"github.com/javiacuna/kinesio-backend/internal/videocalls"
 )
 
 type appointmentRepo struct {
@@ -68,6 +69,19 @@ func (r *appointmentRepo) ListByKinesiologistAndRange(ctx context.Context, kines
 func (r *appointmentRepo) ListByPatientAndRange(ctx context.Context, patientID uuid.UUID, from time.Time, to time.Time) ([]domain.Appointment, error) {
 	r.listPatientID = patientID
 	return r.appointments, nil
+}
+
+type fakeVideoProvider struct{}
+
+func (p fakeVideoProvider) Name() string { return "fake" }
+
+func (p fakeVideoProvider) CreateRoom(ctx context.Context, input videocalls.CreateRoomInput) (videocalls.CreatedRoom, error) {
+	meetingID := "fake-room-" + input.AppointmentID
+	return videocalls.CreatedRoom{
+		Provider:  p.Name(),
+		MeetingID: &meetingID,
+		URL:       "https://video.example.com/" + input.AppointmentID,
+	}, nil
 }
 
 type appointmentPatientRepo struct {
@@ -154,6 +168,8 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 				"kinesiologist_id": kinesiologistID.String(),
 				"start_at":         "2027-04-11T14:00:00Z",
 				"end_at":           "2027-04-11T14:30:00Z",
+				"modality":         "virtual",
+				"video_call_url":   "https://meet.google.com/abc-defg-hij",
 				"notes":            " Primera visita ",
 			},
 			auth:       "Bearer demo-recepcionista-token",
@@ -179,6 +195,21 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 				"kinesiologist_id": "bad-kine",
 				"start_at":         "2027-04-11T14:30:00Z",
 				"end_at":           "2027-04-11T14:00:00Z",
+			},
+			auth:       "Bearer demo-recepcionista-token",
+			wantStatus: http.StatusBadRequest,
+			wantError:  "validation_error",
+		},
+		{
+			name: "validates video call url",
+			repo: &appointmentRepo{patientActive: true},
+			body: map[string]any{
+				"patient_id":       patientID.String(),
+				"kinesiologist_id": kinesiologistID.String(),
+				"start_at":         "2027-04-11T14:00:00Z",
+				"end_at":           "2027-04-11T14:30:00Z",
+				"modality":         "virtual",
+				"video_call_url":   "meet.google.com/abc-defg-hij",
 			},
 			auth:       "Bearer demo-recepcionista-token",
 			wantStatus: http.StatusBadRequest,
@@ -277,6 +308,12 @@ func TestCreateAppointmentEndpoint(t *testing.T) {
 			}
 			if got["notes"] != "Primera visita" {
 				t.Fatalf("notes = %v, want trimmed notes", got["notes"])
+			}
+			if got["modality"] != string(domain.ModalityVirtual) {
+				t.Fatalf("modality = %v, want virtual", got["modality"])
+			}
+			if got["video_call_url"] != "https://meet.google.com/abc-defg-hij" {
+				t.Fatalf("video_call_url = %v, want video call URL", got["video_call_url"])
 			}
 		})
 	}
@@ -878,5 +915,57 @@ func TestListAppointmentsByPatientEndpointUsesLoggedPatientEmail(t *testing.T) {
 	}
 	if got[0]["id"] != appointmentID.String() {
 		t.Fatalf("id = %v, want %s", got[0]["id"], appointmentID.String())
+	}
+}
+
+func TestGenerateVideoCallEndpoint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	appointmentID := uuid.New()
+	patientID := uuid.New()
+	kinesiologistID := uuid.New()
+	now := time.Date(2027, 4, 11, 12, 0, 0, 0, time.UTC)
+	repo := &appointmentRepo{
+		appointment: domain.Appointment{
+			ID:              appointmentID,
+			PatientID:       patientID,
+			KinesiologistID: kinesiologistID,
+			StartAt:         time.Date(2027, 4, 11, 14, 0, 0, 0, time.UTC),
+			EndAt:           time.Date(2027, 4, 11, 14, 30, 0, 0, time.UTC),
+			Status:          domain.StatusScheduled,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		},
+		found: true,
+	}
+	generateUC := usecase.NewGenerateAppointmentVideoCallUseCase(repo, fakeVideoProvider{})
+	handler := NewHandler(nil, nil, nil, nil, nil, nil, generateUC)
+
+	router := gin.New()
+	router.POST("/appointments/:id/video-call", handler.GenerateVideoCall)
+
+	req := httptest.NewRequest(http.MethodPost, "/appointments/"+appointmentID.String()+"/video-call", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer demo-recepcionista-token")
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if got["modality"] != string(domain.ModalityVirtual) {
+		t.Fatalf("modality = %v, want virtual", got["modality"])
+	}
+	if got["video_call_url"] != "https://video.example.com/"+appointmentID.String() {
+		t.Fatalf("video_call_url = %v", got["video_call_url"])
+	}
+	if got["video_provider"] != "fake" {
+		t.Fatalf("video_provider = %v, want fake", got["video_provider"])
 	}
 }

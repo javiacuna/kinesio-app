@@ -17,6 +17,10 @@ type AppointmentModel struct {
 	StartAt              time.Time  `gorm:"column:start_at;not null"`
 	EndAt                time.Time  `gorm:"column:end_at;not null"`
 	Status               string     `gorm:"column:status;not null"`
+	Modality             string     `gorm:"column:modality;not null"`
+	VideoCallURL         *string    `gorm:"column:video_call_url"`
+	VideoProvider        *string    `gorm:"column:video_provider"`
+	VideoMeetingID       *string    `gorm:"column:video_meeting_id"`
 	Notes                *string    `gorm:"column:notes"`
 	CancelledReason      *string    `gorm:"column:cancelled_reason"`
 	CreatedAt            time.Time  `gorm:"column:created_at;autoCreateTime"`

@@ -104,6 +104,27 @@ Eventos incluidos en esta versión:
 - paquete de turnos creado y actualizado;
 - plan de ejercicios creado y actualizado.
 
+### Videollamadas automáticas
+
+Los turnos virtuales pueden usar link manual o generar una sala automáticamente desde el backend.
+Para activar la generación automática, configurá un proveedor:
+
+```bash
+# daily o whereby
+VIDEO_CALL_PROVIDER=daily
+DAILY_API_KEY=tu_daily_api_key
+
+# Alternativa Whereby
+# VIDEO_CALL_PROVIDER=whereby
+# WHEREBY_API_KEY=tu_whereby_api_key
+# WHEREBY_ROOM_PREFIX=kinesio
+
+# Minutos extra que la sala queda activa después del fin del turno
+VIDEO_CALL_EXPIRY_MIN=60
+```
+
+Si no hay proveedor configurado, la aplicación mantiene el flujo manual: se puede pegar el link en el turno.
+
 En el frontend:
 
 - `/login`: formulario de ingreso con email y contraseña.

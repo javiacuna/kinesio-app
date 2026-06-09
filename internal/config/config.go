@@ -33,6 +33,12 @@ type Config struct {
 	SMTPPassword             string
 	SMTPFromEmail            string
 	SMTPFromName             string
+
+	VideoCallProvider  string
+	DailyAPIKey        string
+	WherebyAPIKey      string
+	WherebyRoomPrefix  string
+	VideoCallExpiryMin int
 }
 
 func MustLoad() Config {
@@ -58,6 +64,11 @@ func MustLoad() Config {
 		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
 		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
 		SMTPFromName:             getenv("SMTP_FROM_NAME", "Kinesio App"),
+		VideoCallProvider:        getenv("VIDEO_CALL_PROVIDER", ""),
+		DailyAPIKey:              getenv("DAILY_API_KEY", ""),
+		WherebyAPIKey:            getenv("WHEREBY_API_KEY", ""),
+		WherebyRoomPrefix:        getenv("WHEREBY_ROOM_PREFIX", "kinesio"),
+		VideoCallExpiryMin:       getenvInt("VIDEO_CALL_EXPIRY_MIN", 60),
 	}
 
 	// Validaciones mínimas
@@ -68,6 +79,18 @@ func MustLoad() Config {
 		panic("DB_* configuration is required")
 	}
 	return cfg
+}
+
+func getenvInt(k string, def int) int {
+	value := os.Getenv(k)
+	if value == "" {
+		return def
+	}
+	var out int
+	if _, err := fmt.Sscanf(value, "%d", &out); err != nil || out <= 0 {
+		return def
+	}
+	return out
 }
 
 func (c Config) PostgresDSN() string {

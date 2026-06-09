@@ -1532,6 +1532,17 @@ export default function PatientDetailPage() {
                     <div className="text-sm text-gray-600">
                       {formatLocalTime(appointment.start_at)} a {formatLocalTime(appointment.end_at)}
                     </div>
+                    <div className="text-sm text-gray-600">
+                      {appointment.modality === "virtual" ? "Videollamada" : "Presencial"}
+                      {appointment.modality === "virtual" && appointment.video_call_url && (
+                        <>
+                          {" · "}
+                          <a className="underline text-blue-700" href={appointment.video_call_url} target="_blank" rel="noreferrer">
+                            Abrir videollamada
+                          </a>
+                        </>
+                      )}
+                    </div>
                     {appointment.notes && <div className="text-sm text-gray-600">Notas: {appointment.notes}</div>}
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-md ${appointment.status === "cancelled" ? "bg-gray-100 text-gray-700" : "bg-blue-100 text-blue-700"}`}>
