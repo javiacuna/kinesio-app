@@ -151,6 +151,9 @@ export default function AgendaPage() {
   const [viewMode, setViewMode] = useState<"day" | "week">("week");
   const [statusFilter, setStatusFilter] = useState<"all" | Appointment["status"]>("all");
   const [filterPatient, setFilterPatient] = useState<Patient | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [filterPatientSearchResetKey, setFilterPatientSearchResetKey] = useState(0);
+  const [createPatientSearchResetKey, setCreatePatientSearchResetKey] = useState(0);
 
   // Crear turno (inputs UX)
   const [patientId, setPatientId] = useState("");
@@ -184,11 +187,6 @@ export default function AgendaPage() {
   const [completeFinancierId, setCompleteFinancierId] = useState("");
 
   useEffect(() => {
-    const last = localStorage.getItem("last_patient_id");
-    if (last && !patientId) setPatientId(last);
-  }, [patientId]);
-
-  useEffect(() => {
     setApptDate(date);
   }, [date]);
 
@@ -217,10 +215,24 @@ export default function AgendaPage() {
     () => kinesios.find((k) => k.id === kinesiologistId),
     [kinesiologistId, kinesios],
   );
+  const selectedPatient = patientById.get(patientId);
   const financiers = financiersQ.data ?? [];
   const weekDays = useMemo(() => weekDaysFor(date), [date]);
   const weekStart = weekDays[0] ?? date;
   const weekEnd = weekDays[6] ?? date;
+
+  const clearCreatePatient = () => {
+    setPatientId("");
+    setCreatePatientSearchResetKey((value) => value + 1);
+  };
+
+  const resetAgendaFilters = () => {
+    setDate(todayISO());
+    setViewMode("week");
+    setStatusFilter("all");
+    setFilterPatient(null);
+    setFilterPatientSearchResetKey((value) => value + 1);
+  };
 
   useEffect(() => {
     if (!isKinesiologist || !user?.email || kinesios.length === 0) return;
@@ -293,8 +305,7 @@ export default function AgendaPage() {
     },
     onError: (error) => {
       if (isInactivePatientError(error)) {
-        localStorage.removeItem("last_patient_id");
-        setPatientId("");
+        clearCreatePatient();
       }
     },
   });
@@ -307,8 +318,7 @@ export default function AgendaPage() {
     },
     onError: (error) => {
       if (isInactivePatientError(error)) {
-        localStorage.removeItem("last_patient_id");
-        setPatientId("");
+        clearCreatePatient();
       }
     },
   });
@@ -572,16 +582,50 @@ export default function AgendaPage() {
               {isKinesiologist ? t("agenda.myDay") : t("agenda.dailySubtitle")}
             </p>
           </div>
-          {(user?.role === "admin" || user?.role === "recepcionista") && (
-            <Link className="text-sm underline" to="/patients">
-              {t("agenda.goPatients")}
-            </Link>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {canManageAppointments && (
+              <button
+                type="button"
+                className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-gray-800"
+                onClick={() => {
+                  if (showCreateForm) {
+                    setShowCreateForm(false);
+                    return;
+                  }
+                  clearCreatePatient();
+                  setShowCreateForm(true);
+                }}
+              >
+                {showCreateForm ? "Ocultar formulario" : "Nuevo turno"}
+              </button>
+            )}
+            {(user?.role === "admin" || user?.role === "recepcionista") && (
+              <Link className="text-sm underline" to="/patients">
+                {t("agenda.goPatients")}
+              </Link>
+            )}
+          </div>
         </header>
 
         {/* Filtros agenda */}
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Vista de agenda</h2>
+              <p className="text-sm text-gray-600">
+                Elegí profesional, fecha y filtros para revisar disponibilidad.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="w-fit px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              onClick={resetAgendaFilters}
+            >
+              {t("agenda.clearFilters")}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[180px_160px_minmax(260px,1fr)] gap-3">
             <div>
               <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.date")}</RequiredLabel></label>
               <input
@@ -642,7 +686,7 @@ export default function AgendaPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr_auto] gap-3 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 items-end">
             <div>
               <label className="text-sm font-medium">{t("agenda.status")}</label>
               <select
@@ -661,253 +705,328 @@ export default function AgendaPage() {
               <PatientSearch
                 valuePatientId={filterPatient?.id ?? ""}
                 onSelect={setFilterPatient}
+                label={t("agenda.filterAgenda")}
                 placeholder={t("agenda.filterPatient")}
+                showSelected={false}
+                resetKey={filterPatientSearchResetKey}
               />
             </div>
-
-            <button
-              type="button"
-              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-              onClick={() => {
-                setStatusFilter("all");
-                setFilterPatient(null);
-              }}
-            >
-              {t("agenda.clearFilters")}
-            </button>
           </div>
+
+          {(statusFilter !== "all" || filterPatient) && (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {statusFilter !== "all" && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                  {t("agenda.status")}: {statusLabel(statusFilter, t)}
+                </span>
+              )}
+              {filterPatient && (
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                  {t("agenda.patient")}: {patientName(filterPatient)}
+                </span>
+              )}
+            </div>
+          )}
         </section>
 
         {/* Crear turno */}
-        {canManageAppointments && (
-        <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-semibold">{t("agenda.create")}</h2>
+        {canManageAppointments && showCreateForm && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">{t("agenda.create")}</h2>
+                <p className="text-sm text-gray-600">Armá el turno en tres pasos simples.</p>
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`px-3 py-2 rounded-lg border text-sm ${createMode === "single" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
-              onClick={() => setCreateMode("single")}
-            >
-              {t("agenda.singleAppointment")}
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-2 rounded-lg border text-sm ${createMode === "package" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
-              onClick={() => setCreateMode("package")}
-            >
-              {t("agenda.appointmentPackage")}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="md:col-span-2">
-              <PatientSearch
-                valuePatientId={patientId}
-                onSelect={(p) => {
-                  setPatientId(p.id);
-                  localStorage.setItem("last_patient_id", p.id);
-                }}
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                {t("agenda.tipPatient")}
-              </p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.appointmentDate")}</RequiredLabel></label>
-              <input
-                className="mt-1 w-full border rounded-lg p-2"
-                type="date"
-                min={todayISO()}
-                value={apptDate}
-                onChange={(e) => setApptDate(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.startTime")}</RequiredLabel></label>
-              <input
-                className="mt-1 w-full border rounded-lg p-2"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.duration")}</RequiredLabel></label>
-              <input
-                className="mt-1 w-full border rounded-lg p-2"
-                type="number"
-                min={15}
-                step={15}
-                value={durationMin}
-                onChange={(e) => setDurationMin(Number(e.target.value))}
-              />
-
-              <div className="flex gap-2 mt-2">
-                {[30, 45, 60].map((m) => (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex w-fit rounded-xl border bg-gray-50 p-1">
                   <button
-                    key={m}
                     type="button"
-                    className="px-3 py-1 rounded-lg border bg-white text-sm hover:bg-gray-100"
-                    onClick={() => setDurationMin(m)}
+                    className={`px-3 py-2 rounded-lg text-sm ${createMode === "single" ? "bg-black text-white shadow-sm" : "hover:bg-white"}`}
+                    onClick={() => setCreateMode("single")}
                   >
-                    {m} min
+                    {t("agenda.singleAppointment")}
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className={`px-3 py-2 rounded-lg text-sm ${createMode === "package" ? "bg-black text-white shadow-sm" : "hover:bg-white"}`}
+                    onClick={() => setCreateMode("package")}
+                  >
+                    {t("agenda.appointmentPackage")}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                  onClick={() => setShowCreateForm(false)}
+                >
+                  Ocultar
+                </button>
               </div>
             </div>
 
-            <div>
-              <label className="text-sm font-medium">{t("agenda.notes")}</label>
-              <input
-                className="mt-1 w-full border rounded-lg p-2"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
-
-            {createMode === "single" && (
-              <>
-                <div>
-                  <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.modality")}</RequiredLabel></label>
-                  <select
-                    className="mt-1 w-full border rounded-lg p-2"
-                    value={modality}
-                    onChange={(event) => {
-                      const next = event.target.value as "in_person" | "virtual";
-                      setModality(next);
-                      if (next === "in_person") {
-                        setVideoCallUrl("");
-                        setVideoLinkMode("manual");
-                      }
-                    }}
-                  >
-                    <option value="in_person">{t("agenda.inPerson")}</option>
-                    <option value="virtual">{t("agenda.virtual")}</option>
-                  </select>
-                </div>
-
-                {modality === "virtual" && (
-                  <div className="rounded-lg border bg-blue-50/50 p-3 space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "manual" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
-                        onClick={() => setVideoLinkMode("manual")}
-                      >
-                        {t("agenda.videoCallManual")}
-                      </button>
-                      <button
-                        type="button"
-                        className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "auto" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
-                        onClick={() => setVideoLinkMode("auto")}
-                      >
-                        {t("agenda.videoCallAuto")}
-                      </button>
-                    </div>
-
-                    {videoLinkMode === "manual" ? (
-                      <div>
-                        <label className="text-sm font-medium">{t("agenda.videoCallUrl")}</label>
-                        <input
-                          className="mt-1 w-full border rounded-lg p-2 bg-white"
-                          type="url"
-                          placeholder="https://meet.google.com/..."
-                          value={videoCallUrl}
-                          onChange={(event) => setVideoCallUrl(event.target.value)}
-                        />
-                        <p className="text-xs text-gray-500 mt-1">{t("agenda.videoCallUrlHelp")}</p>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-700">{t("agenda.videoCallAutoHelp")}</p>
-                    )}
+            <div className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+              <div className="rounded-xl border bg-gray-50/60 p-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">1. {t("agenda.patient")}</div>
+                    <p className="text-xs text-gray-500">Buscá por DNI, email o apellido.</p>
                   </div>
-                )}
-              </>
-            )}
-
-            {(
-              <>
-                <div>
-                  <label className="text-sm font-medium">Práctica</label>
-                  <select
-                    className="mt-1 w-full border rounded-lg p-2"
-                    value={practiceId}
-                    onChange={(event) => setPracticeId(event.target.value)}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {(selectedKinesiologist?.practices ?? []).filter((practice) => practice.active).map((practice) => (
-                      <option key={practice.id} value={practice.id}>
-                        {practice.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedKinesiologist && selectedKinesiologist.practices.length === 0 && (
-                    <p className="text-xs text-amber-700 mt-1">Este kinesiólogo no tiene prácticas asignadas.</p>
+                  {selectedPatient && (
+                    <span className="rounded-full bg-green-100 px-3 py-1 text-xs text-green-700">
+                      {t("agenda.selected")}
+                    </span>
                   )}
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium">Financiador</label>
-                  <select
-                    className="mt-1 w-full border rounded-lg p-2"
-                    value={financierId}
-                    onChange={(event) => setFinancierId(event.target.value)}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {financiers.map((financier) => (
-                      <option key={financier.id} value={financier.id}>
-                        {financier.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-
-            {createMode === "package" && (
-              <div>
-                <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.sessionsCount")}</RequiredLabel></label>
-                <input
-                  className="mt-1 w-full border rounded-lg p-2"
-                  type="number"
-                  min={1}
-                  max={80}
-                  value={sessionsCount}
-                  onChange={(event) => setSessionsCount(Number(event.target.value))}
+                <PatientSearch
+                  valuePatientId={patientId}
+                  label={null}
+                  showSelected={false}
+                  resetKey={createPatientSearchResetKey}
+                  onSelect={(p) => {
+                    setPatientId(p.id);
+                  }}
                 />
-                <p className="text-xs text-gray-500 mt-2">
-                  {t("agenda.weekdaysOnly")}
-                </p>
-              </div>
-            )}
-          </div>
 
-          <button
-            className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
-            disabled={
-              !patientId.trim() ||
-              !kinesiologistId ||
-              !practiceId ||
-              !financierId ||
-              isCreateInPast ||
-              isCreateOutsideWorkingHours ||
-              (createMode === "package" && sessionsCount <= 0) ||
-              isCreating
-            }
-            onClick={create}
-          >
-            {isCreating
-              ? isGeneratingVideoCall
-                ? t("agenda.generatingVideoCall")
-                : t("agenda.creating")
-              : createMode === "package"
-                ? t("agenda.createPackage")
-                : t("agenda.create")}
-          </button>
+                {selectedPatient ? (
+                  <div className="rounded-lg border bg-white p-3">
+                    <div className="font-medium">{patientName(selectedPatient)}</div>
+                    <div className="text-sm text-gray-600">
+                      DNI {selectedPatient.dni} · {selectedPatient.email}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">{t("agenda.noPatientSelected")}</p>
+                )}
+              </div>
+
+              <div className="rounded-xl border bg-gray-50/60 p-4 space-y-3">
+                <div>
+                  <div className="text-sm font-semibold">2. Fecha y horario</div>
+                  {selectedKinesiologist && (
+                    <p className="text-xs text-gray-500">
+                      Atiende {selectedKinesiologist.work_start_time} - {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.appointmentDate")}</RequiredLabel></label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2 bg-white"
+                      type="date"
+                      min={todayISO()}
+                      value={apptDate}
+                      onChange={(e) => setApptDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.startTime")}</RequiredLabel></label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2 bg-white"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.duration")}</RequiredLabel></label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[30, 45, 60].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`px-3 py-2 rounded-lg border text-sm ${durationMin === m ? "bg-black text-white" : "bg-white hover:bg-gray-100"}`}
+                        onClick={() => setDurationMin(m)}
+                      >
+                        {m} min
+                      </button>
+                    ))}
+                    <input
+                      className="w-28 border rounded-lg p-2 bg-white"
+                      type="number"
+                      min={15}
+                      step={15}
+                      value={durationMin}
+                      onChange={(e) => setDurationMin(Number(e.target.value))}
+                      aria-label={t("agenda.duration")}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="xl:col-span-2 rounded-xl border p-4 space-y-4">
+                <div>
+                  <div className="text-sm font-semibold">3. Detalles de atención</div>
+                  <p className="text-xs text-gray-500">Modalidad, práctica, financiador y notas internas.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {createMode === "single" && (
+                    <div className="md:col-span-2 space-y-3">
+                      <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.modality")}</RequiredLabel></label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          className={`rounded-xl border p-3 text-left ${modality === "in_person" ? "border-black bg-gray-50" : "bg-white hover:bg-gray-50"}`}
+                          onClick={() => {
+                            setModality("in_person");
+                            setVideoCallUrl("");
+                            setVideoLinkMode("manual");
+                          }}
+                        >
+                          <div className="font-medium">{t("agenda.inPerson")}</div>
+                          <div className="text-xs text-gray-500">Atención en consultorio.</div>
+                        </button>
+                        <button
+                          type="button"
+                          className={`rounded-xl border p-3 text-left ${modality === "virtual" ? "border-black bg-blue-50" : "bg-white hover:bg-gray-50"}`}
+                          onClick={() => setModality("virtual")}
+                        >
+                          <div className="font-medium">{t("agenda.virtual")}</div>
+                          <div className="text-xs text-gray-500">Con link manual o automático.</div>
+                        </button>
+                      </div>
+
+                      {modality === "virtual" && (
+                        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 space-y-3">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "manual" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                              onClick={() => setVideoLinkMode("manual")}
+                            >
+                              {t("agenda.videoCallManual")}
+                            </button>
+                            <button
+                              type="button"
+                              className={`px-3 py-1 rounded-lg border text-sm ${videoLinkMode === "auto" ? "bg-black text-white" : "bg-white hover:bg-gray-50"}`}
+                              onClick={() => setVideoLinkMode("auto")}
+                            >
+                              {t("agenda.videoCallAuto")}
+                            </button>
+                          </div>
+
+                          {videoLinkMode === "manual" ? (
+                            <div>
+                              <label className="text-sm font-medium">{t("agenda.videoCallUrl")}</label>
+                              <input
+                                className="mt-1 w-full border rounded-lg p-2 bg-white"
+                                type="url"
+                                placeholder="https://meet.google.com/..."
+                                value={videoCallUrl}
+                                onChange={(event) => setVideoCallUrl(event.target.value)}
+                              />
+                              <p className="text-xs text-gray-500 mt-1">{t("agenda.videoCallUrlHelp")}</p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-700">{t("agenda.videoCallAutoHelp")}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-sm font-medium">Práctica</label>
+                    <select
+                      className="mt-1 w-full border rounded-lg p-2"
+                      value={practiceId}
+                      onChange={(event) => setPracticeId(event.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {(selectedKinesiologist?.practices ?? []).filter((practice) => practice.active).map((practice) => (
+                        <option key={practice.id} value={practice.id}>
+                          {practice.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedKinesiologist && selectedKinesiologist.practices.length === 0 && (
+                      <p className="text-xs text-amber-700 mt-1">Este kinesiólogo no tiene prácticas asignadas.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium">Financiador</label>
+                    <select
+                      className="mt-1 w-full border rounded-lg p-2"
+                      value={financierId}
+                      onChange={(event) => setFinancierId(event.target.value)}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {financiers.map((financier) => (
+                        <option key={financier.id} value={financier.id}>
+                          {financier.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {createMode === "package" && (
+                    <div>
+                      <label className="text-sm font-medium"><RequiredLabel required>{t("agenda.sessionsCount")}</RequiredLabel></label>
+                      <input
+                        className="mt-1 w-full border rounded-lg p-2"
+                        type="number"
+                        min={1}
+                        max={80}
+                        value={sessionsCount}
+                        onChange={(event) => setSessionsCount(Number(event.target.value))}
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        {t("agenda.weekdaysOnly")}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className={createMode === "package" ? "" : "md:col-span-2"}>
+                    <label className="text-sm font-medium">{t("agenda.notes")}</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-gray-600">
+                {selectedPatient ? patientName(selectedPatient) : t("agenda.noPatientSelected")}
+                {" · "}
+                {apptDate} {startTime}
+                {" · "}
+                {createMode === "single" && modality === "virtual" ? t("agenda.virtual") : t("agenda.inPerson")}
+              </div>
+              <button
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                disabled={
+                  !patientId.trim() ||
+                  !kinesiologistId ||
+                  !practiceId ||
+                  !financierId ||
+                  isCreateInPast ||
+                  isCreateOutsideWorkingHours ||
+                  (createMode === "package" && sessionsCount <= 0) ||
+                  isCreating
+                }
+                onClick={create}
+              >
+                {isCreating
+                  ? isGeneratingVideoCall
+                    ? t("agenda.generatingVideoCall")
+                    : t("agenda.creating")
+                  : createMode === "package"
+                    ? t("agenda.createPackage")
+                    : t("agenda.create")}
+              </button>
+            </div>
 
           {isCreateInPast && (
             <p className="text-sm text-red-600">
@@ -952,7 +1071,7 @@ export default function AgendaPage() {
               </div>
             </div>
           )}
-        </section>
+          </section>
         )}
 
         {/* Agenda */}
@@ -987,9 +1106,11 @@ export default function AgendaPage() {
                 workEndTime={selectedKinesiologist?.work_end_time}
                 getPatientName={(id) => patientName(patientById.get(id))}
                 onPickSlot={(hhmm) => {
+                  clearCreatePatient();
                   setApptDate(date);
                   setStartTime(hhmm);
                   setDurationMin(45);
+                  setShowCreateForm(true);
                   // opcional: llevar al formulario
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
@@ -1145,8 +1266,10 @@ export default function AgendaPage() {
                   canManageAppointments={canManageAppointments}
                   getPatientName={(patientId) => patientName(patientById.get(patientId))}
                   onPickDay={(day) => {
+                    clearCreatePatient();
                     setDate(day);
                     setApptDate(day);
+                    setShowCreateForm(true);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   onComplete={openCompleteAppointment}

@@ -38,11 +38,16 @@ export function AppShell() {
     <div className="min-h-screen bg-gray-50">
       <aside className="bg-white border-b lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="px-6 py-4 space-y-5">
-          <div>
-            <p className="text-xs uppercase text-gray-500">{t("app.name")}</p>
-            <p className="text-sm text-gray-700">
-              {user?.email} · {roleText}
-            </p>
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-sm font-semibold text-white shadow-sm">
+              KA
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{t("app.name")}</p>
+              <p className="mt-1 text-sm text-gray-700">
+                {user?.email} · {roleText}
+              </p>
+            </div>
           </div>
 
           <nav className="flex flex-wrap gap-2 lg:flex-col">
@@ -123,7 +128,7 @@ export function AppShell() {
             <LanguageSelect compact />
             <button
               type="button"
-              className="w-full px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
+              className="w-full px-3 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-100"
               onClick={closeSession}
             >
               {t("nav.signOut")}
@@ -141,6 +146,6 @@ export function AppShell() {
 
 function navClass(active: boolean) {
   return active
-    ? "px-3 py-2 rounded-lg bg-black text-white text-sm"
-    : "px-3 py-2 rounded-lg border text-sm hover:bg-gray-100";
+    ? "px-3 py-2 rounded-lg bg-black text-white text-sm shadow-sm"
+    : "px-3 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-100";
 }

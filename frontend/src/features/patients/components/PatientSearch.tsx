@@ -7,10 +7,22 @@ import { useLanguage } from "@/shared/i18n/LanguageProvider";
 type Props = {
   valuePatientId: string;
   onSelect: (p: Patient) => void;
+  label?: string | null;
   placeholder?: string;
+  selectedText?: string;
+  showSelected?: boolean;
+  resetKey?: number;
 };
 
-export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) {
+export function PatientSearch({
+  valuePatientId,
+  onSelect,
+  label,
+  placeholder,
+  selectedText,
+  showSelected = true,
+  resetKey,
+}: Props) {
   const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -21,6 +33,20 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
     const t = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(t);
   }, [query]);
+
+  useEffect(() => {
+    setQuery("");
+    setDebounced("");
+    setOpen(false);
+  }, [resetKey]);
+
+  useEffect(() => {
+    if (!valuePatientId) {
+      setQuery("");
+      setDebounced("");
+      setOpen(false);
+    }
+  }, [valuePatientId]);
 
   const enabled = debounced.length >= 3;
 
@@ -34,9 +60,11 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
 
   return (
     <div className="relative">
-      <label className="text-sm font-medium">{t("agenda.patient")}</label>
+      {label !== null && (
+        <label className="text-sm font-medium">{label ?? t("agenda.patient")}</label>
+      )}
       <input
-        className="mt-1 w-full border rounded-lg p-2"
+        className={`${label === null ? "" : "mt-1"} w-full border rounded-lg p-2`}
         value={query}
         placeholder={placeholder ?? t("agenda.patientSearchDefault")}
         onChange={(e) => {
@@ -46,9 +74,11 @@ export function PatientSearch({ valuePatientId, onSelect, placeholder }: Props) 
         onFocus={() => setOpen(true)}
       />
 
-      <div className="mt-2 text-xs text-gray-500">
-        {t("agenda.selected")}: <span className="font-mono">{valuePatientId || "—"}</span>
-      </div>
+      {showSelected && (
+        <div className="mt-2 text-xs text-gray-500">
+          {t("agenda.selected")}: <span>{selectedText || valuePatientId || "—"}</span>
+        </div>
+      )}
 
       {open && enabled && (
         <div className="absolute z-10 mt-2 w-full rounded-lg border bg-white shadow">
