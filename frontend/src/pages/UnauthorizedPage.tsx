@@ -1,15 +1,17 @@
 import { Navigate, useNavigate } from "react-router-dom";
 import { queryClient } from "@/app/queryClient";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export default function UnauthorizedPage() {
   const { user, isLoading, isAuthenticated, logout } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   if (isLoading) {
     return (
       <main className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <p className="text-sm text-gray-600">Validando sesión...</p>
+        <p className="text-sm text-gray-600">{t("common.loadingSession")}</p>
       </main>
     );
   }
@@ -28,9 +30,9 @@ export default function UnauthorizedPage() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-6 py-10">
       <section className="w-full max-w-md bg-white border rounded-lg p-6 shadow-sm space-y-4">
         <div>
-          <h1 className="text-2xl font-semibold">Acceso no configurado</h1>
+          <h1 className="text-2xl font-semibold">{t("unauthorized.title")}</h1>
           <p className="text-sm text-gray-600 mt-2">
-            Tu usuario inició sesión, pero no tiene un rol asignado para usar la app.
+            {t("unauthorized.subtitle")}
           </p>
         </div>
 
@@ -39,7 +41,7 @@ export default function UnauthorizedPage() {
             Email: <span className="font-mono">{user?.email}</span>
           </div>
           <div>
-            Rol: <span className="font-mono">{user?.role || "sin rol"}</span>
+            {t("unauthorized.role")}: <span className="font-mono">{user?.role || t("role.none")}</span>
           </div>
         </div>
 
@@ -48,7 +50,7 @@ export default function UnauthorizedPage() {
           className="w-full px-4 py-2 rounded-lg bg-black text-white"
           onClick={closeSession}
         >
-          Cerrar sesión
+          {t("nav.signOut")}
         </button>
       </section>
     </main>
