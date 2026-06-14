@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html"
@@ -26,11 +27,19 @@ type Config struct {
 	FromName  string
 }
 
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
+}
+
 type Message struct {
-	ToEmail string
-	Subject string
-	Text    string
-	HTML    string
+	ToEmail     string
+	ReplyTo     string
+	Subject     string
+	Text        string
+	HTML        string
+	Attachments []Attachment
 }
 
 type Mailer struct {
@@ -119,28 +128,76 @@ func (m *Mailer) buildMessage(msg Message) []byte {
 		htmlBody = "<p>" + html.EscapeString(textBody) + "</p>"
 	}
 
-	boundary := "kinesio-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	now := time.Now().UnixNano()
+	altBoundary := "kinesio-alt-" + strconv.FormatInt(now, 10)
 	var buf bytes.Buffer
 	writeHeader(&buf, "From", from.String())
 	writeHeader(&buf, "To", to.String())
+	if replyTo := strings.TrimSpace(msg.ReplyTo); replyTo != "" {
+		if _, err := mail.ParseAddress(replyTo); err == nil {
+			writeHeader(&buf, "Reply-To", replyTo)
+		}
+	}
 	writeHeader(&buf, "Subject", mime.QEncoding.Encode("UTF-8", subject))
 	writeHeader(&buf, "MIME-Version", "1.0")
-	writeHeader(&buf, "Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", boundary))
+
+	hasAttachments := len(msg.Attachments) > 0
+	mixedBoundary := "kinesio-mixed-" + strconv.FormatInt(now, 10)
+	if hasAttachments {
+		writeHeader(&buf, "Content-Type", fmt.Sprintf("multipart/mixed; boundary=%q", mixedBoundary))
+		buf.WriteString("\r\n")
+		buf.WriteString("--" + mixedBoundary + "\r\n")
+	}
+
+	writeHeader(&buf, "Content-Type", fmt.Sprintf("multipart/alternative; boundary=%q", altBoundary))
 	buf.WriteString("\r\n")
 
-	buf.WriteString("--" + boundary + "\r\n")
+	buf.WriteString("--" + altBoundary + "\r\n")
 	writeHeader(&buf, "Content-Type", `text/plain; charset="UTF-8"`)
 	writeHeader(&buf, "Content-Transfer-Encoding", "8bit")
 	buf.WriteString("\r\n")
 	buf.WriteString(textBody + "\r\n")
 
-	buf.WriteString("--" + boundary + "\r\n")
+	buf.WriteString("--" + altBoundary + "\r\n")
 	writeHeader(&buf, "Content-Type", `text/html; charset="UTF-8"`)
 	writeHeader(&buf, "Content-Transfer-Encoding", "8bit")
 	buf.WriteString("\r\n")
 	buf.WriteString(htmlBody + "\r\n")
-	buf.WriteString("--" + boundary + "--\r\n")
+	buf.WriteString("--" + altBoundary + "--\r\n")
+
+	if hasAttachments {
+		for _, attachment := range msg.Attachments {
+			contentType := strings.TrimSpace(attachment.ContentType)
+			if contentType == "" {
+				contentType = "application/octet-stream"
+			}
+			filename := strings.TrimSpace(attachment.Filename)
+			if filename == "" {
+				filename = "attachment"
+			}
+
+			buf.WriteString("--" + mixedBoundary + "\r\n")
+			writeHeader(&buf, "Content-Type", fmt.Sprintf("%s; name=%q", contentType, filename))
+			writeHeader(&buf, "Content-Transfer-Encoding", "base64")
+			writeHeader(&buf, "Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+			buf.WriteString("\r\n")
+			writeBase64(&buf, attachment.Data)
+		}
+		buf.WriteString("--" + mixedBoundary + "--\r\n")
+	}
+
 	return buf.Bytes()
+}
+
+func writeBase64(buf *bytes.Buffer, data []byte) {
+	encoded := base64.StdEncoding.EncodeToString(data)
+	const lineLength = 76
+	for len(encoded) > 0 {
+		n := min(lineLength, len(encoded))
+		buf.WriteString(encoded[:n])
+		buf.WriteString("\r\n")
+		encoded = encoded[n:]
+	}
 }
 
 func writeHeader(buf *bytes.Buffer, key string, value string) {

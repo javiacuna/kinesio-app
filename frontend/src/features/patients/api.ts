@@ -6,6 +6,8 @@ export type CreatePatientInput = {
   first_name: string;
   last_name: string;
   email: string;
+  financier_id?: string | null;
+  financier_member_number?: string | null;
 };
 
 export function createPatient(input: CreatePatientInput) {

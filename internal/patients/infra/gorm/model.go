@@ -18,6 +18,8 @@ type PatientModel struct {
 	ClinicalNotesUpdatedByEmail *string    `gorm:"column:clinical_notes_updated_by_email"`
 	ClinicalNotesUpdatedByRole  *string    `gorm:"column:clinical_notes_updated_by_role"`
 	ClinicalNotesUpdatedAt      *time.Time `gorm:"column:clinical_notes_updated_at"`
+	FinancierID                 *uuid.UUID `gorm:"column:financier_id"`
+	FinancierMemberNumber       *string    `gorm:"column:financier_member_number"`
 	Active                      bool       `gorm:"column:active;not null"`
 	CreatedAt                   time.Time  `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt                   time.Time  `gorm:"column:updated_at;autoUpdateTime"`

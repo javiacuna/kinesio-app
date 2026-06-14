@@ -19,6 +19,8 @@ type Repository interface {
 	GetLoanByID(ctx context.Context, id uuid.UUID) (MaterialLoan, bool, error)
 	ListLoans(ctx context.Context, onlyActive bool, limit int) ([]MaterialLoan, error)
 	ListLoansByPatient(ctx context.Context, patientID uuid.UUID, onlyActive bool, limit int) ([]MaterialLoan, error)
+	ListOverdueUnnotified(ctx context.Context, asOf time.Time) ([]MaterialLoan, error)
+	MarkDueReminderSent(ctx context.Context, loanID uuid.UUID, sentAt time.Time) error
 
 	// Stock ops (transactional)
 	DecrementAvailable(ctx context.Context, materialID uuid.UUID, qty int) error

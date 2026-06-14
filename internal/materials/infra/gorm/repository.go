@@ -182,6 +182,28 @@ func (r *Repository) ListLoansByPatient(ctx context.Context, patientID uuid.UUID
 	return out, nil
 }
 
+func (r *Repository) ListOverdueUnnotified(ctx context.Context, asOf time.Time) ([]domain.MaterialLoan, error) {
+	var ms []MaterialLoanModel
+	if err := r.db.WithContext(ctx).
+		Where("returned_at IS NULL AND due_date IS NOT NULL AND due_date <= ? AND due_reminder_sent_at IS NULL", asOf).
+		Find(&ms).Error; err != nil {
+		return nil, err
+	}
+
+	out := make([]domain.MaterialLoan, 0, len(ms))
+	for _, m := range ms {
+		out = append(out, toLoanDomain(m))
+	}
+	return out, nil
+}
+
+func (r *Repository) MarkDueReminderSent(ctx context.Context, loanID uuid.UUID, sentAt time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&MaterialLoanModel{}).
+		Where("id = ?", loanID.String()).
+		Update("due_reminder_sent_at", sentAt).Error
+}
+
 func (r *Repository) MarkReturned(ctx context.Context, loanID uuid.UUID, returnedAt time.Time, actorEmail *string, actorRole *string) error {
 	// solo si no estaba returned
 	res := r.db.WithContext(ctx).
@@ -242,34 +264,38 @@ func toLoanModel(l domain.MaterialLoan) MaterialLoanModel {
 		returnedAt = l.ReturnedAt
 	}
 	return MaterialLoanModel{
-		ID:              l.ID.String(),
-		MaterialID:      l.MaterialID.String(),
-		PatientID:       l.PatientID.String(),
-		KinesiologistID: l.KinesiologistID.String(),
-		Qty:             l.Qty,
-		Notes:           l.Notes,
-		LoanedAt:        l.LoanedAt,
-		ReturnedAt:      returnedAt,
-		LoanedByEmail:   l.LoanedByEmail,
-		LoanedByRole:    l.LoanedByRole,
-		ReturnedByEmail: l.ReturnedByEmail,
-		ReturnedByRole:  l.ReturnedByRole,
+		ID:                l.ID.String(),
+		MaterialID:        l.MaterialID.String(),
+		PatientID:         l.PatientID.String(),
+		KinesiologistID:   l.KinesiologistID.String(),
+		Qty:               l.Qty,
+		Notes:             l.Notes,
+		LoanedAt:          l.LoanedAt,
+		DueDate:           l.DueDate,
+		ReturnedAt:        returnedAt,
+		LoanedByEmail:     l.LoanedByEmail,
+		LoanedByRole:      l.LoanedByRole,
+		ReturnedByEmail:   l.ReturnedByEmail,
+		ReturnedByRole:    l.ReturnedByRole,
+		DueReminderSentAt: l.DueReminderSentAt,
 	}
 }
 
 func toLoanDomain(m MaterialLoanModel) domain.MaterialLoan {
 	return domain.MaterialLoan{
-		ID:              uuid.MustParse(m.ID),
-		MaterialID:      uuid.MustParse(m.MaterialID),
-		PatientID:       uuid.MustParse(m.PatientID),
-		KinesiologistID: uuid.MustParse(m.KinesiologistID),
-		Qty:             m.Qty,
-		Notes:           m.Notes,
-		LoanedAt:        m.LoanedAt,
-		ReturnedAt:      m.ReturnedAt,
-		LoanedByEmail:   m.LoanedByEmail,
-		LoanedByRole:    m.LoanedByRole,
-		ReturnedByEmail: m.ReturnedByEmail,
-		ReturnedByRole:  m.ReturnedByRole,
+		ID:                uuid.MustParse(m.ID),
+		MaterialID:        uuid.MustParse(m.MaterialID),
+		PatientID:         uuid.MustParse(m.PatientID),
+		KinesiologistID:   uuid.MustParse(m.KinesiologistID),
+		Qty:               m.Qty,
+		Notes:             m.Notes,
+		LoanedAt:          m.LoanedAt,
+		DueDate:           m.DueDate,
+		ReturnedAt:        m.ReturnedAt,
+		LoanedByEmail:     m.LoanedByEmail,
+		LoanedByRole:      m.LoanedByRole,
+		ReturnedByEmail:   m.ReturnedByEmail,
+		ReturnedByRole:    m.ReturnedByRole,
+		DueReminderSentAt: m.DueReminderSentAt,
 	}
 }

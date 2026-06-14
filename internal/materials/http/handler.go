@@ -107,6 +107,7 @@ type loanResponse struct {
 	Qty             int     `json:"qty"`
 	Notes           *string `json:"notes,omitempty"`
 	LoanedAt        string  `json:"loaned_at"`
+	DueDate         *string `json:"due_date,omitempty"`
 	ReturnedAt      *string `json:"returned_at,omitempty"`
 	LoanedByEmail   *string `json:"loaned_by_email,omitempty"`
 	LoanedByRole    *string `json:"loaned_by_role,omitempty"`
@@ -136,6 +137,11 @@ func toLoanResp(l domain.MaterialLoan) loanResponse {
 		s := l.ReturnedAt.UTC().Format(time.RFC3339)
 		returned = &s
 	}
+	var dueDate *string
+	if l.DueDate != nil {
+		s := l.DueDate.UTC().Format(time.RFC3339)
+		dueDate = &s
+	}
 	return loanResponse{
 		ID:              l.ID.String(),
 		MaterialID:      l.MaterialID.String(),
@@ -144,6 +150,7 @@ func toLoanResp(l domain.MaterialLoan) loanResponse {
 		Qty:             l.Qty,
 		Notes:           l.Notes,
 		LoanedAt:        l.LoanedAt.UTC().Format(time.RFC3339),
+		DueDate:         dueDate,
 		ReturnedAt:      returned,
 		LoanedByEmail:   l.LoanedByEmail,
 		LoanedByRole:    l.LoanedByRole,

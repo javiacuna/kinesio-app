@@ -10,6 +10,8 @@ export type Patient = {
   clinical_notes_updated_by_email?: string | null;
   clinical_notes_updated_by_role?: string | null;
   clinical_notes_updated_at?: string | null;
+  financier_id?: string | null;
+  financier_member_number?: string | null;
   active: boolean;
   created_at?: string;
   updated_at?: string;

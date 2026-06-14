@@ -121,6 +121,12 @@ export function AppShell() {
             >
               {t("nav.myProfile")}
             </Link>
+            <Link
+              className={navClass(location.pathname === "/support")}
+              to="/support"
+            >
+              {t("nav.support")}
+            </Link>
           </nav>
 
           <div className="space-y-3">

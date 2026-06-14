@@ -29,14 +29,16 @@ func NewHandler(register *usecase.RegisterPatientUseCase, update *usecase.Update
 }
 
 type registerPatientRequest struct {
-	DNI           string  `json:"dni"`
-	FirstName     string  `json:"first_name"`
-	LastName      string  `json:"last_name"`
-	Email         string  `json:"email"`
-	Phone         *string `json:"phone"`
-	BirthDate     *string `json:"birth_date"` // YYYY-MM-DD
-	ClinicalNotes *string `json:"clinical_notes"`
-	Active        *bool   `json:"active,omitempty"`
+	DNI                   string  `json:"dni"`
+	FirstName             string  `json:"first_name"`
+	LastName              string  `json:"last_name"`
+	Email                 string  `json:"email"`
+	Phone                 *string `json:"phone"`
+	BirthDate             *string `json:"birth_date"` // YYYY-MM-DD
+	ClinicalNotes         *string `json:"clinical_notes"`
+	FinancierID           *string `json:"financier_id"`
+	FinancierMemberNumber *string `json:"financier_member_number"`
+	Active                *bool   `json:"active,omitempty"`
 }
 
 type patientResponse struct {
@@ -51,6 +53,8 @@ type patientResponse struct {
 	ClinicalNotesUpdatedByEmail *string `json:"clinical_notes_updated_by_email,omitempty"`
 	ClinicalNotesUpdatedByRole  *string `json:"clinical_notes_updated_by_role,omitempty"`
 	ClinicalNotesUpdatedAt      *string `json:"clinical_notes_updated_at,omitempty"`
+	FinancierID                 *string `json:"financier_id,omitempty"`
+	FinancierMemberNumber       *string `json:"financier_member_number,omitempty"`
 	Active                      bool    `json:"active"`
 	CreatedAt                   string  `json:"created_at"`
 	UpdatedAt                   string  `json:"updated_at"`
@@ -69,13 +73,15 @@ func (h *Handler) RegisterPatient(c *gin.Context) {
 	}
 
 	out, validation, err := h.register.Execute(c.Request.Context(), usecase.RegisterPatientInput{
-		DNI:           req.DNI,
-		FirstName:     req.FirstName,
-		LastName:      req.LastName,
-		Email:         req.Email,
-		Phone:         req.Phone,
-		BirthDate:     req.BirthDate,
-		ClinicalNotes: req.ClinicalNotes,
+		DNI:                   req.DNI,
+		FirstName:             req.FirstName,
+		LastName:              req.LastName,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		BirthDate:             req.BirthDate,
+		ClinicalNotes:         req.ClinicalNotes,
+		FinancierID:           req.FinancierID,
+		FinancierMemberNumber: req.FinancierMemberNumber,
 	})
 
 	if err != nil {
@@ -112,17 +118,19 @@ func (h *Handler) UpdatePatient(c *gin.Context) {
 	}
 
 	out, validation, err := h.update.Execute(c.Request.Context(), usecase.UpdatePatientInput{
-		ID:            c.Param("patient_id"),
-		DNI:           req.DNI,
-		FirstName:     req.FirstName,
-		LastName:      req.LastName,
-		Email:         req.Email,
-		Phone:         req.Phone,
-		BirthDate:     req.BirthDate,
-		ClinicalNotes: req.ClinicalNotes,
-		Active:        req.Active,
-		ActorEmail:    actorEmail(c),
-		ActorRole:     actorRole(c),
+		ID:                    c.Param("patient_id"),
+		DNI:                   req.DNI,
+		FirstName:             req.FirstName,
+		LastName:              req.LastName,
+		Email:                 req.Email,
+		Phone:                 req.Phone,
+		BirthDate:             req.BirthDate,
+		ClinicalNotes:         req.ClinicalNotes,
+		FinancierID:           req.FinancierID,
+		FinancierMemberNumber: req.FinancierMemberNumber,
+		Active:                req.Active,
+		ActorEmail:            actorEmail(c),
+		ActorRole:             actorRole(c),
 	})
 
 	if err != nil {
@@ -183,6 +191,11 @@ func toResponse(p domain.Patient) patientResponse {
 		s := p.ClinicalNotesUpdatedAt.UTC().Format(timeRFC3339())
 		clinicalNotesUpdatedAt = &s
 	}
+	var financierID *string
+	if p.FinancierID != nil {
+		s := p.FinancierID.String()
+		financierID = &s
+	}
 
 	return patientResponse{
 		ID:                          p.ID.String(),
@@ -196,6 +209,8 @@ func toResponse(p domain.Patient) patientResponse {
 		ClinicalNotesUpdatedByEmail: p.ClinicalNotesUpdatedByEmail,
 		ClinicalNotesUpdatedByRole:  p.ClinicalNotesUpdatedByRole,
 		ClinicalNotesUpdatedAt:      clinicalNotesUpdatedAt,
+		FinancierID:                 financierID,
+		FinancierMemberNumber:       p.FinancierMemberNumber,
 		Active:                      p.Active,
 		CreatedAt:                   p.CreatedAt.UTC().Format(timeRFC3339()),
 		UpdatedAt:                   p.UpdatedAt.UTC().Format(timeRFC3339()),

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
@@ -57,6 +58,9 @@ import (
 	attachmentsGorm "github.com/javiacuna/kinesio-backend/internal/patientattachments/infra/gorm"
 
 	reportsHTTP "github.com/javiacuna/kinesio-backend/internal/reports/http"
+
+	supportHTTP "github.com/javiacuna/kinesio-backend/internal/support/http"
+	supportGorm "github.com/javiacuna/kinesio-backend/internal/support/infra/gorm"
 
 	staffHTTP "github.com/javiacuna/kinesio-backend/internal/staff/http"
 	staffRepo "github.com/javiacuna/kinesio-backend/internal/staff/infra/gorm"
@@ -191,6 +195,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 		notificationRepo,
 	)
 
+	matDueRemindersUC := matUC.NewSendDueRemindersUseCase(matRepo, matHTTP.NewDueReminderNotifier(notificationService))
+	startMaterialDueReminders(matDueRemindersUC)
+
 	diagnosesRepo := diagnosesGorm.NewRepository(db)
 	diagnosesSearchUC := diagnosesUC.NewSearchCIE10UseCase(diagnosesRepo)
 	diagnosesListUC := diagnosesUC.NewListPatientDiagnosesUseCase(diagnosesRepo)
@@ -205,6 +212,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	financeRepo := financeGorm.NewRepository(db)
 	financeHandler := financeHTTP.NewHandler(financeRepo)
 	reportsHandler := reportsHTTP.NewHandler(db)
+
+	supportRepo := supportGorm.NewRepository(db)
+	supportHandler := supportHTTP.NewHandler(supportRepo, notificationMailer, cfg.SupportEmail, cfg.SupportPhone, cfg.SupportFilesDir)
 
 	// API v1
 	v1 := r.Group("/api/v1")
@@ -305,7 +315,38 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.POST("/financial/appointments/:appointment_id/complete", middleware.RequireRole("admin", "recepcionista", "kinesiologo"), financeHandler.CompleteAppointment)
 	v1.GET("/reports/summary", middleware.RequireRole("admin", "recepcionista"), reportsHandler.Summary)
 
+	v1.GET("/support/info", supportHandler.Info)
+	v1.POST("/support/contact", middleware.RequireAuth(), supportHandler.Contact)
+	v1.GET("/support/tickets", middleware.RequireAuth(), supportHandler.List)
+	v1.GET("/support/tickets/:ticket_id/attachment", middleware.RequireAuth(), supportHandler.DownloadAttachment)
+
 	_ = db
 
 	return r
+}
+
+// startMaterialDueReminders periodically checks for overdue material loans
+// and sends a return reminder notification to the kinesiologist who borrowed them.
+func startMaterialDueReminders(uc *matUC.SendDueRemindersUseCase) {
+	ticker := time.NewTicker(1 * time.Hour)
+	go func() {
+		runMaterialDueReminders(uc)
+		for range ticker.C {
+			runMaterialDueReminders(uc)
+		}
+	}()
+}
+
+func runMaterialDueReminders(uc *matUC.SendDueRemindersUseCase) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	sent, err := uc.Execute(ctx)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to send material due reminders")
+		return
+	}
+	if sent > 0 {
+		log.Info().Int("count", sent).Msg("sent material due reminders")
+	}
 }

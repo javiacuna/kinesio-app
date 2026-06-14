@@ -25,15 +25,17 @@ func New(db *gorm.DB) *Repository {
 
 func (r *Repository) Create(ctx context.Context, p domain.Patient) (domain.Patient, error) {
 	m := PatientModel{
-		ID:            p.ID,
-		DNI:           p.DNI,
-		FirstName:     p.FirstName,
-		LastName:      p.LastName,
-		Email:         p.Email,
-		Phone:         p.Phone,
-		BirthDate:     p.BirthDate,
-		ClinicalNotes: p.ClinicalNotes,
-		Active:        p.Active,
+		ID:                    p.ID,
+		DNI:                   p.DNI,
+		FirstName:             p.FirstName,
+		LastName:              p.LastName,
+		Email:                 p.Email,
+		Phone:                 p.Phone,
+		BirthDate:             p.BirthDate,
+		ClinicalNotes:         p.ClinicalNotes,
+		FinancierID:           p.FinancierID,
+		FinancierMemberNumber: p.FinancierMemberNumber,
+		Active:                p.Active,
 	}
 
 	if err := r.db.WithContext(ctx).Create(&m).Error; err != nil {
@@ -61,6 +63,8 @@ func (r *Repository) Update(ctx context.Context, p domain.Patient) (domain.Patie
 		"clinical_notes_updated_by_email": p.ClinicalNotesUpdatedByEmail,
 		"clinical_notes_updated_by_role":  p.ClinicalNotesUpdatedByRole,
 		"clinical_notes_updated_at":       p.ClinicalNotesUpdatedAt,
+		"financier_id":                    p.FinancierID,
+		"financier_member_number":         p.FinancierMemberNumber,
 		"active":                          p.Active,
 		"updated_at":                      updatedAt,
 	}
@@ -170,6 +174,8 @@ func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bo
 		ClinicalNotesUpdatedByEmail: m.ClinicalNotesUpdatedByEmail,
 		ClinicalNotesUpdatedByRole:  m.ClinicalNotesUpdatedByRole,
 		ClinicalNotesUpdatedAt:      m.ClinicalNotesUpdatedAt,
+		FinancierID:                 m.FinancierID,
+		FinancierMemberNumber:       m.FinancierMemberNumber,
 		Active:                      m.Active,
 		CreatedAt:                   m.CreatedAt,
 		UpdatedAt:                   m.UpdatedAt,
@@ -255,6 +261,8 @@ func (m PatientModel) ToDomain() domain.Patient {
 		ClinicalNotesUpdatedByEmail: m.ClinicalNotesUpdatedByEmail,
 		ClinicalNotesUpdatedByRole:  m.ClinicalNotesUpdatedByRole,
 		ClinicalNotesUpdatedAt:      m.ClinicalNotesUpdatedAt,
+		FinancierID:                 m.FinancierID,
+		FinancierMemberNumber:       m.FinancierMemberNumber,
 		Active:                      m.Active,
 		CreatedAt:                   m.CreatedAt,
 		UpdatedAt:                   m.UpdatedAt,

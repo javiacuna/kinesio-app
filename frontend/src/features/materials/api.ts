@@ -22,6 +22,7 @@ export type MaterialLoan = {
   qty: number;
   notes?: string | null;
   loaned_at: string;
+  due_date?: string | null;
   returned_at?: string | null;
   loaned_by_email?: string | null;
   loaned_by_role?: string | null;
@@ -45,6 +46,7 @@ export type LoanMaterialInput = {
   kinesiologist_id: string;
   qty: number;
   notes?: string | null;
+  due_date?: string | null;
 };
 
 export function listMaterials(limit = 100) {

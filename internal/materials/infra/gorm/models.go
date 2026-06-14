@@ -19,18 +19,20 @@ type MaterialModel struct {
 func (MaterialModel) TableName() string { return "materials" }
 
 type MaterialLoanModel struct {
-	ID              string `gorm:"type:uuid;primaryKey"`
-	MaterialID      string `gorm:"type:uuid;not null"`
-	PatientID       string `gorm:"type:uuid;not null"`
-	KinesiologistID string `gorm:"type:uuid;not null"`
-	Qty             int    `gorm:"not null"`
-	Notes           *string
-	LoanedAt        time.Time
-	ReturnedAt      *time.Time
-	LoanedByEmail   *string
-	LoanedByRole    *string
-	ReturnedByEmail *string
-	ReturnedByRole  *string
+	ID                string `gorm:"type:uuid;primaryKey"`
+	MaterialID        string `gorm:"type:uuid;not null"`
+	PatientID         string `gorm:"type:uuid;not null"`
+	KinesiologistID   string `gorm:"type:uuid;not null"`
+	Qty               int    `gorm:"not null"`
+	Notes             *string
+	LoanedAt          time.Time
+	DueDate           *time.Time
+	ReturnedAt        *time.Time
+	LoanedByEmail     *string
+	LoanedByRole      *string
+	ReturnedByEmail   *string
+	ReturnedByRole    *string
+	DueReminderSentAt *time.Time
 }
 
 func (MaterialLoanModel) TableName() string { return "material_loans" }

@@ -19,22 +19,26 @@ type Patient struct {
 	ClinicalNotesUpdatedByEmail *string
 	ClinicalNotesUpdatedByRole  *string
 	ClinicalNotesUpdatedAt      *time.Time
+	FinancierID                 *uuid.UUID
+	FinancierMemberNumber       *string
 	Active                      bool
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
 }
 
-func NewPatient(dni, firstName, lastName, email string, phone *string, birthDate *time.Time, notes *string) Patient {
+func NewPatient(dni, firstName, lastName, email string, phone *string, birthDate *time.Time, notes *string, financierID *uuid.UUID, financierMemberNumber *string) Patient {
 	return Patient{
-		ID:            uuid.New(),
-		DNI:           strings.TrimSpace(dni),
-		FirstName:     strings.TrimSpace(firstName),
-		LastName:      strings.TrimSpace(lastName),
-		Email:         strings.ToLower(strings.TrimSpace(email)),
-		Phone:         TrimOptionalString(phone),
-		BirthDate:     birthDate,
-		ClinicalNotes: TrimOptionalString(notes),
-		Active:        true,
+		ID:                    uuid.New(),
+		DNI:                   strings.TrimSpace(dni),
+		FirstName:             strings.TrimSpace(firstName),
+		LastName:              strings.TrimSpace(lastName),
+		Email:                 strings.ToLower(strings.TrimSpace(email)),
+		Phone:                 TrimOptionalString(phone),
+		BirthDate:             birthDate,
+		ClinicalNotes:         TrimOptionalString(notes),
+		FinancierID:           financierID,
+		FinancierMemberNumber: TrimOptionalString(financierMemberNumber),
+		Active:                true,
 	}
 }
 

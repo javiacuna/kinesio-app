@@ -12,17 +12,19 @@ import (
 )
 
 type UpdatePatientInput struct {
-	ID            string
-	DNI           string
-	FirstName     string
-	LastName      string
-	Email         string
-	Phone         *string
-	BirthDate     *string
-	ClinicalNotes *string
-	Active        *bool
-	ActorEmail    string
-	ActorRole     string
+	ID                    string
+	DNI                   string
+	FirstName             string
+	LastName              string
+	Email                 string
+	Phone                 *string
+	BirthDate             *string
+	ClinicalNotes         *string
+	FinancierID           *string
+	FinancierMemberNumber *string
+	Active                *bool
+	ActorEmail            string
+	ActorRole             string
 }
 
 type UpdatePatientUseCase struct {
@@ -79,6 +81,20 @@ func (uc *UpdatePatientUseCase) Execute(ctx context.Context, in UpdatePatientInp
 		}
 	}
 
+	var financierID *uuid.UUID
+	var financierIDSet bool
+	if in.FinancierID != nil {
+		financierIDSet = true
+		if strings.TrimSpace(*in.FinancierID) != "" {
+			id, e := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+			if e != nil {
+				errs["financier_id"] = "UUID invalido"
+			} else {
+				financierID = &id
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return domain.Patient{}, errs, domain.ErrValidation
 	}
@@ -125,6 +141,12 @@ func (uc *UpdatePatientUseCase) Execute(ctx context.Context, in UpdatePatientInp
 		current.ClinicalNotesUpdatedByRole = domain.TrimOptionalString(&in.ActorRole)
 	}
 	current.ClinicalNotes = nextClinicalNotes
+	if financierIDSet {
+		current.FinancierID = financierID
+	}
+	if in.FinancierMemberNumber != nil {
+		current.FinancierMemberNumber = domain.TrimOptionalString(in.FinancierMemberNumber)
+	}
 	if in.Active != nil {
 		current.Active = *in.Active
 	}

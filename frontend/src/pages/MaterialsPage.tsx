@@ -15,7 +15,7 @@ import type { Material, MaterialLoan } from "@/features/materials/api";
 import { PatientSearch } from "@/features/patients/components/PatientSearch";
 import { listPatients } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
-import { formatLocalDateTime } from "@/shared/time/format";
+import { formatLocalDate, formatLocalDateTime } from "@/shared/time/format";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 function isStockError(error: unknown) {
@@ -26,6 +26,11 @@ function isAlreadyReturned(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "already_returned";
 }
 
+function isOverdue(loan: MaterialLoan): boolean {
+  if (!loan.due_date || loan.returned_at) return false;
+  return new Date(loan.due_date).getTime() < Date.now();
+}
+
 export default function MaterialsPage() {
   const { user } = useAuth();
   const [loanPatient, setLoanPatient] = useState<Patient | null>(null);
@@ -34,6 +39,7 @@ export default function MaterialsPage() {
   const [kinesiologistId, setKinesiologistId] = useState("");
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState("");
+  const [dueDate, setDueDate] = useState("");
   const [newMaterialName, setNewMaterialName] = useState("");
   const [newMaterialQty, setNewMaterialQty] = useState(1);
   const [newMaterialDescription, setNewMaterialDescription] = useState("");
@@ -149,11 +155,13 @@ export default function MaterialsPage() {
         kinesiologist_id: kinesiologistId,
         qty,
         notes: notes.trim() || null,
+        due_date: dueDate.trim() || null,
       }),
     onSuccess: () => {
       setShowLoanValidation(false);
       setQty(1);
       setNotes("");
+      setDueDate("");
       materialsQ.refetch();
       pendingLoansQ.refetch();
       loanHistoryQ.refetch();
@@ -414,6 +422,16 @@ export default function MaterialsPage() {
           </div>
 
           <div>
+            <label className="text-sm font-medium">Fecha límite de devolución</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="date"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </div>
+
+          <div>
             <label className="text-sm font-medium">Notas</label>
             <textarea
               className="mt-1 w-full border rounded-lg p-2 min-h-20"
@@ -483,6 +501,12 @@ export default function MaterialsPage() {
                       <div className="text-sm text-gray-600">
                         Cantidad: {loan.qty} · Prestado: {formatLocalDateTime(loan.loaned_at)}
                       </div>
+                      {loan.due_date && (
+                        <div className={`text-sm ${isOverdue(loan) ? "text-red-600 font-medium" : "text-gray-600"}`}>
+                          Vencimiento: {formatLocalDate(loan.due_date)}
+                          {isOverdue(loan) && " · Vencido"}
+                        </div>
+                      )}
                       {loan.notes && <p className="text-sm text-gray-700 mt-1">{loan.notes}</p>}
                     </div>
                     <button
@@ -584,6 +608,12 @@ function LoanRow({ loan, material, patientName, kinesiologistName, auditText, on
           <div className="text-sm text-gray-600">Devuelto: {formatLocalDateTime(loan.returned_at)}</div>
         ) : (
           <div className="text-sm font-medium text-amber-700">Pendiente de devolución</div>
+        )}
+        {loan.due_date && (
+          <div className={`text-sm ${isOverdue(loan) ? "text-red-600 font-medium" : "text-gray-600"}`}>
+            Vencimiento: {formatLocalDate(loan.due_date)}
+            {isOverdue(loan) && " · Vencido"}
+          </div>
         )}
         {loan.notes && <p className="text-sm text-gray-700">{loan.notes}</p>}
         <p className="text-xs text-gray-500">Prestó: {auditText(loan.loaned_by_email, loan.loaned_by_role)}</p>

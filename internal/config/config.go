@@ -34,6 +34,10 @@ type Config struct {
 	SMTPFromEmail            string
 	SMTPFromName             string
 
+	SupportEmail    string
+	SupportPhone    string
+	SupportFilesDir string
+
 	VideoCallProvider  string
 	DailyAPIKey        string
 	WherebyAPIKey      string
@@ -64,6 +68,9 @@ func MustLoad() Config {
 		SMTPPassword:             getenv("SMTP_PASSWORD", ""),
 		SMTPFromEmail:            getenv("SMTP_FROM_EMAIL", ""),
 		SMTPFromName:             getenv("SMTP_FROM_NAME", "Kinesio App"),
+		SupportEmail:             getenv("SUPPORT_EMAIL", ""),
+		SupportPhone:             getenv("SUPPORT_PHONE", ""),
+		SupportFilesDir:          getenv("SUPPORT_FILES_DIR", "uploads/support-attachments"),
 		VideoCallProvider:        getenv("VIDEO_CALL_PROVIDER", ""),
 		DailyAPIKey:              getenv("DAILY_API_KEY", ""),
 		WherebyAPIKey:            getenv("WHEREBY_API_KEY", ""),

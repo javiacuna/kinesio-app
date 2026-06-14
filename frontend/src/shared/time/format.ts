@@ -10,6 +10,16 @@ export function formatLocalDateTime(iso: string): string {
   });
 }
 
+export function formatLocalDate(iso: string): string {
+  const d = new Date(iso);
+  // Ej: 15/12/2025
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 export function formatLocalTime(iso: string): string {
   const d = new Date(iso);
   // Ej: 10:30

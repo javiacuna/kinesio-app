@@ -5,18 +5,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patients/ports"
 )
 
 type RegisterPatientInput struct {
-	DNI           string
-	FirstName     string
-	LastName      string
-	Email         string
-	Phone         *string
-	BirthDate     *string // YYYY-MM-DD (string) para parsear acá o en handler; acá lo parseamos.
-	ClinicalNotes *string
+	DNI                   string
+	FirstName             string
+	LastName              string
+	Email                 string
+	Phone                 *string
+	BirthDate             *string // YYYY-MM-DD (string) para parsear acá o en handler; acá lo parseamos.
+	ClinicalNotes         *string
+	FinancierID           *string
+	FinancierMemberNumber *string
 }
 
 type RegisterPatientUseCase struct {
@@ -69,6 +73,16 @@ func (uc *RegisterPatientUseCase) Execute(ctx context.Context, in RegisterPatien
 		}
 	}
 
+	var financierID *uuid.UUID
+	if in.FinancierID != nil && strings.TrimSpace(*in.FinancierID) != "" {
+		id, e := uuid.Parse(strings.TrimSpace(*in.FinancierID))
+		if e != nil {
+			errs["financier_id"] = "UUID inválido"
+		} else {
+			financierID = &id
+		}
+	}
+
 	if len(errs) > 0 {
 		return domain.Patient{}, errs, domain.ErrValidation
 	}
@@ -90,7 +104,7 @@ func (uc *RegisterPatientUseCase) Execute(ctx context.Context, in RegisterPatien
 		return domain.Patient{}, nil, domain.ErrDuplicateEmail
 	}
 
-	p := domain.NewPatient(in.DNI, in.FirstName, in.LastName, in.Email, in.Phone, birthDatePtr, in.ClinicalNotes)
+	p := domain.NewPatient(in.DNI, in.FirstName, in.LastName, in.Email, in.Phone, birthDatePtr, in.ClinicalNotes, financierID, in.FinancierMemberNumber)
 	created, err := uc.repo.Create(ctx, p)
 	if err != nil {
 		return domain.Patient{}, nil, err

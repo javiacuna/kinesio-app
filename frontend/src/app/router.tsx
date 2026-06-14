@@ -13,6 +13,7 @@ import PatientsPage from "../pages/PatientsPage";
 import ProfilePage from "../pages/ProfilePage";
 import ReportsPage from "../pages/ReportsPage";
 import StaffPage from "../pages/StaffPage";
+import SupportPage from "../pages/SupportPage";
 import MaterialsPage from "../pages/MaterialsPage";
 import UnauthorizedPage from "../pages/UnauthorizedPage";
 import { ErrorPage } from "./ErrorPage";
@@ -30,7 +31,10 @@ export const router = createBrowserRouter([
     children: [
       {
         element: <AppShell />,
-        children: [{ path: "/profile", element: <ProfilePage /> }],
+        children: [
+          { path: "/profile", element: <ProfilePage /> },
+          { path: "/support", element: <SupportPage /> },
+        ],
       },
     ],
   },

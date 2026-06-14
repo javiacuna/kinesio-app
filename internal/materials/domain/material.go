@@ -21,16 +21,18 @@ type Material struct {
 }
 
 type MaterialLoan struct {
-	ID              uuid.UUID
-	MaterialID      uuid.UUID
-	PatientID       uuid.UUID
-	KinesiologistID uuid.UUID
-	Qty             int
-	Notes           *string
-	LoanedAt        time.Time
-	ReturnedAt      *time.Time
-	LoanedByEmail   *string
-	LoanedByRole    *string
-	ReturnedByEmail *string
-	ReturnedByRole  *string
+	ID                uuid.UUID
+	MaterialID        uuid.UUID
+	PatientID         uuid.UUID
+	KinesiologistID   uuid.UUID
+	Qty               int
+	Notes             *string
+	LoanedAt          time.Time
+	DueDate           *time.Time
+	ReturnedAt        *time.Time
+	LoanedByEmail     *string
+	LoanedByRole      *string
+	ReturnedByEmail   *string
+	ReturnedByRole    *string
+	DueReminderSentAt *time.Time
 }

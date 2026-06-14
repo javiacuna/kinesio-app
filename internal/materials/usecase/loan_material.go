@@ -16,6 +16,7 @@ type LoanMaterialInput struct {
 	KinesiologistID string  `json:"kinesiologist_id"`
 	Qty             int     `json:"qty"`
 	Notes           *string `json:"notes,omitempty"`
+	DueDate         *string `json:"due_date,omitempty"` // YYYY-MM-DD
 	ActorEmail      string  `json:"-"`
 	ActorRole       string  `json:"-"`
 }
@@ -48,6 +49,17 @@ func (uc *LoanMaterialUseCase) Execute(ctx context.Context, in LoanMaterialInput
 		validation["qty"] = "must_be_>_0"
 	}
 
+	var dueDate *time.Time
+	if in.DueDate != nil && strings.TrimSpace(*in.DueDate) != "" {
+		tm, err := time.Parse("2006-01-02", strings.TrimSpace(*in.DueDate))
+		if err != nil {
+			validation["due_date"] = "invalid_date"
+		} else {
+			utc := tm.UTC()
+			dueDate = &utc
+		}
+	}
+
 	if len(validation) > 0 {
 		return domain.MaterialLoan{}, validation, domain.ErrValidation
 	}
@@ -74,6 +86,7 @@ func (uc *LoanMaterialUseCase) Execute(ctx context.Context, in LoanMaterialInput
 		Qty:             in.Qty,
 		Notes:           in.Notes,
 		LoanedAt:        now,
+		DueDate:         dueDate,
 		ReturnedAt:      nil,
 		LoanedByEmail:   trimOptionalString(in.ActorEmail),
 		LoanedByRole:    trimOptionalString(in.ActorRole),

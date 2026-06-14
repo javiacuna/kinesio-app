@@ -5,6 +5,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { archivePatient, createPatient, listPatients, searchPatients, updatePatient } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
 import { uploadPatientAttachment } from "@/features/patients/detailApi";
+import { listFinanciers, type Financier } from "@/features/finance/api";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -15,6 +16,9 @@ export default function PatientsPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [financierId, setFinancierId] = useState("");
+  const [financierMemberNumber, setFinancierMemberNumber] = useState("");
+  const [financiers, setFinanciers] = useState<Financier[]>([]);
   const [initialFiles, setInitialFiles] = useState<File[]>([]);
 
   const [created, setCreated] = useState<Patient | null>(null);
@@ -29,8 +33,14 @@ export default function PatientsPage() {
   const [togglingPatientId, setTogglingPatientId] = useState<string | null>(null);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
 
+  const selectedFinancier = financiers.find((f) => f.id === financierId);
+  const selectedFinancierIsParticular = !selectedFinancier || selectedFinancier.kind === "particular";
+
   useEffect(() => {
     refreshPatients();
+    listFinanciers({ includeInactive: false })
+      .then(setFinanciers)
+      .catch(() => setFinanciers([]));
   }, []);
 
   useEffect(() => {
@@ -72,6 +82,8 @@ export default function PatientsPage() {
         first_name: firstName,
         last_name: lastName,
         email,
+        financier_id: financierId || null,
+        financier_member_number: selectedFinancierIsParticular ? null : financierMemberNumber.trim() || null,
       });
 
       setCreated(res);
@@ -80,6 +92,8 @@ export default function PatientsPage() {
       setFirstName("");
       setLastName("");
       setEmail("");
+      setFinancierId("");
+      setFinancierMemberNumber("");
       if (initialFiles.length > 0) {
         await Promise.all(
           initialFiles.map((file) =>
@@ -213,6 +227,36 @@ export default function PatientsPage() {
               <input className="mt-1 w-full border rounded-lg p-2" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               {formErrors.lastName && <p className="text-xs text-red-600 mt-1">{formErrors.lastName}</p>}
             </div>
+            <div>
+              <label className="text-sm font-medium">Financiador</label>
+              <select
+                className="mt-1 w-full border rounded-lg p-2"
+                value={financierId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setFinancierId(id);
+                  const next = financiers.find((f) => f.id === id);
+                  if (!next || next.kind === "particular") setFinancierMemberNumber("");
+                }}
+              >
+                <option value="">Sin financiador</option>
+                {financiers.map((financier) => (
+                  <option key={financier.id} value={financier.id}>
+                    {financier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {!selectedFinancierIsParticular && (
+              <div>
+                <label className="text-sm font-medium">Número de afiliado</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={financierMemberNumber}
+                  onChange={(e) => setFinancierMemberNumber(e.target.value)}
+                />
+              </div>
+            )}
             <div className="md:col-span-2">
               <label className="text-sm font-medium">Archivos iniciales</label>
               <input
