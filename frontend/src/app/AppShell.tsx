@@ -124,7 +124,6 @@ export function AppShell() {
           </nav>
 
           <div className="space-y-3">
-            <NotificationBell />
             <LanguageSelect compact />
             <button
               type="button"
@@ -136,6 +135,10 @@ export function AppShell() {
           </div>
         </div>
       </aside>
+
+      <div className="fixed top-4 right-4 z-30">
+        <NotificationBell variant="header" />
+      </div>
 
       <div className="lg:pl-64">
         <Outlet />
