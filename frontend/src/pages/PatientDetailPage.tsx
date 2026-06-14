@@ -30,6 +30,14 @@ import {
   updatePatientPlan,
   uploadPatientAttachment,
 } from "@/features/patients/detailApi";
+import { Tabs } from "@/shared/ui/Tabs";
+
+const patientDetailTabs = [
+  { key: "resumen", label: "Resumen" },
+  { key: "historia", label: "Historia clínica" },
+  { key: "estudios", label: "Estudios y archivos" },
+  { key: "evoluciones", label: "Evoluciones y planes" },
+];
 
 type PlanItemForm = {
   name: string;
@@ -84,6 +92,7 @@ export default function PatientDetailPage() {
   const canCreateEvolution = user?.role === "admin" || user?.role === "kinesiologo";
   const backPath = user?.role === "kinesiologo" ? "/agenda" : "/patients";
   const range = useMemo(() => historyRange(), []);
+  const [activeTab, setActiveTab] = useState("resumen");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [clinicalNotes, setClinicalNotes] = useState("");
@@ -518,6 +527,7 @@ export default function PatientDetailPage() {
           }))
         : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }],
     );
+    setActiveTab("evoluciones");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -644,7 +654,9 @@ export default function PatientDetailPage() {
           </section>
         )}
 
-        {patient && canEditClinical && (
+        {patient && <Tabs tabs={patientDetailTabs} active={activeTab} onChange={setActiveTab} />}
+
+        {patient && canEditClinical && activeTab === "historia" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Historia clínica</h2>
@@ -707,7 +719,7 @@ export default function PatientDetailPage() {
           </section>
         )}
 
-        {patient && canEditClinical && (
+        {patient && canEditClinical && activeTab === "historia" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Diagnósticos CIE-10</h2>
@@ -877,7 +889,7 @@ export default function PatientDetailPage() {
           </section>
         )}
 
-        {patient && canEditClinical && (
+        {patient && canEditClinical && activeTab === "estudios" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Estudios y archivos</h2>
@@ -1086,7 +1098,7 @@ export default function PatientDetailPage() {
           </section>
         )}
 
-        {canCreateEvolution && (
+        {canCreateEvolution && activeTab === "evoluciones" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">Registrar evolución</h2>
@@ -1225,7 +1237,7 @@ export default function PatientDetailPage() {
           </section>
         )}
 
-        {canCreateEvolution && (
+        {canCreateEvolution && activeTab === "evoluciones" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">
@@ -1452,6 +1464,8 @@ export default function PatientDetailPage() {
           </section>
         )}
 
+        {activeTab === "resumen" && (
+        <>
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
@@ -1657,6 +1671,8 @@ export default function PatientDetailPage() {
             ))}
           </Panel>
         </section>
+        </>
+        )}
       </div>
     </main>
   );

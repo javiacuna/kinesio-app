@@ -517,7 +517,7 @@ export default function MaterialsPage() {
           <p className="text-sm text-gray-600">No hay materiales pendientes de devolución.</p>
         )}
         {pendingLoans.length > 0 && (
-          <div className="divide-y">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {pendingLoans.map((loan) => (
               <LoanRow
                 key={loan.id}
@@ -543,7 +543,7 @@ export default function MaterialsPage() {
           <p className="text-sm text-gray-600">Todavía no hay préstamos registrados.</p>
         )}
         {loanHistory.length > 0 && (
-          <div className="divide-y">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {loanHistory.map((loan) => (
               <LoanRow
                 key={loan.id}
@@ -573,8 +573,8 @@ type LoanRowProps = {
 
 function LoanRow({ loan, material, patientName, kinesiologistName, auditText, onReturn, isReturning }: LoanRowProps) {
   return (
-    <article className="py-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-      <div className="space-y-1">
+    <article className="rounded-lg border p-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="space-y-1.5">
         <div className="font-medium">{material?.name ?? "Material"}</div>
         <div className="text-sm text-gray-600">
           {patientName} · Cantidad: {loan.qty} · Prestado: {formatLocalDateTime(loan.loaned_at)}
@@ -583,7 +583,7 @@ function LoanRow({ loan, material, patientName, kinesiologistName, auditText, on
         {loan.returned_at ? (
           <div className="text-sm text-gray-600">Devuelto: {formatLocalDateTime(loan.returned_at)}</div>
         ) : (
-          <div className="text-sm text-amber-700">Pendiente de devolución</div>
+          <div className="text-sm font-medium text-amber-700">Pendiente de devolución</div>
         )}
         {loan.notes && <p className="text-sm text-gray-700">{loan.notes}</p>}
         <p className="text-xs text-gray-500">Prestó: {auditText(loan.loaned_by_email, loan.loaned_by_role)}</p>
@@ -596,7 +596,7 @@ function LoanRow({ loan, material, patientName, kinesiologistName, auditText, on
       {onReturn && !loan.returned_at && (
         <button
           type="button"
-          className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 disabled:opacity-50"
+          className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50 disabled:opacity-50 shrink-0"
           disabled={isReturning}
           onClick={onReturn}
         >

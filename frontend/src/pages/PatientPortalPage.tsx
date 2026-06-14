@@ -97,6 +97,7 @@ export default function PatientPortalPage() {
   const [startTime, setStartTime] = useState("09:00");
   const [durationMin, setDurationMin] = useState(45);
   const [notes, setNotes] = useState("");
+  const [newAppointmentTouched, setNewAppointmentTouched] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
@@ -192,7 +193,10 @@ export default function PatientPortalPage() {
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={kinesiologistId}
-              onChange={(e) => setKinesiologistId(e.target.value)}
+              onChange={(e) => {
+                setKinesiologistId(e.target.value);
+                setNewAppointmentTouched(true);
+              }}
             >
               <option value="">Seleccionar...</option>
               {kinesiologists.map((kinesiologist) => (
@@ -218,7 +222,10 @@ export default function PatientPortalPage() {
               type="date"
               min={todayISO()}
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setNewAppointmentTouched(true);
+              }}
             />
           </div>
 
@@ -228,7 +235,10 @@ export default function PatientPortalPage() {
               className="mt-1 w-full border rounded-lg p-2"
               type="time"
               value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
+              onChange={(e) => {
+                setStartTime(e.target.value);
+                setNewAppointmentTouched(true);
+              }}
             />
           </div>
 
@@ -237,7 +247,10 @@ export default function PatientPortalPage() {
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={durationMin}
-              onChange={(e) => setDurationMin(Number(e.target.value))}
+              onChange={(e) => {
+                setDurationMin(Number(e.target.value));
+                setNewAppointmentTouched(true);
+              }}
             >
               <option value={30}>30 min</option>
               <option value={45}>45 min</option>
@@ -263,11 +276,11 @@ export default function PatientPortalPage() {
           {createM.isPending ? "Reservando..." : "Reservar turno"}
         </button>
 
-        {isCreateInPast && (
+        {newAppointmentTouched && isCreateInPast && (
           <p className="text-sm text-red-600">No se pueden reservar turnos en horarios pasados.</p>
         )}
 
-        {isCreateOutsideWorkingSchedule && selectedKinesiologist && (
+        {newAppointmentTouched && isCreateOutsideWorkingSchedule && selectedKinesiologist && (
           <p className="text-sm text-red-600">
             El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time} y en sus días laborales: {workDaysLabel(selectedKinesiologist.work_days)}.
           </p>

@@ -79,6 +79,12 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 
 	var totals totalsResponse
+
+	var appointmentTotals struct {
+		AppointmentsTotal     int `json:"appointments_total"`
+		ScheduledAppointments int `json:"scheduled_appointments"`
+		CancelledAppointments int `json:"cancelled_appointments"`
+	}
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			COUNT(*)::int AS appointments_total,
@@ -86,21 +92,39 @@ func (h *Handler) Summary(c *gin.Context) {
 			COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_appointments
 		FROM appointments
 		WHERE start_at >= ? AND start_at < ?
-	`, from, to).Scan(&totals).Error; err != nil {
+	`, from, to).Scan(&appointmentTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
+	totals.AppointmentsTotal = appointmentTotals.AppointmentsTotal
+	totals.ScheduledAppointments = appointmentTotals.ScheduledAppointments
+	totals.CancelledAppointments = appointmentTotals.CancelledAppointments
 
+	var resourceTotals struct {
+		ActivePatients       int `json:"active_patients"`
+		LowStockMaterials    int `json:"low_stock_materials"`
+		PendingMaterialLoans int `json:"pending_material_loans"`
+	}
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			(SELECT COUNT(*)::int FROM patients WHERE active = true) AS active_patients,
 			(SELECT COUNT(*)::int FROM materials WHERE total_qty > 0 AND available_qty <= 1) AS low_stock_materials,
 			(SELECT COUNT(*)::int FROM material_loans WHERE returned_at IS NULL) AS pending_material_loans
-	`).Scan(&totals).Error; err != nil {
+	`).Scan(&resourceTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
+	totals.ActivePatients = resourceTotals.ActivePatients
+	totals.LowStockMaterials = resourceTotals.LowStockMaterials
+	totals.PendingMaterialLoans = resourceTotals.PendingMaterialLoans
 
+	var financialTotals struct {
+		BillingValueCents      int64 `json:"billing_value_cents"`
+		ProfessionalFeeCents   int64 `json:"professional_fee_cents"`
+		CenterAmountCents      int64 `json:"center_amount_cents"`
+		CollectedCents         int64 `json:"collected_cents"`
+		PendingCollectionCents int64 `json:"pending_collection_cents"`
+	}
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			COALESCE(SUM(billing_value_cents), 0)::bigint AS billing_value_cents,
@@ -110,10 +134,15 @@ func (h *Handler) Summary(c *gin.Context) {
 			COALESCE(SUM(CASE WHEN collection_status <> 'collected' THEN billing_value_cents ELSE 0 END), 0)::bigint AS pending_collection_cents
 		FROM financial_movements
 		WHERE created_at >= ? AND created_at < ?
-	`, from, to).Scan(&totals).Error; err != nil {
+	`, from, to).Scan(&financialTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
+	totals.BillingValueCents = financialTotals.BillingValueCents
+	totals.ProfessionalFeeCents = financialTotals.ProfessionalFeeCents
+	totals.CenterAmountCents = financialTotals.CenterAmountCents
+	totals.CollectedCents = financialTotals.CollectedCents
+	totals.PendingCollectionCents = financialTotals.PendingCollectionCents
 
 	appointmentsByDay := []appointmentDayResponse{}
 	if err := h.db.WithContext(c.Request.Context()).Raw(`

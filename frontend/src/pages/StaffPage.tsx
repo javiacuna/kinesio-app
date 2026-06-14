@@ -24,6 +24,13 @@ import {
 } from "@/features/staff/api";
 import type { StaffMember, StaffRole } from "@/features/staff/types";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { Tabs } from "@/shared/ui/Tabs";
+
+const staffTabs = [
+  { key: "equipo", label: "Equipo" },
+  { key: "especialidades", label: "Especialidades y prácticas" },
+  { key: "accesos", label: "Accesos" },
+];
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -127,6 +134,7 @@ export default function StaffPage() {
   const [isSavingSpecialty, setIsSavingSpecialty] = useState(false);
   const [isSavingPractice, setIsSavingPractice] = useState(false);
   const [isAssigningRole, setIsAssigningRole] = useState(false);
+  const [activeTab, setActiveTab] = useState("equipo");
 
   const kinesiologistByEmail = useMemo(() => {
     const index = new Map<string, Kinesiologist>();
@@ -536,6 +544,7 @@ export default function StaffPage() {
     setProfessionalFiles([]);
     setMessage("");
     setError("");
+    setActiveTab("equipo");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -566,6 +575,9 @@ export default function StaffPage() {
           </div>
         )}
 
+        <Tabs tabs={staffTabs} active={activeTab} onChange={setActiveTab} />
+
+        {activeTab === "equipo" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">{editingStaffId ? "Editar miembro del equipo" : "Crear miembro del equipo"}</h2>
@@ -706,7 +718,9 @@ export default function StaffPage() {
             </div>
           </form>
         </section>
+        )}
 
+        {activeTab === "especialidades" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Especialidades y prácticas</h2>
@@ -855,7 +869,9 @@ export default function StaffPage() {
             </div>
           </div>
         </section>
+        )}
 
+        {activeTab === "accesos" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Reenviar acceso</h2>
@@ -885,7 +901,9 @@ export default function StaffPage() {
             </div>
           </form>
         </section>
+        )}
 
+        {activeTab === "equipo" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -960,7 +978,9 @@ export default function StaffPage() {
             )}
           </div>
         </section>
+        )}
 
+        {activeTab === "accesos" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -997,6 +1017,7 @@ export default function StaffPage() {
                       onClick={() => {
                         setRoleEmail(user.email);
                         setRole((user.role || "kinesiologo") as AuthRole);
+                        setActiveTab("accesos");
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
@@ -1008,6 +1029,7 @@ export default function StaffPage() {
             )}
           </div>
         </section>
+        )}
       </div>
     </main>
   );
