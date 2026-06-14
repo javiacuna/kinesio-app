@@ -78,8 +78,11 @@ func (h *Handler) Summary(c *gin.Context) {
 		return
 	}
 
+	filters := parseFilters(c)
+
 	var totals totalsResponse
 
+	apptClause, apptArgs := filters.clause("")
 	var appointmentTotals struct {
 		AppointmentsTotal     int `json:"appointments_total"`
 		ScheduledAppointments int `json:"scheduled_appointments"`
@@ -91,8 +94,8 @@ func (h *Handler) Summary(c *gin.Context) {
 			COUNT(*) FILTER (WHERE status = 'scheduled')::int AS scheduled_appointments,
 			COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_appointments
 		FROM appointments
-		WHERE start_at >= ? AND start_at < ?
-	`, from, to).Scan(&appointmentTotals).Error; err != nil {
+		WHERE start_at >= ? AND start_at < ?`+apptClause+`
+	`, append([]interface{}{from, to}, apptArgs...)...).Scan(&appointmentTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
@@ -100,6 +103,7 @@ func (h *Handler) Summary(c *gin.Context) {
 	totals.ScheduledAppointments = appointmentTotals.ScheduledAppointments
 	totals.CancelledAppointments = appointmentTotals.CancelledAppointments
 
+	loansClause, loansArgs := filters.loansClause("")
 	var resourceTotals struct {
 		ActivePatients       int `json:"active_patients"`
 		LowStockMaterials    int `json:"low_stock_materials"`
@@ -109,8 +113,8 @@ func (h *Handler) Summary(c *gin.Context) {
 		SELECT
 			(SELECT COUNT(*)::int FROM patients WHERE active = true) AS active_patients,
 			(SELECT COUNT(*)::int FROM materials WHERE total_qty > 0 AND available_qty <= 1) AS low_stock_materials,
-			(SELECT COUNT(*)::int FROM material_loans WHERE returned_at IS NULL) AS pending_material_loans
-	`).Scan(&resourceTotals).Error; err != nil {
+			(SELECT COUNT(*)::int FROM material_loans WHERE returned_at IS NULL`+loansClause+`) AS pending_material_loans
+	`, loansArgs...).Scan(&resourceTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
@@ -118,6 +122,7 @@ func (h *Handler) Summary(c *gin.Context) {
 	totals.LowStockMaterials = resourceTotals.LowStockMaterials
 	totals.PendingMaterialLoans = resourceTotals.PendingMaterialLoans
 
+	finClause, finArgs := filters.clause("")
 	var financialTotals struct {
 		BillingValueCents      int64 `json:"billing_value_cents"`
 		ProfessionalFeeCents   int64 `json:"professional_fee_cents"`
@@ -133,8 +138,8 @@ func (h *Handler) Summary(c *gin.Context) {
 			COALESCE(SUM(CASE WHEN collection_status = 'collected' THEN billing_value_cents ELSE 0 END), 0)::bigint AS collected_cents,
 			COALESCE(SUM(CASE WHEN collection_status <> 'collected' THEN billing_value_cents ELSE 0 END), 0)::bigint AS pending_collection_cents
 		FROM financial_movements
-		WHERE created_at >= ? AND created_at < ?
-	`, from, to).Scan(&financialTotals).Error; err != nil {
+		WHERE created_at >= ? AND created_at < ?`+finClause+`
+	`, append([]interface{}{from, to}, finArgs...)...).Scan(&financialTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
@@ -145,6 +150,7 @@ func (h *Handler) Summary(c *gin.Context) {
 	totals.PendingCollectionCents = financialTotals.PendingCollectionCents
 
 	appointmentsByDay := []appointmentDayResponse{}
+	apptDayClause, apptDayArgs := filters.clause("")
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			to_char(date_trunc('day', start_at AT TIME ZONE 'America/Argentina/Cordoba'), 'YYYY-MM-DD') AS date,
@@ -152,53 +158,56 @@ func (h *Handler) Summary(c *gin.Context) {
 			COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled,
 			COUNT(*)::int AS total
 		FROM appointments
-		WHERE start_at >= ? AND start_at < ?
+		WHERE start_at >= ? AND start_at < ?`+apptDayClause+`
 		GROUP BY 1
 		ORDER BY 1
-	`, from, to).Scan(&appointmentsByDay).Error; err != nil {
+	`, append([]interface{}{from, to}, apptDayArgs...)...).Scan(&appointmentsByDay).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 
 	revenueByDay := []revenueDayResponse{}
+	revClause, revArgs := filters.clause("")
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			to_char(date_trunc('day', created_at AT TIME ZONE 'America/Argentina/Cordoba'), 'YYYY-MM-DD') AS date,
 			COALESCE(SUM(billing_value_cents), 0)::bigint AS billing_value_cents,
 			COALESCE(SUM(CASE WHEN collection_status = 'collected' THEN billing_value_cents ELSE 0 END), 0)::bigint AS collected_cents
 		FROM financial_movements
-		WHERE created_at >= ? AND created_at < ?
+		WHERE created_at >= ? AND created_at < ?`+revClause+`
 		GROUP BY 1
 		ORDER BY 1
-	`, from, to).Scan(&revenueByDay).Error; err != nil {
+	`, append([]interface{}{from, to}, revArgs...)...).Scan(&revenueByDay).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 
 	appointmentsByStatus := []labelValueResponse{}
+	statusClause, statusArgs := filters.clause("")
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT status AS label, COUNT(*)::int AS value
 		FROM appointments
-		WHERE start_at >= ? AND start_at < ?
+		WHERE start_at >= ? AND start_at < ?`+statusClause+`
 		GROUP BY status
 		ORDER BY value DESC
-	`, from, to).Scan(&appointmentsByStatus).Error; err != nil {
+	`, append([]interface{}{from, to}, statusArgs...)...).Scan(&appointmentsByStatus).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
 
 	appointmentsByKinesiologist := []labelValueResponse{}
+	kineClause, kineArgs := filters.clause("a")
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
 			TRIM(k.last_name || ', ' || k.first_name) AS label,
 			COUNT(a.id)::int AS value
 		FROM appointments a
 		JOIN kinesiologists k ON k.id = a.kinesiologist_id
-		WHERE a.start_at >= ? AND a.start_at < ?
+		WHERE a.start_at >= ? AND a.start_at < ?`+kineClause+`
 		GROUP BY k.id, k.last_name, k.first_name
 		ORDER BY value DESC, label ASC
 		LIMIT 10
-	`, from, to).Scan(&appointmentsByKinesiologist).Error; err != nil {
+	`, append([]interface{}{from, to}, kineArgs...)...).Scan(&appointmentsByKinesiologist).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
@@ -216,15 +225,16 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 
 	pendingLoansByMaterial := []labelValueResponse{}
+	pendingLoansClause, pendingLoansArgs := filters.loansClause("ml")
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT m.name AS label, COALESCE(SUM(ml.qty), 0)::int AS value
 		FROM material_loans ml
 		JOIN materials m ON m.id = ml.material_id
-		WHERE ml.returned_at IS NULL
+		WHERE ml.returned_at IS NULL`+pendingLoansClause+`
 		GROUP BY m.id, m.name
 		ORDER BY value DESC, label ASC
 		LIMIT 10
-	`).Scan(&pendingLoansByMaterial).Error; err != nil {
+	`, pendingLoansArgs...).Scan(&pendingLoansByMaterial).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
@@ -242,6 +252,73 @@ func (h *Handler) Summary(c *gin.Context) {
 		LowStockMaterials:           lowStockMaterials,
 		PendingLoansByMaterial:      pendingLoansByMaterial,
 	})
+}
+
+type reportFilters struct {
+	kinesiologistID string
+	financierID     string
+	patientID       string
+}
+
+func parseFilters(c *gin.Context) reportFilters {
+	return reportFilters{
+		kinesiologistID: strings.TrimSpace(c.Query("kinesiologist_id")),
+		financierID:     strings.TrimSpace(c.Query("financier_id")),
+		patientID:       strings.TrimSpace(c.Query("patient_id")),
+	}
+}
+
+// clause builds an " AND ..." condition for tables with kinesiologist_id, patient_id
+// and financier_id columns (appointments, financial_movements). alias is an optional
+// table alias (e.g. "a") used to prefix the column names.
+func (f reportFilters) clause(alias string) (string, []interface{}) {
+	prefix := ""
+	if alias != "" {
+		prefix = alias + "."
+	}
+
+	var parts []string
+	var args []interface{}
+	if f.kinesiologistID != "" {
+		parts = append(parts, prefix+"kinesiologist_id = ?")
+		args = append(args, f.kinesiologistID)
+	}
+	if f.patientID != "" {
+		parts = append(parts, prefix+"patient_id = ?")
+		args = append(args, f.patientID)
+	}
+	if f.financierID != "" {
+		parts = append(parts, prefix+"financier_id = ?")
+		args = append(args, f.financierID)
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return " AND " + strings.Join(parts, " AND "), args
+}
+
+// loansClause builds an " AND ..." condition for material_loans, which has
+// kinesiologist_id and patient_id but no financier_id.
+func (f reportFilters) loansClause(alias string) (string, []interface{}) {
+	prefix := ""
+	if alias != "" {
+		prefix = alias + "."
+	}
+
+	var parts []string
+	var args []interface{}
+	if f.kinesiologistID != "" {
+		parts = append(parts, prefix+"kinesiologist_id = ?")
+		args = append(args, f.kinesiologistID)
+	}
+	if f.patientID != "" {
+		parts = append(parts, prefix+"patient_id = ?")
+		args = append(args, f.patientID)
+	}
+	if len(parts) == 0 {
+		return "", nil
+	}
+	return " AND " + strings.Join(parts, " AND "), args
 }
 
 func parsePeriod(c *gin.Context) (time.Time, time.Time, bool) {

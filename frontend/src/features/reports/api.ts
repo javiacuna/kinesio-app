@@ -55,9 +55,18 @@ export type ReportsSummary = {
   pending_loans_by_material: LabelValue[];
 };
 
-export function getReportsSummary(input: { from: string; to: string }) {
+export function getReportsSummary(input: {
+  from: string;
+  to: string;
+  kinesiologist_id?: string;
+  financier_id?: string;
+  patient_id?: string;
+}) {
   const qs = new URLSearchParams();
   if (input.from) qs.set("from", input.from);
   if (input.to) qs.set("to", input.to);
+  if (input.kinesiologist_id) qs.set("kinesiologist_id", input.kinesiologist_id);
+  if (input.financier_id) qs.set("financier_id", input.financier_id);
+  if (input.patient_id) qs.set("patient_id", input.patient_id);
   return apiFetch<ReportsSummary>(`/api/v1/reports/summary?${qs.toString()}`);
 }

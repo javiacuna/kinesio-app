@@ -2,6 +2,10 @@ import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getReportsSummary, type AppointmentDay, type LabelValue, type LowStockMaterial, type RevenueDay } from "@/features/reports/api";
+import { listKinesiologists } from "@/features/kinesiologists/api";
+import { listFinanciers } from "@/features/finance/api";
+import { PatientSearch } from "@/features/patients/components/PatientSearch";
+import type { Patient } from "@/features/patients/types";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 function todayISO() {
@@ -19,11 +23,41 @@ export default function ReportsPage() {
   const { language, t } = useLanguage();
   const [from, setFrom] = useState(daysAgoISO(29));
   const [to, setTo] = useState(todayISO());
+  const [kinesiologistId, setKinesiologistId] = useState("");
+  const [financierId, setFinancierId] = useState("");
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [patientSearchResetKey, setPatientSearchResetKey] = useState(0);
+
+  const kinesiologistsQ = useQuery({
+    queryKey: ["kinesiologists", "list"],
+    queryFn: () => listKinesiologists(),
+  });
+
+  const financiersQ = useQuery({
+    queryKey: ["financiers", "list"],
+    queryFn: () => listFinanciers(),
+  });
 
   const summaryQ = useQuery({
-    queryKey: ["reports", "summary", from, to],
-    queryFn: () => getReportsSummary({ from, to }),
+    queryKey: ["reports", "summary", from, to, kinesiologistId, financierId, patient?.id],
+    queryFn: () =>
+      getReportsSummary({
+        from,
+        to,
+        kinesiologist_id: kinesiologistId || undefined,
+        financier_id: financierId || undefined,
+        patient_id: patient?.id || undefined,
+      }),
   });
+
+  const hasActiveFilters = Boolean(kinesiologistId || financierId || patient);
+
+  function clearFilters() {
+    setKinesiologistId("");
+    setFinancierId("");
+    setPatient(null);
+    setPatientSearchResetKey((key) => key + 1);
+  }
 
   const summary = summaryQ.data;
   const appointmentsByDay = asArray(summary?.appointments_by_day);
@@ -66,6 +100,61 @@ export default function ReportsPage() {
           </div>
         </form>
       </header>
+
+      <form className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 bg-white border rounded-lg p-3">
+        <label className="text-sm font-medium">
+          {t("reports.filterKinesiologist")}
+          <select
+            className="mt-1 w-full border rounded-lg p-2"
+            value={kinesiologistId}
+            onChange={(e) => setKinesiologistId(e.target.value)}
+          >
+            <option value="">{t("reports.filterKinesiologistAll")}</option>
+            {(kinesiologistsQ.data ?? []).map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.last_name}, {k.first_name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-sm font-medium">
+          {t("reports.filterFinancier")}
+          <select
+            className="mt-1 w-full border rounded-lg p-2"
+            value={financierId}
+            onChange={(e) => setFinancierId(e.target.value)}
+          >
+            <option value="">{t("reports.filterFinancierAll")}</option>
+            {(financiersQ.data ?? []).map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="sm:col-span-1 lg:col-span-1">
+          <PatientSearch
+            valuePatientId={patient?.id ?? ""}
+            onSelect={setPatient}
+            label={t("reports.filterPatient")}
+            showSelected={false}
+            resetKey={patientSearchResetKey}
+          />
+        </div>
+
+        <div className="flex items-end">
+          <button
+            type="button"
+            className="w-full border rounded-lg px-3 py-2 hover:bg-gray-100 disabled:opacity-50"
+            onClick={clearFilters}
+            disabled={!hasActiveFilters}
+          >
+            {t("reports.clearFilters")}
+          </button>
+        </div>
+      </form>
 
       {summaryQ.isLoading && <p className="text-sm text-gray-600">{t("reports.loading")}</p>}
       {summaryQ.isError && <p className="text-sm text-red-600">{t("reports.error")}</p>}

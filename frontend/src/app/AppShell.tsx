@@ -99,20 +99,20 @@ export function AppShell() {
                 {t("nav.finance")}
               </Link>
             )}
-            {canSeeReports && (
-              <Link
-                className={navClass(location.pathname === "/reports")}
-                to="/reports"
-              >
-                {t("nav.reports")}
-              </Link>
-            )}
             {canSeeStaff && (
               <Link
                 className={navClass(location.pathname === "/staff")}
                 to="/staff"
               >
                 {t("nav.staff")}
+              </Link>
+            )}
+            {canSeeReports && (
+              <Link
+                className={navClass(location.pathname === "/reports")}
+                to="/reports"
+              >
+                {t("nav.reports")}
               </Link>
             )}
             <Link
