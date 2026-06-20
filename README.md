@@ -131,6 +131,7 @@ En el frontend:
 - `recepcionista` y `admin`: redirigen a `/agenda` y pueden entrar a `/patients`.
 - `kinesiologo`: redirige a `/agenda`.
 - `paciente`: redirige a `/portal`.
+- La interfaz es responsive y cuenta con manifest + service worker para instalarse como PWA desde navegadores compatibles.
 
 Para asignar roles a usuarios de Firebase:
 

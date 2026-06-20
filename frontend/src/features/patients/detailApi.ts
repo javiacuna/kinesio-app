@@ -42,6 +42,54 @@ export type PatientEvolution = {
   updated_at: string;
 };
 
+export type PatientCheckIn = {
+  id: string;
+  patient_id: string;
+  pain_level?: number | null;
+  mobility_score?: number | null;
+  strength_score?: number | null;
+  functional_score?: number | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreatePatientCheckInInput = {
+  pain_level?: number | null;
+  mobility_score?: number | null;
+  strength_score?: number | null;
+  functional_score?: number | null;
+  notes: string;
+};
+
+export type ClinicalReport = {
+  id: string;
+  patient_id: string;
+  kinesiologist_id: string;
+  period_from: string;
+  period_to: string;
+  evolution_count: number;
+  avg_pain_level?: number | null;
+  avg_mobility_score?: number | null;
+  avg_strength_score?: number | null;
+  avg_functional_score?: number | null;
+  active_plan_count: number;
+  active_plan_item_count: number;
+  summary: string;
+  recommendations?: string | null;
+  created_by_email?: string | null;
+  created_by_role?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateClinicalReportInput = {
+  kinesiologist_id: string;
+  period_from: string;
+  period_to: string;
+  recommendations?: string | null;
+};
+
 export type CreatePatientEvolutionInput = {
   kinesiologist_id: string;
   appointment_id?: string | null;
@@ -65,6 +113,8 @@ export type CreateExercisePlanInput = {
     sets?: number | null;
     reps?: number | null;
     description?: string | null;
+    video_url?: string | null;
+    guide_url?: string | null;
   }>;
 };
 
@@ -183,6 +233,35 @@ export function listMyPatientEvolutions(limit = 20) {
 
 export function createPatientEvolution(patientId: string, input: CreatePatientEvolutionInput) {
   return apiFetch<PatientEvolution>(`/api/v1/patients/${patientId}/evolutions`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listPatientCheckIns(patientId: string, limit = 20) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<PatientCheckIn[]>(`/api/v1/patients/${patientId}/check-ins?${qs.toString()}`);
+}
+
+export function listMyPatientCheckIns(limit = 20) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<PatientCheckIn[]>(`/api/v1/patients/me/check-ins?${qs.toString()}`);
+}
+
+export function createMyPatientCheckIn(input: CreatePatientCheckInInput) {
+  return apiFetch<PatientCheckIn>("/api/v1/patients/me/check-ins", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function listPatientClinicalReports(patientId: string, limit = 20) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  return apiFetch<ClinicalReport[]>(`/api/v1/patients/${patientId}/clinical-reports?${qs.toString()}`);
+}
+
+export function createPatientClinicalReport(patientId: string, input: CreateClinicalReportInput) {
+  return apiFetch<ClinicalReport>(`/api/v1/patients/${patientId}/clinical-reports`, {
     method: "POST",
     body: JSON.stringify(input),
   });

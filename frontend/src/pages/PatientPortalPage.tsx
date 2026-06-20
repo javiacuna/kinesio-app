@@ -11,14 +11,19 @@ import { listKinesiologists } from "@/features/kinesiologists/api";
 import type { Kinesiologist } from "@/features/kinesiologists/types";
 import {
   type PatientAttachment,
+  type PatientCheckIn,
   type PatientEvolution,
+  createMyPatientCheckIn,
   downloadPatientAttachment,
+  listMyPatientCheckIns,
   listMyPatientAttachments,
   listMyPatientEvolutions,
   listMyPatientPlans,
 } from "@/features/patients/detailApi";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { addMinutesToHHmm, localDateTimeToUTC } from "@/shared/time/rfc3339";
+import { getYouTubeEmbedUrl } from "@/shared/media/youtube";
+import { VideoPreviewModal, type VideoPreview } from "@/shared/ui/VideoPreviewModal";
 
 const defaultWorkDays = [1, 2, 3, 4, 5];
 const workDayLabels: Record<number, string> = {
@@ -100,6 +105,12 @@ export default function PatientPortalPage() {
   const [newAppointmentTouched, setNewAppointmentTouched] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [checkInPainLevel, setCheckInPainLevel] = useState("");
+  const [checkInMobilityScore, setCheckInMobilityScore] = useState("");
+  const [checkInStrengthScore, setCheckInStrengthScore] = useState("");
+  const [checkInFunctionalScore, setCheckInFunctionalScore] = useState("");
+  const [checkInNotes, setCheckInNotes] = useState("");
+  const [videoPreview, setVideoPreview] = useState<VideoPreview | null>(null);
 
   const appointmentsQ = useQuery({
     queryKey: ["appointments", "patient", range.from, range.to],
@@ -121,6 +132,11 @@ export default function PatientPortalPage() {
     queryFn: () => listMyPatientEvolutions(),
   });
 
+  const checkInsQ = useQuery({
+    queryKey: ["patients", "me", "check-ins"],
+    queryFn: () => listMyPatientCheckIns(),
+  });
+
   const kinesiologistsQ = useQuery({
     queryKey: ["kinesiologists"],
     queryFn: () => listKinesiologists(),
@@ -131,6 +147,7 @@ export default function PatientPortalPage() {
   const plans = plansQ.data ?? [];
   const attachments = attachmentsQ.data ?? [];
   const evolutions = evolutionsQ.data ?? [];
+  const checkIns = checkInsQ.data ?? [];
   const selectedKinesiologist = kinesiologists.find((kinesiologist) => kinesiologist.id === kinesiologistId);
   const isCreateInPast = isPastLocalDateTime(date, startTime);
   const isCreateOutsideWorkingSchedule = isOutsideWorkingSchedule(date, startTime, durationMin, selectedKinesiologist);
@@ -155,6 +172,25 @@ export default function PatientPortalPage() {
       setCancelTarget(null);
       setCancelReason("");
       appointmentsQ.refetch();
+    },
+  });
+
+  const createCheckInM = useMutation({
+    mutationFn: () =>
+      createMyPatientCheckIn({
+        pain_level: checkInPainLevel === "" ? null : Number(checkInPainLevel),
+        mobility_score: checkInMobilityScore === "" ? null : Number(checkInMobilityScore),
+        strength_score: checkInStrengthScore === "" ? null : Number(checkInStrengthScore),
+        functional_score: checkInFunctionalScore === "" ? null : Number(checkInFunctionalScore),
+        notes: checkInNotes.trim(),
+      }),
+    onSuccess: () => {
+      setCheckInPainLevel("");
+      setCheckInMobilityScore("");
+      setCheckInStrengthScore("");
+      setCheckInFunctionalScore("");
+      setCheckInNotes("");
+      checkInsQ.refetch();
     },
   });
 
@@ -295,6 +331,112 @@ export default function PatientPortalPage() {
         )}
       </section>
 
+      <section className="bg-white border rounded-lg p-4 space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold">Registrar seguimiento</h2>
+          <p className="text-sm text-gray-600">Compartí cómo venís entre sesiones para que tu kinesiólogo lo revise.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div>
+            <label className="text-sm font-medium">Dolor</label>
+            <select
+              className="mt-1 w-full border rounded-lg p-2"
+              value={checkInPainLevel}
+              onChange={(event) => setCheckInPainLevel(event.target.value)}
+            >
+              <option value="">Sin registrar</option>
+              {Array.from({ length: 11 }, (_, value) => (
+                <option key={value} value={value}>
+                  {value}/10
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Movilidad</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="0 a 100"
+              value={checkInMobilityScore}
+              onChange={(event) => setCheckInMobilityScore(event.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Fuerza</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="0 a 100"
+              value={checkInStrengthScore}
+              onChange={(event) => setCheckInStrengthScore(event.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Funcionalidad</label>
+            <input
+              className="mt-1 w-full border rounded-lg p-2"
+              type="number"
+              min={0}
+              max={100}
+              placeholder="0 a 100"
+              value={checkInFunctionalScore}
+              onChange={(event) => setCheckInFunctionalScore(event.target.value)}
+            />
+          </div>
+
+          <div className="md:col-span-4">
+            <label className="text-sm font-medium">Comentario</label>
+            <textarea
+              className="mt-1 w-full border rounded-lg p-2 min-h-24"
+              value={checkInNotes}
+              onChange={(event) => setCheckInNotes(event.target.value)}
+              placeholder="Ej: dolor despues de los ejercicios, mejora al caminar, dudas o molestias."
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+          disabled={!checkInNotes.trim() || createCheckInM.isPending}
+          onClick={() => createCheckInM.mutate()}
+        >
+          {createCheckInM.isPending ? "Enviando..." : "Enviar seguimiento"}
+        </button>
+
+        {createCheckInM.isError && (
+          <p className="text-sm text-red-600">No se pudo registrar el seguimiento.</p>
+        )}
+        {createCheckInM.isSuccess && (
+          <p className="text-sm text-green-700">Seguimiento enviado.</p>
+        )}
+
+        <div className="border-t pt-4">
+          <h3 className="font-medium">Mis seguimientos</h3>
+          {checkInsQ.isLoading && <p className="text-sm text-gray-600 mt-2">Cargando seguimientos...</p>}
+          {checkInsQ.isError && <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus seguimientos.</p>}
+          {!checkInsQ.isLoading && !checkInsQ.isError && checkIns.length === 0 && (
+            <p className="text-sm text-gray-600 mt-2">Todavía no registraste seguimientos.</p>
+          )}
+          {checkIns.length > 0 && (
+            <div className="mt-3 divide-y">
+              {checkIns.map((checkIn) => (
+                <PatientCheckInLine key={checkIn.id} checkIn={checkIn} />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       <section className="bg-white border rounded-lg p-4">
         <h2 className="text-lg font-semibold">Mi evolución clínica</h2>
 
@@ -367,6 +509,30 @@ export default function PatientPortalPage() {
                       </div>
                       {item.description && (
                         <p className="text-sm text-gray-700 mt-1">{item.description}</p>
+                      )}
+                      {(item.video_url || item.guide_url) && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {item.video_url && (
+                            getYouTubeEmbedUrl(item.video_url) ? (
+                              <button
+                                type="button"
+                                className="text-sm underline text-blue-700"
+                                onClick={() => setVideoPreview({ title: item.name, url: item.video_url! })}
+                              >
+                                Ver video
+                              </button>
+                            ) : (
+                              <a className="text-sm underline text-blue-700" href={item.video_url} target="_blank" rel="noreferrer">
+                                Ver video
+                              </a>
+                            )
+                          )}
+                          {item.guide_url && (
+                            <a className="text-sm underline text-blue-700" href={item.guide_url} target="_blank" rel="noreferrer">
+                              Ver guía
+                            </a>
+                          )}
+                        </div>
                       )}
                     </div>
                   ))}
@@ -537,6 +703,8 @@ export default function PatientPortalPage() {
           </p>
         )}
       </section>
+
+      <VideoPreviewModal preview={videoPreview} onClose={() => setVideoPreview(null)} />
     </main>
   );
 }
@@ -646,6 +814,35 @@ function EvolutionMetricLine({ evolution }: { evolution: PatientEvolution }) {
       return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
     })
     .filter((value): value is string => value != null);
+
+  if (values.length === 0) return null;
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
+      {values.map((value) => (
+        <span key={value}>{value}</span>
+      ))}
+    </div>
+  );
+}
+
+function PatientCheckInLine({ checkIn }: { checkIn: PatientCheckIn }) {
+  return (
+    <article className="py-3">
+      <div className="font-medium">{formatLocalDateTime(checkIn.created_at)}</div>
+      <CheckInMetricLine checkIn={checkIn} />
+      <p className="text-sm text-gray-700 mt-2">{checkIn.notes}</p>
+    </article>
+  );
+}
+
+function CheckInMetricLine({ checkIn }: { checkIn: PatientCheckIn }) {
+  const values = [
+    checkIn.pain_level == null ? null : `Dolor: ${checkIn.pain_level}/10`,
+    checkIn.mobility_score == null ? null : `Movilidad: ${checkIn.mobility_score}/100`,
+    checkIn.strength_score == null ? null : `Fuerza: ${checkIn.strength_score}/100`,
+    checkIn.functional_score == null ? null : `Funcionalidad: ${checkIn.functional_score}/100`,
+  ].filter((value): value is string => value != null);
 
   if (values.length === 0) return null;
 

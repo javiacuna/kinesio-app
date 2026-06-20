@@ -10,9 +10,12 @@ import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
 import {
   type ExercisePlan,
+  type ClinicalReport,
+  type PatientCheckIn,
   type PatientDiagnosis,
   type PatientAttachment,
   type PatientEvolution,
+  createPatientClinicalReport,
   createPatientDiagnosis,
   createPatientPlan,
   createPatientEvolution,
@@ -21,6 +24,8 @@ import {
   downloadPatientAttachment,
   listPatientDiagnoses,
   listPatientAttachments,
+  listPatientClinicalReports,
+  listPatientCheckIns,
   listPatientEvolutions,
   listPatientMaterialLoans,
   listPatientPlans,
@@ -30,7 +35,9 @@ import {
   updatePatientPlan,
   uploadPatientAttachment,
 } from "@/features/patients/detailApi";
+import { getYouTubeEmbedUrl } from "@/shared/media/youtube";
 import { Tabs } from "@/shared/ui/Tabs";
+import { VideoPreviewModal, type VideoPreview } from "@/shared/ui/VideoPreviewModal";
 
 const patientDetailTabs = [
   { key: "resumen", label: "Resumen" },
@@ -45,6 +52,8 @@ type PlanItemForm = {
   sets: string;
   reps: string;
   description: string;
+  video_url: string;
+  guide_url: string;
 };
 
 type AttachmentEditForm = {
@@ -84,6 +93,12 @@ function todayISO() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+function daysAgoISO(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export default function PatientDetailPage() {
   const { patientId = "" } = useParams();
   const { user } = useAuth();
@@ -119,13 +134,18 @@ export default function PatientDetailPage() {
   const [planDurationWeeks, setPlanDurationWeeks] = useState(4);
   const [planObservations, setPlanObservations] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
+  const [reportKinesiologistId, setReportKinesiologistId] = useState("");
+  const [reportFrom, setReportFrom] = useState(daysAgoISO(6));
+  const [reportTo, setReportTo] = useState(todayISO());
+  const [reportRecommendations, setReportRecommendations] = useState("");
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentNotes, setAttachmentNotes] = useState("");
   const [attachmentCategory, setAttachmentCategory] = useState("otro");
   const [attachmentPatientVisible, setAttachmentPatientVisible] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<AttachmentEditForm | null>(null);
+  const [videoPreview, setVideoPreview] = useState<VideoPreview | null>(null);
   const [planItems, setPlanItems] = useState<PlanItemForm[]>([
-    { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
+    { name: "", estimated_minutes: 10, sets: "", reps: "", description: "", video_url: "", guide_url: "" },
   ]);
 
   const patientQ = useQuery({
@@ -150,6 +170,18 @@ export default function PatientDetailPage() {
     queryKey: ["patients", "evolutions", patientId],
     queryFn: () => listPatientEvolutions(patientId),
     enabled: Boolean(patientId),
+  });
+
+  const checkInsQ = useQuery({
+    queryKey: ["patients", "check-ins", patientId],
+    queryFn: () => listPatientCheckIns(patientId),
+    enabled: Boolean(patientId) && canEditClinical,
+  });
+
+  const clinicalReportsQ = useQuery({
+    queryKey: ["patients", "clinical-reports", patientId],
+    queryFn: () => listPatientClinicalReports(patientId),
+    enabled: Boolean(patientId) && canCreateEvolution,
   });
 
   const loansQ = useQuery({
@@ -280,6 +312,20 @@ export default function PatientDetailPage() {
     },
   });
 
+  const createClinicalReportM = useMutation({
+    mutationFn: () =>
+      createPatientClinicalReport(patientId, {
+        kinesiologist_id: reportKinesiologistId,
+        period_from: reportFrom,
+        period_to: reportTo,
+        recommendations: reportRecommendations.trim() || null,
+      }),
+    onSuccess: () => {
+      setReportRecommendations("");
+      clinicalReportsQ.refetch();
+    },
+  });
+
   const savePlanM = useMutation({
     mutationFn: () =>
       editingPlanId
@@ -296,6 +342,8 @@ export default function PatientDetailPage() {
               sets: item.sets === "" ? null : Number(item.sets),
               reps: item.reps === "" ? null : Number(item.reps),
               description: item.description.trim() || null,
+              video_url: item.video_url.trim() || null,
+              guide_url: item.guide_url.trim() || null,
             })),
           })
         : createPatientPlan(patientId, {
@@ -310,6 +358,8 @@ export default function PatientDetailPage() {
           sets: item.sets === "" ? null : Number(item.sets),
           reps: item.reps === "" ? null : Number(item.reps),
           description: item.description.trim() || null,
+          video_url: item.video_url.trim() || null,
+          guide_url: item.guide_url.trim() || null,
         })),
       }),
     onSuccess: () => {
@@ -359,6 +409,8 @@ export default function PatientDetailPage() {
   const appointments = appointmentsQ.data ?? [];
   const plans = plansQ.data ?? [];
   const evolutions = evolutionsQ.data ?? [];
+  const checkIns = checkInsQ.data ?? [];
+  const clinicalReports = clinicalReportsQ.data ?? [];
   const loans = loansQ.data ?? [];
   const attachments = attachmentsQ.data ?? [];
   const diagnoses = diagnosesQ.data ?? [];
@@ -418,6 +470,15 @@ export default function PatientDetailPage() {
           title: evolutionMetricSummary(evolution) || "Evolución clínica",
           detail: `${diagnosisSummary(diagnosisById.get(evolution.patient_diagnosis_id ?? ""))}${evolution.notes}`,
         })),
+        ...(selectedClinicalDiagnosisId
+          ? []
+          : checkIns.map((checkIn) => ({
+              id: `check-in:${checkIn.id}`,
+              at: checkIn.created_at,
+              kind: "Seguimiento",
+              title: checkInMetricSummary(checkIn) || "Seguimiento del paciente",
+              detail: checkIn.notes,
+            }))),
         ...filteredPlans.map((plan) => ({
           id: `plan:${plan.id}`,
           at: plan.created_at,
@@ -454,6 +515,7 @@ export default function PatientDetailPage() {
     [
       appointments,
       attachments,
+      checkIns,
       diagnosisById,
       filteredDiagnoses,
       filteredEvolutions,
@@ -484,6 +546,16 @@ export default function PatientDetailPage() {
   }, [kinesiologists, planKinesiologistId, user?.email]);
 
   useEffect(() => {
+    if (reportKinesiologistId || kinesiologists.length === 0) return;
+
+    const ownProfile =
+      user?.email
+        ? kinesiologists.find((kinesiologist) => kinesiologist.email.toLowerCase() === user.email.toLowerCase())
+        : undefined;
+    setReportKinesiologistId((ownProfile ?? kinesiologists[0]).id);
+  }, [kinesiologists, reportKinesiologistId, user?.email]);
+
+  useEffect(() => {
     if (!patient) return;
     setPhone(patient.phone ?? "");
     setBirthDate(patient.birth_date ?? "");
@@ -505,7 +577,7 @@ export default function PatientDetailPage() {
     setPlanDiagnosisId("");
     setPlanDurationWeeks(4);
     setPlanObservations("");
-    setPlanItems([{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }]);
+    setPlanItems([{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "", video_url: "", guide_url: "" }]);
   }
 
   function loadPlanForEdit(plan: ExercisePlan) {
@@ -524,8 +596,10 @@ export default function PatientDetailPage() {
             sets: item.sets == null ? "" : String(item.sets),
             reps: item.reps == null ? "" : String(item.reps),
             description: item.description ?? "",
+            video_url: item.video_url ?? "",
+            guide_url: item.guide_url ?? "",
           }))
-        : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "" }],
+        : [{ name: "", estimated_minutes: 10, sets: "", reps: "", description: "", video_url: "", guide_url: "" }],
     );
     setActiveTab("evoluciones");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1240,6 +1314,98 @@ export default function PatientDetailPage() {
         {canCreateEvolution && activeTab === "evoluciones" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
+              <h2 className="text-lg font-semibold">Reporte clínico semanal</h2>
+              <p className="text-sm text-gray-600">Resumen del período con métricas, planes activos y recomendaciones.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium">Kinesiólogo</label>
+                <select
+                  className="mt-1 w-full border rounded-lg p-2"
+                  value={reportKinesiologistId}
+                  onChange={(event) => setReportKinesiologistId(event.target.value)}
+                >
+                  <option value="">Seleccionar...</option>
+                  {kinesiologists.map((kinesiologist) => (
+                    <option key={kinesiologist.id} value={kinesiologist.id}>
+                      {kinesiologist.last_name}, {kinesiologist.first_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Desde</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  value={reportFrom}
+                  onChange={(event) => setReportFrom(event.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Hasta</label>
+                <input
+                  className="mt-1 w-full border rounded-lg p-2"
+                  type="date"
+                  value={reportTo}
+                  onChange={(event) => setReportTo(event.target.value)}
+                />
+              </div>
+
+              <div className="md:col-span-4">
+                <label className="text-sm font-medium">Recomendaciones</label>
+                <textarea
+                  className="mt-1 w-full border rounded-lg p-2 min-h-24"
+                  value={reportRecommendations}
+                  onChange={(event) => setReportRecommendations(event.target.value)}
+                  placeholder="Indicaciones para continuar el tratamiento durante la próxima semana."
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+              disabled={!reportKinesiologistId || !reportFrom || !reportTo || reportTo < reportFrom || createClinicalReportM.isPending}
+              onClick={() => createClinicalReportM.mutate()}
+            >
+              {createClinicalReportM.isPending ? "Generando..." : "Generar reporte"}
+            </button>
+
+            {reportTo < reportFrom && (
+              <p className="text-sm text-red-600">La fecha hasta debe ser posterior o igual a la fecha desde.</p>
+            )}
+            {createClinicalReportM.isError && (
+              <p className="text-sm text-red-600">No se pudo generar el reporte clínico.</p>
+            )}
+            {createClinicalReportM.isSuccess && (
+              <p className="text-sm text-green-700">Reporte clínico generado.</p>
+            )}
+
+            <div className="border-t pt-4">
+              <h3 className="font-medium">Reportes generados</h3>
+              {clinicalReportsQ.isLoading && <p className="text-sm text-gray-600 mt-2">Cargando reportes...</p>}
+              {clinicalReportsQ.isError && <p className="text-sm text-red-600 mt-2">No se pudieron cargar los reportes.</p>}
+              {!clinicalReportsQ.isLoading && !clinicalReportsQ.isError && clinicalReports.length === 0 && (
+                <p className="text-sm text-gray-600 mt-2">Todavía no hay reportes clínicos.</p>
+              )}
+              {clinicalReports.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  {clinicalReports.map((report) => (
+                    <ClinicalReportCard key={report.id} report={report} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {canCreateEvolution && activeTab === "evoluciones" && (
+          <section className="bg-white rounded-xl shadow p-4 space-y-4">
+            <div>
               <h2 className="text-lg font-semibold">
                 {editingPlanId ? "Editar plan de ejercicios" : "Crear plan de ejercicios"}
               </h2>
@@ -1340,7 +1506,7 @@ export default function PatientDetailPage() {
                   onClick={() =>
                     setPlanItems((current) => [
                       ...current,
-                      { name: "", estimated_minutes: 10, sets: "", reps: "", description: "" },
+                      { name: "", estimated_minutes: 10, sets: "", reps: "", description: "", video_url: "", guide_url: "" },
                     ])
                   }
                 >
@@ -1431,6 +1597,36 @@ export default function PatientDetailPage() {
                           current.map((it, i) => (i === index ? { ...it, description: event.target.value } : it)),
                         )
                       }
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium">URL de video</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      type="url"
+                      value={item.video_url}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, video_url: event.target.value } : it)),
+                        )
+                      }
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-medium">URL de guía</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg p-2"
+                      type="url"
+                      value={item.guide_url}
+                      onChange={(event) =>
+                        setPlanItems((current) =>
+                          current.map((it, i) => (i === index ? { ...it, guide_url: event.target.value } : it)),
+                        )
+                      }
+                      placeholder="https://..."
                     />
                   </div>
                 </div>
@@ -1599,6 +1795,23 @@ export default function PatientDetailPage() {
             ))}
           </Panel>
 
+          {!selectedClinicalDiagnosis && (
+            <Panel
+              title="Seguimientos del paciente"
+              isLoading={checkInsQ.isLoading}
+              isError={checkInsQ.isError}
+              empty={checkIns.length === 0}
+            >
+              {checkIns.map((checkIn) => (
+                <div key={checkIn.id} className="py-3 border-b last:border-b-0">
+                  <div className="font-medium">{formatLocalDateTime(checkIn.created_at)}</div>
+                  <CheckInMetrics checkIn={checkIn} />
+                  <p className="text-sm text-gray-700 mt-1">{checkIn.notes}</p>
+                </div>
+              ))}
+            </Panel>
+          )}
+
           <Panel
             title={selectedClinicalDiagnosis ? "Planes del diagnóstico" : "Planes"}
             isLoading={plansQ.isLoading}
@@ -1650,6 +1863,30 @@ export default function PatientDetailPage() {
                           {item.reps ? ` · ${item.reps} repeticiones` : ""}
                         </div>
                         {item.description && <p className="text-sm text-gray-700 mt-1">{item.description}</p>}
+                        {(item.video_url || item.guide_url) && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {item.video_url && (
+                              getYouTubeEmbedUrl(item.video_url) ? (
+                                <button
+                                  type="button"
+                                  className="text-sm underline text-blue-700"
+                                  onClick={() => setVideoPreview({ title: item.name, url: item.video_url! })}
+                                >
+                                  Ver video
+                                </button>
+                              ) : (
+                                <a className="text-sm underline text-blue-700" href={item.video_url} target="_blank" rel="noreferrer">
+                                  Ver video
+                                </a>
+                              )
+                            )}
+                            {item.guide_url && (
+                              <a className="text-sm underline text-blue-700" href={item.guide_url} target="_blank" rel="noreferrer">
+                                Ver guía
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1673,9 +1910,62 @@ export default function PatientDetailPage() {
         </section>
         </>
         )}
+        <VideoPreviewModal preview={videoPreview} onClose={() => setVideoPreview(null)} />
       </div>
     </main>
   );
+}
+
+function ClinicalReportCard({ report }: { report: ClinicalReport }) {
+  return (
+    <article className="rounded-lg border p-3 space-y-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="font-medium">
+            {report.period_from} a {report.period_to}
+          </div>
+          <div className="text-sm text-gray-600">
+            Generado: {formatLocalDateTime(report.created_at)}
+            {report.created_by_email ? ` · ${report.created_by_email}` : ""}
+          </div>
+        </div>
+        <span className="w-fit rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700">
+          {report.evolution_count} evoluciones
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
+        <ReportMetric label="Dolor" value={formatReportMetric(report.avg_pain_level, "/10")} />
+        <ReportMetric label="Movilidad" value={formatReportMetric(report.avg_mobility_score, "/100")} />
+        <ReportMetric label="Fuerza" value={formatReportMetric(report.avg_strength_score, "/100")} />
+        <ReportMetric label="Funcionalidad" value={formatReportMetric(report.avg_functional_score, "/100")} />
+        <ReportMetric label="Planes" value={String(report.active_plan_count)} />
+        <ReportMetric label="Ejercicios" value={String(report.active_plan_item_count)} />
+      </div>
+
+      <p className="text-sm text-gray-700">{report.summary}</p>
+      {report.recommendations && (
+        <div className="rounded-lg bg-gray-50 p-3">
+          <div className="text-sm font-medium">Recomendaciones</div>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{report.recommendations}</p>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-gray-50 p-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="font-medium">{value}</div>
+    </div>
+  );
+}
+
+function formatReportMetric(value: number | null | undefined, suffix: string) {
+  if (value == null) return "-";
+  return `${value.toFixed(1)}${suffix}`;
 }
 
 function Panel({
@@ -1840,10 +2130,39 @@ function EvolutionMetrics({ evolution }: { evolution: PatientEvolution }) {
   );
 }
 
+function CheckInMetrics({ checkIn }: { checkIn: PatientCheckIn }) {
+  const values = evolutionMetricDefs
+    .map((metric) => {
+      const value = checkIn[metric.key];
+      return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
+    })
+    .filter((value): value is string => value != null);
+
+  if (values.length === 0) return null;
+
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
+      {values.map((value) => (
+        <span key={value}>{value}</span>
+      ))}
+    </div>
+  );
+}
+
 function evolutionMetricSummary(evolution: PatientEvolution) {
   return evolutionMetricDefs
     .map((metric) => {
       const value = evolution[metric.key];
+      return value == null ? null : `${metric.label} ${value}/${metric.max}`;
+    })
+    .filter((value): value is string => value != null)
+    .join(" · ");
+}
+
+function checkInMetricSummary(checkIn: PatientCheckIn) {
+  return evolutionMetricDefs
+    .map((metric) => {
+      const value = checkIn[metric.key];
       return value == null ? null : `${metric.label} ${value}/${metric.max}`;
     })
     .filter((value): value is string => value != null)

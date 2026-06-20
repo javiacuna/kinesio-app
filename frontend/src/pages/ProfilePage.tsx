@@ -5,6 +5,8 @@ import { saveAuthTokens } from "@/features/auth/session";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 
+const passwordPolicyPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -20,8 +22,8 @@ export default function ProfilePage() {
     setSuccess("");
     setError("");
 
-    if (newPassword.length < 6) {
-      setError(t("profile.minPassword"));
+    if (!passwordPolicyPattern.test(newPassword)) {
+      setError(t("profile.passwordPolicy"));
       return;
     }
     if (newPassword !== repeatPassword) {
@@ -45,6 +47,8 @@ export default function ProfilePage() {
       setError(
         message === "invalid_current_password"
           ? t("profile.invalidCurrentPassword")
+          : message === "validation_error"
+            ? t("profile.passwordPolicy")
           : t("profile.passwordChangeFailed"),
       );
     } finally {
@@ -114,6 +118,7 @@ export default function ProfilePage() {
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
+                minLength={8}
                 required
               />
             </div>

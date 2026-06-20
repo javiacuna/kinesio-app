@@ -14,6 +14,9 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/config"
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 
+	clinicalReportsHTTP "github.com/javiacuna/kinesio-backend/internal/clinicalreports/http"
+	clinicalReportsGorm "github.com/javiacuna/kinesio-backend/internal/clinicalreports/infra/gorm"
+
 	diagnosesHTTP "github.com/javiacuna/kinesio-backend/internal/diagnoses/http"
 	diagnosesGorm "github.com/javiacuna/kinesio-backend/internal/diagnoses/infra/gorm"
 	diagnosesUC "github.com/javiacuna/kinesio-backend/internal/diagnoses/usecase"
@@ -56,6 +59,8 @@ import (
 
 	attachmentsHTTP "github.com/javiacuna/kinesio-backend/internal/patientattachments/http"
 	attachmentsGorm "github.com/javiacuna/kinesio-backend/internal/patientattachments/infra/gorm"
+	checkInsHTTP "github.com/javiacuna/kinesio-backend/internal/patientcheckins/http"
+	checkInsGorm "github.com/javiacuna/kinesio-backend/internal/patientcheckins/infra/gorm"
 
 	reportsHTTP "github.com/javiacuna/kinesio-backend/internal/reports/http"
 
@@ -173,6 +178,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	evoListUC := evoUC.NewListEvolutionsByPatientUseCase(evoRepo)
 	evoGetUC := evoUC.NewGetEvolutionByIDUseCase(evoRepo)
 	evoHandler := evoHTTP.NewHandler(evoCreateUC, evoListUC, evoGetUC, patientRepo)
+	clinicalReportsRepo := clinicalReportsGorm.NewRepository(db)
+	clinicalReportsHandler := clinicalReportsHTTP.NewHandler(clinicalReportsRepo)
 
 	matRepo := matGorm.NewRepository(db)
 	matCreateUC := matUC.NewCreateMaterialUseCase(matRepo)
@@ -207,6 +214,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	attachmentRepo := attachmentsGorm.NewRepository(db)
 	attachmentHandler := attachmentsHTTP.NewHandler(attachmentRepo, cfg.PatientFilesDir, patientRepo)
+	checkInsRepo := checkInsGorm.NewRepository(db)
+	checkInsHandler := checkInsHTTP.NewHandler(checkInsRepo, patientRepo)
 	kineAttachmentRepo := kineAttachmentsGorm.NewRepository(db)
 	kineAttachmentHandler := kineAttachmentsHTTP.NewHandler(kineAttachmentRepo, cfg.KinesiologistFilesDir)
 	financeRepo := financeGorm.NewRepository(db)
@@ -244,6 +253,10 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
 	v1.POST("/patients/:patient_id/evolutions", middleware.RequireRole("kinesiologo"), evoHandler.CreateForPatient)
 	v1.GET("/patients/:patient_id/evolutions", middleware.RequireAuth(), evoHandler.ListByPatient)
+	v1.GET("/patients/:patient_id/check-ins", middleware.RequireAuth(), checkInsHandler.ListByPatient)
+	v1.POST("/patients/me/check-ins", middleware.RequireRole("paciente"), checkInsHandler.CreateForMe)
+	v1.GET("/patients/:patient_id/clinical-reports", middleware.RequireRole("recepcionista", "kinesiologo"), clinicalReportsHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/clinical-reports", middleware.RequireRole("kinesiologo"), clinicalReportsHandler.CreateForPatient)
 	v1.GET("/patients/:patient_id/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ListLoansByPatient)
 	v1.GET("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.ListByPatient)
 	v1.POST("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.CreateForPatient)

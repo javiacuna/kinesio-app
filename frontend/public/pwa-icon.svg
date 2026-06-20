@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kinesio App">
+  <rect width="512" height="512" rx="112" fill="#111827"/>
+  <path d="M136 170c0-18.8 15.2-34 34-34h172c18.8 0 34 15.2 34 34v172c0 18.8-15.2 34-34 34H170c-18.8 0-34-15.2-34-34V170z" fill="#f8fafc"/>
+  <path d="M254 188c-15.5 0-28 12.5-28 28v10h-10c-15.5 0-28 12.5-28 28s12.5 28 28 28h10v10c0 15.5 12.5 28 28 28s28-12.5 28-28v-10h10c15.5 0 28-12.5 28-28s-12.5-28-28-28h-10v-10c0-15.5-12.5-28-28-28z" fill="#111827"/>
+  <path d="M180 354c28-20 52-30 76-30s48 10 76 30" fill="none" stroke="#111827" stroke-width="24" stroke-linecap="round"/>
+</svg>
