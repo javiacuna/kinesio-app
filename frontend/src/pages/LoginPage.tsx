@@ -30,7 +30,13 @@ export default function LoginPage() {
       navigate(from && from !== "/login" ? from : homePathForRole(me.role), { replace: true });
     } catch (err) {
       const message = (err as Error)?.message;
-      setError(message === "invalid_credentials" ? t("auth.invalidCredentials") : t("auth.loginFailed"));
+      if (message === "invalid_credentials") {
+        setError(t("auth.invalidCredentials"));
+      } else if (message === "too_many_attempts") {
+        setError(t("auth.tooManyAttempts"));
+      } else {
+        setError(t("auth.loginFailed"));
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -58,6 +58,12 @@ type firebaseLoginResponse struct {
 	Email        string `json:"email"`
 }
 
+type firebaseErrorResponse struct {
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 type firebaseUpdatePasswordRequest struct {
 	IDToken           string `json:"idToken"`
 	Password          string `json:"password"`
@@ -170,6 +176,11 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	if res.StatusCode == http.StatusBadRequest || res.StatusCode == http.StatusUnauthorized {
+		var fbErr firebaseErrorResponse
+		if err := json.Unmarshal(body, &fbErr); err == nil && strings.HasPrefix(fbErr.Error.Message, "TOO_MANY_ATTEMPTS_TRY_LATER") {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too_many_attempts"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
 		return
 	}
