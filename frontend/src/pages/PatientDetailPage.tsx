@@ -38,13 +38,18 @@ import {
 import { getYouTubeEmbedUrl } from "@/shared/media/youtube";
 import { Tabs } from "@/shared/ui/Tabs";
 import { VideoPreviewModal, type VideoPreview } from "@/shared/ui/VideoPreviewModal";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
-const patientDetailTabs = [
-  { key: "resumen", label: "Resumen" },
-  { key: "historia", label: "Historia clínica" },
-  { key: "estudios", label: "Estudios y archivos" },
-  { key: "evoluciones", label: "Evoluciones y planes" },
-];
+type Translate = (key: string) => string;
+
+function getPatientDetailTabs(t: Translate) {
+  return [
+    { key: "resumen", label: t("detail.tabSummary") },
+    { key: "historia", label: t("detail.tabHistory") },
+    { key: "estudios", label: t("detail.tabStudies") },
+    { key: "evoluciones", label: t("detail.tabEvolutions") },
+  ];
+}
 
 type PlanItemForm = {
   name: string;
@@ -65,16 +70,18 @@ type AttachmentEditForm = {
   confirm_delete: boolean;
 };
 
-const attachmentCategories = [
-  { value: "otro", label: "Otro" },
-  { value: "radiografia", label: "Radiografía" },
-  { value: "resonancia", label: "Resonancia" },
-  { value: "ecografia", label: "Ecografía" },
-  { value: "laboratorio", label: "Laboratorio" },
-  { value: "foto", label: "Foto" },
-  { value: "video", label: "Video" },
-  { value: "documento", label: "Documento" },
-];
+function getAttachmentCategories(t: Translate) {
+  return [
+    { value: "otro", label: t("detail.catOther") },
+    { value: "radiografia", label: t("detail.catXray") },
+    { value: "resonancia", label: t("detail.catMri") },
+    { value: "ecografia", label: t("detail.catUltrasound") },
+    { value: "laboratorio", label: t("detail.catLab") },
+    { value: "foto", label: t("detail.catPhoto") },
+    { value: "video", label: t("detail.catVideo") },
+    { value: "documento", label: t("detail.catDocument") },
+  ];
+}
 
 function historyRange() {
   const from = new Date();
@@ -102,6 +109,9 @@ function daysAgoISO(days: number) {
 export default function PatientDetailPage() {
   const { patientId = "" } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const patientDetailTabs = getPatientDetailTabs(t);
+  const attachmentCategories = getAttachmentCategories(t);
   const canManagePatient = user?.role === "admin" || user?.role === "recepcionista";
   const canEditClinical = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canCreateEvolution = user?.role === "admin" || user?.role === "kinesiologo";
@@ -456,18 +466,18 @@ export default function PatientDetailPage() {
           : appointments.map((appointment) => ({
               id: `appointment:${appointment.id}`,
               at: appointment.start_at,
-              kind: "Turno",
+              kind: t("detail.appointmentsTitle").replace(/s$/, ""),
               title:
                 appointment.status === "cancelled"
-                  ? "Turno cancelado"
-                  : "Turno programado",
+                  ? `${t("detail.appointmentsTitle").replace(/s$/, "")} ${t("portal.cancelled").toLowerCase()}`
+                  : `${t("detail.appointmentsTitle").replace(/s$/, "")} ${t("portal.scheduled").toLowerCase()}`,
               detail: `${formatLocalTime(appointment.start_at)} a ${formatLocalTime(appointment.end_at)}${appointment.notes ? ` · ${appointment.notes}` : ""}`,
             }))),
         ...filteredEvolutions.map((evolution) => ({
           id: `evolution:${evolution.id}`,
           at: evolution.created_at,
-          kind: "Evolución",
-          title: evolutionMetricSummary(evolution) || "Evolución clínica",
+          kind: t("detail.evolutionsTitle").replace(/s$/, ""),
+          title: evolutionMetricSummary(evolution, t) || t("detail.clinicalEvolutionTitle"),
           detail: `${diagnosisSummary(diagnosisById.get(evolution.patient_diagnosis_id ?? ""))}${evolution.notes}`,
         })),
         ...(selectedClinicalDiagnosisId
@@ -475,41 +485,41 @@ export default function PatientDetailPage() {
           : checkIns.map((checkIn) => ({
               id: `check-in:${checkIn.id}`,
               at: checkIn.created_at,
-              kind: "Seguimiento",
-              title: checkInMetricSummary(checkIn) || "Seguimiento del paciente",
+              kind: t("portal.checkInTitle"),
+              title: checkInMetricSummary(checkIn, t) || t("detail.patientCheckInsTitle").replace(/s$/, ""),
               detail: checkIn.notes,
             }))),
         ...filteredPlans.map((plan) => ({
           id: `plan:${plan.id}`,
           at: plan.created_at,
-          kind: "Plan",
-          title: `${plan.frequency} · ${plan.duration_weeks} semanas`,
-          detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ejercicios · estado ${plan.status}`,
+          kind: t("detail.plansTitle").replace(/s$/, ""),
+          title: `${plan.frequency} · ${plan.duration_weeks} ${t("portal.weeks")}`,
+          detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ${t("detail.exercises").toLowerCase()} · ${t("detail.status").toLowerCase()} ${plan.status}`,
         })),
         ...filteredDiagnoses.map((diagnosis) => ({
           id: `diagnosis:${diagnosis.id}`,
           at: diagnosis.created_at,
-          kind: "Diagnóstico",
+          kind: t("detail.diagnosisLabel"),
           title: `${diagnosis.cie10_code} · ${diagnosis.cie10_description}`,
-          detail: `${diagnosisKindLabel(diagnosis.kind)} · ${diagnosisStatusLabel(diagnosis.status)}${diagnosis.notes ? ` · ${diagnosis.notes}` : ""}`,
+          detail: `${diagnosisKindLabel(diagnosis.kind, t)} · ${diagnosisStatusLabel(diagnosis.status, t)}${diagnosis.notes ? ` · ${diagnosis.notes}` : ""}`,
         })),
         ...(selectedClinicalDiagnosisId
           ? []
           : loans.map((loan) => ({
               id: `loan:${loan.id}`,
               at: loan.loaned_at,
-              kind: "Material",
-              title: loan.returned_at ? "Material devuelto" : "Material prestado",
-              detail: `Cantidad ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
+              kind: t("detail.materialsTitle").replace(/s$/, ""),
+              title: loan.returned_at ? `${t("detail.materialsTitle").replace(/s$/, "")} ${t("materials.returned").toLowerCase()}` : `${t("detail.materialsTitle").replace(/s$/, "")} ${t("materials.loaned").toLowerCase()}`,
+              detail: `${t("detail.quantity")} ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
             }))),
         ...(selectedClinicalDiagnosisId
           ? []
           : attachments.map((attachment) => ({
               id: `attachment:${attachment.id}`,
               at: attachment.created_at,
-              kind: "Archivo",
+              kind: t("detail.file"),
               title: attachment.file_name,
-              detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · subido por ${attachment.uploaded_by_email}` : ""}`,
+              detail: `${attachment.kind}${attachment.uploaded_by_email ? ` · ${t("detail.uploadedBy").toLowerCase()} ${attachment.uploaded_by_email}` : ""}`,
             }))),
       ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
     [
@@ -522,6 +532,7 @@ export default function PatientDetailPage() {
       filteredPlans,
       loans,
       selectedClinicalDiagnosisId,
+      t,
     ],
   );
 
@@ -654,19 +665,19 @@ export default function PatientDetailPage() {
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Detalle paciente</h1>
+            <h1 className="text-2xl font-semibold">{t("detail.title")}</h1>
             <p className="text-sm text-gray-600">
-              {patient ? `${patient.last_name}, ${patient.first_name}` : "Cargando ficha..."}
+              {patient ? `${patient.last_name}, ${patient.first_name}` : t("detail.loadingRecord")}
             </p>
           </div>
           <Link className="text-sm underline" to={backPath}>
-            Volver
+            {t("common.back")}
           </Link>
         </header>
 
         {patientQ.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            No se pudo cargar el paciente.
+            {t("detail.errorLoadPatient")}
           </div>
         )}
 
@@ -674,13 +685,13 @@ export default function PatientDetailPage() {
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <h2 className="text-lg font-semibold">Ficha</h2>
+                <h2 className="text-lg font-semibold">{t("detail.recordTitle")}</h2>
                 <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1 text-sm text-gray-700">
-                  <div>DNI: <span className="font-medium">{patient.dni}</span></div>
-                  <div>Email: <span className="font-medium">{patient.email}</span></div>
-                  <div>Teléfono: <span className="font-medium">{patient.phone || "-"}</span></div>
-                  <div>Estado: <span className="font-medium">{patient.active ? "Activo" : "Archivado"}</span></div>
-                  {patient.birth_date && <div>Fecha nacimiento: <span className="font-medium">{patient.birth_date}</span></div>}
+                  <div>{t("detail.dni")}: <span className="font-medium">{patient.dni}</span></div>
+                  <div>{t("detail.email")}: <span className="font-medium">{patient.email}</span></div>
+                  <div>{t("detail.phone")}: <span className="font-medium">{patient.phone || "-"}</span></div>
+                  <div>{t("detail.status")}: <span className="font-medium">{patient.active ? t("portal.active") : t("detail.archived")}</span></div>
+                  {patient.birth_date && <div>{t("detail.birthDate")}: <span className="font-medium">{patient.birth_date}</span></div>}
                 </div>
                 {patient.clinical_notes && (
                   <p className="text-sm text-gray-700 mt-3">{patient.clinical_notes}</p>
@@ -694,7 +705,7 @@ export default function PatientDetailPage() {
                     to="/agenda"
                     onClick={() => localStorage.setItem("last_patient_id", patient.id)}
                   >
-                    Usar en Agenda
+                    {t("detail.useInAgenda")}
                   </Link>
                   {user?.role === "admin" && (
                     <button
@@ -703,7 +714,7 @@ export default function PatientDetailPage() {
                       disabled={inviteM.isPending}
                       onClick={() => inviteM.mutate(patient.email)}
                     >
-                      {inviteM.isPending ? "Enviando..." : "Enviar acceso"}
+                      {inviteM.isPending ? t("portal.sending") : t("detail.sendAccess")}
                     </button>
                   )}
                   <button
@@ -715,15 +726,15 @@ export default function PatientDetailPage() {
                       else reactivateM.mutate();
                     }}
                   >
-                    {patient.active ? "Archivar" : "Reactivar"}
+                    {patient.active ? t("detail.archive") : t("detail.reactivate")}
                   </button>
                 </div>
               )}
             </div>
 
-            {inviteM.isSuccess && <p className="text-sm text-green-700">Invitación enviada.</p>}
+            {inviteM.isSuccess && <p className="text-sm text-green-700">{t("detail.invitationSent")}</p>}
             {(archiveM.isError || reactivateM.isError || inviteM.isError) && (
-              <p className="text-sm text-red-600">No se pudo completar la acción.</p>
+              <p className="text-sm text-red-600">{t("detail.errorActionFailed")}</p>
             )}
           </section>
         )}
@@ -733,13 +744,13 @@ export default function PatientDetailPage() {
         {patient && canEditClinical && activeTab === "historia" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Historia clínica</h2>
-              <p className="text-sm text-gray-600">Resumen clínico y datos útiles para el seguimiento.</p>
+              <h2 className="text-lg font-semibold">{t("detail.clinicalHistoryTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("detail.clinicalHistorySubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-sm font-medium">Teléfono</label>
+                <label className="text-sm font-medium">{t("detail.phone")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={phone}
@@ -748,7 +759,7 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Fecha de nacimiento</label>
+                <label className="text-sm font-medium">{t("detail.birthDate")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="date"
@@ -758,12 +769,12 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Resumen clínico</label>
+                <label className="text-sm font-medium">{t("detail.clinicalSummary")}</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-36"
                   value={clinicalNotes}
                   onChange={(event) => setClinicalNotes(event.target.value)}
-                  placeholder="Motivo de consulta, diagnóstico, antecedentes, objetivos, alertas o contraindicaciones."
+                  placeholder={t("detail.clinicalSummaryPlaceholder")}
                 />
               </div>
             </div>
@@ -774,18 +785,18 @@ export default function PatientDetailPage() {
               disabled={updateClinicalM.isPending}
               onClick={() => updateClinicalM.mutate()}
             >
-              {updateClinicalM.isPending ? "Guardando..." : "Guardar historia clínica"}
+              {updateClinicalM.isPending ? t("common.saving") : t("detail.saveClinicalHistory")}
             </button>
 
             {updateClinicalM.isError && (
-              <p className="text-sm text-red-600">No se pudo guardar la historia clínica.</p>
+              <p className="text-sm text-red-600">{t("detail.errorSaveClinicalHistory")}</p>
             )}
             {updateClinicalM.isSuccess && (
-              <p className="text-sm text-green-700">Historia clínica actualizada.</p>
+              <p className="text-sm text-green-700">{t("detail.clinicalHistoryUpdated")}</p>
             )}
             {patient.clinical_notes_updated_at && (
               <p className="text-sm text-gray-600">
-                Última edición clínica: {formatLocalDateTime(patient.clinical_notes_updated_at)}
+                {t("detail.lastClinicalEdit")}: {formatLocalDateTime(patient.clinical_notes_updated_at)}
                 {patient.clinical_notes_updated_by_email ? ` · ${patient.clinical_notes_updated_by_email}` : ""}
                 {patient.clinical_notes_updated_by_role ? ` (${patient.clinical_notes_updated_by_role})` : ""}
               </p>
@@ -796,49 +807,49 @@ export default function PatientDetailPage() {
         {patient && canEditClinical && activeTab === "historia" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Diagnósticos CIE-10</h2>
-              <p className="text-sm text-gray-600">Registro de diagnóstico principal y diagnósticos asociados.</p>
+              <h2 className="text-lg font-semibold">{t("detail.diagnosesTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("detail.diagnosesSubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Buscar diagnóstico</label>
+                <label className="text-sm font-medium">{t("detail.searchDiagnosis")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={cie10Query}
                   onChange={(event) => setCie10Query(event.target.value)}
-                  placeholder="Ej: M54, dorsalgia, respiratoria..."
+                  placeholder={t("detail.searchDiagnosisPlaceholder")}
                 />
-                {cie10Q.isFetching && <p className="text-xs text-gray-500 mt-1">Buscando CIE-10...</p>}
+                {cie10Q.isFetching && <p className="text-xs text-gray-500 mt-1">{t("detail.searchingCie10")}</p>}
               </div>
 
               <div>
-                <label className="text-sm font-medium">Tipo</label>
+                <label className="text-sm font-medium">{t("detail.type")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={diagnosisKind}
                   onChange={(event) => setDiagnosisKind(event.target.value as "primary" | "secondary")}
                 >
-                  <option value="primary">Principal</option>
-                  <option value="secondary">Secundario</option>
+                  <option value="primary">{t("detail.primary")}</option>
+                  <option value="secondary">{t("detail.secondary")}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Estado</label>
+                <label className="text-sm font-medium">{t("detail.status")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={diagnosisStatus}
                   onChange={(event) => setDiagnosisStatus(event.target.value as "suspected" | "confirmed" | "resolved")}
                 >
-                  <option value="suspected">Sospechado</option>
-                  <option value="confirmed">Confirmado</option>
-                  <option value="resolved">Resuelto</option>
+                  <option value="suspected">{t("detail.suspected")}</option>
+                  <option value="confirmed">{t("detail.confirmed")}</option>
+                  <option value="resolved">{t("detail.resolved")}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Fecha</label>
+                <label className="text-sm font-medium">{t("detail.date")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="date"
@@ -848,19 +859,19 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-3">
-                <label className="text-sm font-medium">Observaciones</label>
+                <label className="text-sm font-medium">{t("detail.observations")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={diagnosisNotes}
                   onChange={(event) => setDiagnosisNotes(event.target.value)}
-                  placeholder="Detalle clínico opcional."
+                  placeholder={t("detail.observationsPlaceholder")}
                 />
               </div>
             </div>
 
             <div className="rounded-lg border divide-y">
               {cie10Results.length === 0 ? (
-                <p className="text-sm text-gray-600 p-3">Buscá por código o texto para seleccionar un diagnóstico.</p>
+                <p className="text-sm text-gray-600 p-3">{t("detail.searchByCodeOrText")}</p>
               ) : (
                 cie10Results.map((item) => (
                   <button
@@ -886,29 +897,29 @@ export default function PatientDetailPage() {
                 disabled={!diagnosisCode || !diagnosisDate || saveDiagnosisM.isPending}
                 onClick={() => saveDiagnosisM.mutate()}
               >
-                {saveDiagnosisM.isPending ? "Guardando..." : editingDiagnosisId ? "Guardar diagnóstico" : "Agregar diagnóstico"}
+                {saveDiagnosisM.isPending ? t("common.saving") : editingDiagnosisId ? t("detail.saveDiagnosis") : t("detail.addDiagnosis")}
               </button>
               {editingDiagnosisId && (
                 <button type="button" className="px-4 py-2 rounded-lg border hover:bg-gray-50" onClick={resetDiagnosisForm}>
-                  Cancelar edición
+                  {t("detail.cancelEdit")}
                 </button>
               )}
             </div>
 
             {saveDiagnosisM.isError && (
-              <p className="text-sm text-red-600">No se pudo guardar el diagnóstico.</p>
+              <p className="text-sm text-red-600">{t("detail.errorSaveDiagnosis")}</p>
             )}
             {deleteDiagnosisM.isError && (
-              <p className="text-sm text-red-600">No se pudo quitar el diagnóstico.</p>
+              <p className="text-sm text-red-600">{t("detail.errorRemoveDiagnosis")}</p>
             )}
             {saveDiagnosisM.isSuccess && (
-              <p className="text-sm text-green-700">Diagnóstico guardado.</p>
+              <p className="text-sm text-green-700">{t("detail.diagnosisSaved")}</p>
             )}
 
-            {diagnosesQ.isLoading && <p className="text-sm text-gray-600">Cargando diagnósticos...</p>}
-            {diagnosesQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los diagnósticos.</p>}
+            {diagnosesQ.isLoading && <p className="text-sm text-gray-600">{t("detail.loadingDiagnoses")}</p>}
+            {diagnosesQ.isError && <p className="text-sm text-red-600">{t("detail.errorLoadDiagnoses")}</p>}
             {!diagnosesQ.isLoading && !diagnosesQ.isError && diagnoses.length === 0 && (
-              <p className="text-sm text-gray-600">Sin diagnósticos registrados.</p>
+              <p className="text-sm text-gray-600">{t("detail.noDiagnoses")}</p>
             )}
             {diagnoses.length > 0 && (
               <div className="divide-y">
@@ -917,16 +928,16 @@ export default function PatientDetailPage() {
                     <div>
                       <div className="font-medium">{diagnosis.cie10_code} · {diagnosis.cie10_description}</div>
                       <div className="text-sm text-gray-600">
-                        {diagnosisKindLabel(diagnosis.kind)} · {diagnosisStatusLabel(diagnosis.status)} · {diagnosis.diagnosed_at}
+                        {diagnosisKindLabel(diagnosis.kind, t)} · {diagnosisStatusLabel(diagnosis.status, t)} · {diagnosis.diagnosed_at}
                       </div>
                       {diagnosis.cie10_chapter && <div className="text-xs text-gray-500">{diagnosis.cie10_chapter}</div>}
                       {diagnosis.notes && <p className="text-sm text-gray-700 mt-1">{diagnosis.notes}</p>}
                       <div className="text-xs text-gray-500 mt-1">
-                        Cargado: {formatLocalDateTime(diagnosis.created_at)}
+                        {t("detail.loaded")}: {formatLocalDateTime(diagnosis.created_at)}
                         {diagnosis.created_by_email ? ` · ${diagnosis.created_by_email}` : ""}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Última edición: {formatLocalDateTime(diagnosis.updated_at)}
+                        {t("detail.lastEdit")}: {formatLocalDateTime(diagnosis.updated_at)}
                         {diagnosis.updated_by_email ? ` · ${diagnosis.updated_by_email}` : ""}
                       </div>
                     </div>
@@ -938,14 +949,14 @@ export default function PatientDetailPage() {
                         }`}
                         onClick={() => setSelectedClinicalDiagnosisId(diagnosis.id)}
                       >
-                        Ver historia
+                        {t("detail.viewHistory")}
                       </button>
                       <button
                         type="button"
                         className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                         onClick={() => loadDiagnosisForEdit(diagnosis)}
                       >
-                        Editar
+                        {t("detail.edit")}
                       </button>
                       <button
                         type="button"
@@ -953,7 +964,7 @@ export default function PatientDetailPage() {
                         disabled={deleteDiagnosisM.isPending}
                         onClick={() => deleteDiagnosisM.mutate(diagnosis.id)}
                       >
-                        Quitar
+                        {t("detail.remove")}
                       </button>
                     </div>
                   </div>
@@ -966,13 +977,13 @@ export default function PatientDetailPage() {
         {patient && canEditClinical && activeTab === "estudios" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Estudios y archivos</h2>
-              <p className="text-sm text-gray-600">Imágenes, videos y PDFs asociados al paciente.</p>
+              <h2 className="text-lg font-semibold">{t("detail.studiesTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("detail.studiesSubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
-                <label className="text-sm font-medium">Archivo</label>
+                <label className="text-sm font-medium">{t("detail.file")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="file"
@@ -981,7 +992,7 @@ export default function PatientDetailPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Categoría</label>
+                <label className="text-sm font-medium">{t("detail.category")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={attachmentCategory}
@@ -995,12 +1006,12 @@ export default function PatientDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Nota</label>
+                <label className="text-sm font-medium">{t("detail.note")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={attachmentNotes}
                   onChange={(event) => setAttachmentNotes(event.target.value)}
-                  placeholder="Ej: Resonancia lumbar, control postural, video de marcha."
+                  placeholder={t("detail.attachmentNotePlaceholder")}
                 />
               </div>
               <label className="flex items-center gap-2 text-sm font-medium md:self-end md:pb-3">
@@ -1009,7 +1020,7 @@ export default function PatientDetailPage() {
                   checked={attachmentPatientVisible}
                   onChange={(event) => setAttachmentPatientVisible(event.target.checked)}
                 />
-                Visible para paciente
+                {t("detail.visibleForPatient")}
               </label>
             </div>
 
@@ -1019,20 +1030,20 @@ export default function PatientDetailPage() {
               disabled={!attachmentFile || uploadAttachmentM.isPending}
               onClick={() => uploadAttachmentM.mutate()}
             >
-              {uploadAttachmentM.isPending ? "Subiendo..." : "Adjuntar archivo"}
+              {uploadAttachmentM.isPending ? t("detail.uploading") : t("detail.attachFile")}
             </button>
 
             {uploadAttachmentM.isError && (
-              <p className="text-sm text-red-600">No se pudo subir el archivo.</p>
+              <p className="text-sm text-red-600">{t("detail.errorUploadFile")}</p>
             )}
             {uploadAttachmentM.isSuccess && (
-              <p className="text-sm text-green-700">Archivo adjuntado.</p>
+              <p className="text-sm text-green-700">{t("detail.fileAttached")}</p>
             )}
 
-            {attachmentsQ.isLoading && <p className="text-sm text-gray-600">Cargando archivos...</p>}
-            {attachmentsQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los archivos.</p>}
+            {attachmentsQ.isLoading && <p className="text-sm text-gray-600">{t("detail.loadingFiles")}</p>}
+            {attachmentsQ.isError && <p className="text-sm text-red-600">{t("detail.errorLoadFiles")}</p>}
             {!attachmentsQ.isLoading && !attachmentsQ.isError && attachments.length === 0 && (
-              <p className="text-sm text-gray-600">Sin archivos adjuntos.</p>
+              <p className="text-sm text-gray-600">{t("detail.noFiles")}</p>
             )}
             {attachments.length > 0 && (
               <div className="divide-y">
@@ -1044,21 +1055,21 @@ export default function PatientDetailPage() {
                         <div>
                           <div className="font-medium">{attachment.file_name}</div>
                           <div className="text-sm text-gray-600">
-                            {attachment.category || "otro"} · {attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
+                            {attachment.category || t("detail.otherLower")} · {attachment.kind} · {Math.max(1, Math.round(attachment.size_bytes / 1024))} KB ·{" "}
                             {formatLocalDateTime(attachment.created_at)}
                           </div>
                           <div className="text-sm text-gray-600">
-                            {attachment.patient_visible ? "Visible en portal paciente" : "Solo equipo"}
+                            {attachment.patient_visible ? t("detail.visibleInPortal") : t("detail.teamOnly")}
                           </div>
                           {attachment.uploaded_by_email && (
                             <div className="text-sm text-gray-600">
-                              Subido por {attachment.uploaded_by_email}
+                              {t("detail.uploadedBy")} {attachment.uploaded_by_email}
                               {attachment.uploaded_by_role ? ` (${attachment.uploaded_by_role})` : ""}
                             </div>
                           )}
                           {attachment.updated_at && (
                             <div className="text-sm text-gray-600">
-                              Editado: {formatLocalDateTime(attachment.updated_at)}
+                              {t("detail.edited")}: {formatLocalDateTime(attachment.updated_at)}
                               {attachment.updated_by_email ? ` · ${attachment.updated_by_email}` : ""}
                             </div>
                           )}
@@ -1070,7 +1081,7 @@ export default function PatientDetailPage() {
                             className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
                             onClick={() => openAttachment(attachment)}
                           >
-                            Ver archivo
+                            {t("detail.viewFile")}
                           </button>
                           <button
                             type="button"
@@ -1078,7 +1089,7 @@ export default function PatientDetailPage() {
                             disabled={updateAttachmentM.isPending}
                             onClick={() => startEditingAttachment(attachment)}
                           >
-                            Editar
+                            {t("detail.edit")}
                           </button>
                         </div>
                       </div>
@@ -1087,7 +1098,7 @@ export default function PatientDetailPage() {
                         <div className="mt-3 rounded-lg border bg-gray-50 p-3 space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div>
-                              <label className="text-sm font-medium">Nombre</label>
+                              <label className="text-sm font-medium">{t("detail.name")}</label>
                               <input
                                 className="mt-1 w-full border rounded-lg p-2"
                                 value={editingAttachment.file_name}
@@ -1095,7 +1106,7 @@ export default function PatientDetailPage() {
                               />
                             </div>
                             <div>
-                              <label className="text-sm font-medium">Categoría</label>
+                              <label className="text-sm font-medium">{t("detail.category")}</label>
                               <select
                                 className="mt-1 w-full border rounded-lg p-2"
                                 value={editingAttachment.category}
@@ -1114,10 +1125,10 @@ export default function PatientDetailPage() {
                                 checked={editingAttachment.patient_visible}
                                 onChange={(event) => patchEditingAttachment({ patient_visible: event.target.checked })}
                               />
-                              Visible para paciente
+                              {t("detail.visibleForPatient")}
                             </label>
                             <div className="md:col-span-3">
-                              <label className="text-sm font-medium">Nota</label>
+                              <label className="text-sm font-medium">{t("detail.note")}</label>
                               <textarea
                                 className="mt-1 w-full border rounded-lg p-2 min-h-20"
                                 value={editingAttachment.notes}
@@ -1133,14 +1144,14 @@ export default function PatientDetailPage() {
                               disabled={!editingAttachment.file_name.trim() || updateAttachmentM.isPending}
                               onClick={() => updateAttachmentM.mutate(editingAttachment)}
                             >
-                              {updateAttachmentM.isPending ? "Guardando..." : "Guardar cambios"}
+                              {updateAttachmentM.isPending ? t("common.saving") : t("common.saveChanges")}
                             </button>
                             <button
                               type="button"
                               className="px-3 py-2 rounded-lg border text-sm hover:bg-white"
                               onClick={() => setEditingAttachment(null)}
                             >
-                              Cancelar
+                              {t("common.cancel")}
                             </button>
                             <button
                               type="button"
@@ -1156,7 +1167,7 @@ export default function PatientDetailPage() {
                                 });
                               }}
                             >
-                              {editingAttachment.confirm_delete ? "Confirmar borrado" : "Borrar archivo"}
+                              {editingAttachment.confirm_delete ? t("detail.confirmDelete") : t("detail.deleteFile")}
                             </button>
                           </div>
                         </div>
@@ -1167,7 +1178,7 @@ export default function PatientDetailPage() {
               </div>
             )}
             {(updateAttachmentM.isError || deleteAttachmentM.isError) && (
-              <p className="text-sm text-red-600">No se pudo actualizar el archivo.</p>
+              <p className="text-sm text-red-600">{t("detail.errorUpdateFile")}</p>
             )}
           </section>
         )}
@@ -1175,19 +1186,19 @@ export default function PatientDetailPage() {
         {canCreateEvolution && activeTab === "evoluciones" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Registrar evolución</h2>
-              <p className="text-sm text-gray-600">Nueva nota clínica asociada a este paciente.</p>
+              <h2 className="text-lg font-semibold">{t("detail.registerEvolutionTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("detail.registerEvolutionSubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Kinesiólogo</label>
+                <label className="text-sm font-medium">{t("portal.kinesiologist")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={evolutionKinesiologistId}
                   onChange={(event) => setEvolutionKinesiologistId(event.target.value)}
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">{t("portal.select")}</option>
                   {kinesiologists.map((kinesiologist) => (
                     <option key={kinesiologist.id} value={kinesiologist.id}>
                       {kinesiologist.last_name}, {kinesiologist.first_name}
@@ -1197,13 +1208,13 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Dolor</label>
+                <label className="text-sm font-medium">{t("portal.pain")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={painLevel}
                   onChange={(event) => setPainLevel(event.target.value)}
                 >
-                  <option value="">Sin registrar</option>
+                  <option value="">{t("portal.notRegistered")}</option>
                   {Array.from({ length: 11 }, (_, value) => (
                     <option key={value} value={value}>
                       {value}/10
@@ -1213,52 +1224,52 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Movilidad</label>
+                <label className="text-sm font-medium">{t("portal.mobility")}</label>
                 <input
                   type="number"
                   min={0}
                   max={100}
                   className="mt-1 w-full border rounded-lg p-2"
-                  placeholder="0 a 100"
+                  placeholder={t("portal.rangePlaceholder")}
                   value={mobilityScore}
                   onChange={(event) => setMobilityScore(event.target.value)}
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium">Fuerza</label>
+                <label className="text-sm font-medium">{t("portal.strength")}</label>
                 <input
                   type="number"
                   min={0}
                   max={100}
                   className="mt-1 w-full border rounded-lg p-2"
-                  placeholder="0 a 100"
+                  placeholder={t("portal.rangePlaceholder")}
                   value={strengthScore}
                   onChange={(event) => setStrengthScore(event.target.value)}
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium">Funcionalidad</label>
+                <label className="text-sm font-medium">{t("portal.functional")}</label>
                 <input
                   type="number"
                   min={0}
                   max={100}
                   className="mt-1 w-full border rounded-lg p-2"
-                  placeholder="0 a 100"
+                  placeholder={t("portal.rangePlaceholder")}
                   value={functionalScore}
                   onChange={(event) => setFunctionalScore(event.target.value)}
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Turno asociado</label>
+                <label className="text-sm font-medium">{t("detail.associatedAppointment")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={evolutionAppointmentId}
                   onChange={(event) => setEvolutionAppointmentId(event.target.value)}
                 >
-                  <option value="">Sin asociar</option>
+                  <option value="">{t("detail.unassociated")}</option>
                   {upcomingScheduledAppointments.map((appointment) => (
                     <option key={appointment.id} value={appointment.id}>
                       {formatLocalDateTime(appointment.start_at)}
@@ -1268,23 +1279,23 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Diagnóstico asociado</label>
+                <label className="text-sm font-medium">{t("detail.associatedDiagnosis")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={evolutionDiagnosisId}
                   onChange={(event) => setEvolutionDiagnosisId(event.target.value)}
                 >
-                  <option value="">Sin asociar</option>
+                  <option value="">{t("detail.unassociated")}</option>
                   {diagnoses.map((diagnosis) => (
                     <option key={diagnosis.id} value={diagnosis.id}>
-                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind)}
+                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind, t)}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="md:col-span-4">
-                <label className="text-sm font-medium">Notas</label>
+                <label className="text-sm font-medium">{t("portal.notes")}</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-28"
                   value={evolutionNotes}
@@ -1299,14 +1310,14 @@ export default function PatientDetailPage() {
               disabled={!evolutionKinesiologistId || !evolutionNotes.trim() || createEvolutionM.isPending}
               onClick={() => createEvolutionM.mutate()}
             >
-              {createEvolutionM.isPending ? "Guardando..." : "Guardar evolución"}
+              {createEvolutionM.isPending ? t("common.saving") : t("detail.saveEvolution")}
             </button>
 
             {createEvolutionM.isError && (
-              <p className="text-sm text-red-600">No se pudo guardar la evolución.</p>
+              <p className="text-sm text-red-600">{t("detail.errorSaveEvolution")}</p>
             )}
             {createEvolutionM.isSuccess && (
-              <p className="text-sm text-green-700">Evolución registrada.</p>
+              <p className="text-sm text-green-700">{t("detail.evolutionRegistered")}</p>
             )}
           </section>
         )}
@@ -1314,19 +1325,19 @@ export default function PatientDetailPage() {
         {canCreateEvolution && activeTab === "evoluciones" && (
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
-              <h2 className="text-lg font-semibold">Reporte clínico semanal</h2>
-              <p className="text-sm text-gray-600">Resumen del período con métricas, planes activos y recomendaciones.</p>
+              <h2 className="text-lg font-semibold">{t("detail.weeklyReportTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("detail.weeklyReportSubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div className="md:col-span-2">
-                <label className="text-sm font-medium">Kinesiólogo</label>
+                <label className="text-sm font-medium">{t("portal.kinesiologist")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={reportKinesiologistId}
                   onChange={(event) => setReportKinesiologistId(event.target.value)}
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">{t("portal.select")}</option>
                   {kinesiologists.map((kinesiologist) => (
                     <option key={kinesiologist.id} value={kinesiologist.id}>
                       {kinesiologist.last_name}, {kinesiologist.first_name}
@@ -1336,7 +1347,7 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Desde</label>
+                <label className="text-sm font-medium">{t("finance.from")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="date"
@@ -1346,7 +1357,7 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Hasta</label>
+                <label className="text-sm font-medium">{t("finance.to")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="date"
@@ -1356,12 +1367,12 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-4">
-                <label className="text-sm font-medium">Recomendaciones</label>
+                <label className="text-sm font-medium">{t("detail.recommendations")}</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-24"
                   value={reportRecommendations}
                   onChange={(event) => setReportRecommendations(event.target.value)}
-                  placeholder="Indicaciones para continuar el tratamiento durante la próxima semana."
+                  placeholder={t("detail.recommendationsPlaceholder")}
                 />
               </div>
             </div>
@@ -1372,25 +1383,25 @@ export default function PatientDetailPage() {
               disabled={!reportKinesiologistId || !reportFrom || !reportTo || reportTo < reportFrom || createClinicalReportM.isPending}
               onClick={() => createClinicalReportM.mutate()}
             >
-              {createClinicalReportM.isPending ? "Generando..." : "Generar reporte"}
+              {createClinicalReportM.isPending ? t("detail.generating") : t("detail.generateReport")}
             </button>
 
             {reportTo < reportFrom && (
-              <p className="text-sm text-red-600">La fecha hasta debe ser posterior o igual a la fecha desde.</p>
+              <p className="text-sm text-red-600">{t("detail.errorDateRange")}</p>
             )}
             {createClinicalReportM.isError && (
-              <p className="text-sm text-red-600">No se pudo generar el reporte clínico.</p>
+              <p className="text-sm text-red-600">{t("detail.errorGenerateReport")}</p>
             )}
             {createClinicalReportM.isSuccess && (
-              <p className="text-sm text-green-700">Reporte clínico generado.</p>
+              <p className="text-sm text-green-700">{t("detail.reportGenerated")}</p>
             )}
 
             <div className="border-t pt-4">
-              <h3 className="font-medium">Reportes generados</h3>
-              {clinicalReportsQ.isLoading && <p className="text-sm text-gray-600 mt-2">Cargando reportes...</p>}
-              {clinicalReportsQ.isError && <p className="text-sm text-red-600 mt-2">No se pudieron cargar los reportes.</p>}
+              <h3 className="font-medium">{t("detail.generatedReports")}</h3>
+              {clinicalReportsQ.isLoading && <p className="text-sm text-gray-600 mt-2">{t("detail.loadingReports")}</p>}
+              {clinicalReportsQ.isError && <p className="text-sm text-red-600 mt-2">{t("detail.errorLoadReports")}</p>}
               {!clinicalReportsQ.isLoading && !clinicalReportsQ.isError && clinicalReports.length === 0 && (
-                <p className="text-sm text-gray-600 mt-2">Todavía no hay reportes clínicos.</p>
+                <p className="text-sm text-gray-600 mt-2">{t("detail.noReports")}</p>
               )}
               {clinicalReports.length > 0 && (
                 <div className="mt-3 space-y-3">
@@ -1407,20 +1418,20 @@ export default function PatientDetailPage() {
           <section className="bg-white rounded-xl shadow p-4 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">
-                {editingPlanId ? "Editar plan de ejercicios" : "Crear plan de ejercicios"}
+                {editingPlanId ? t("detail.editPlanTitle") : t("detail.createPlanTitle")}
               </h2>
-              <p className="text-sm text-gray-600">Plan con ejercicios para seguimiento del paciente.</p>
+              <p className="text-sm text-gray-600">{t("detail.planSubtitle")}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-3">
-                <label className="text-sm font-medium">Kinesiólogo</label>
+                <label className="text-sm font-medium">{t("portal.kinesiologist")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={planKinesiologistId}
                   onChange={(event) => setPlanKinesiologistId(event.target.value)}
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">{t("portal.select")}</option>
                   {kinesiologists.map((kinesiologist) => (
                     <option key={kinesiologist.id} value={kinesiologist.id}>
                       {kinesiologist.last_name}, {kinesiologist.first_name}
@@ -1430,35 +1441,35 @@ export default function PatientDetailPage() {
               </div>
 
               <div className="md:col-span-3">
-                <label className="text-sm font-medium">Diagnóstico asociado</label>
+                <label className="text-sm font-medium">{t("detail.associatedDiagnosis")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={planDiagnosisId}
                   onChange={(event) => setPlanDiagnosisId(event.target.value)}
                 >
-                  <option value="">Sin asociar</option>
+                  <option value="">{t("detail.unassociated")}</option>
                   {diagnoses.map((diagnosis) => (
                     <option key={diagnosis.id} value={diagnosis.id}>
-                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind)}
+                      {diagnosis.cie10_code} · {diagnosis.cie10_description} · {diagnosisKindLabel(diagnosis.kind, t)}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Frecuencia</label>
+                <label className="text-sm font-medium">{t("detail.frequency")}</label>
                 <select
                   className="mt-1 w-full border rounded-lg p-2"
                   value={planFrequency}
                   onChange={(event) => setPlanFrequency(event.target.value as "daily" | "weekly")}
                 >
-                  <option value="weekly">Semanal</option>
-                  <option value="daily">Diaria</option>
+                  <option value="weekly">{t("portal.weekly")}</option>
+                  <option value="daily">{t("portal.daily")}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-sm font-medium">Duración</label>
+                <label className="text-sm font-medium">{t("detail.duration")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   type="number"
@@ -1469,26 +1480,26 @@ export default function PatientDetailPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Unidad</label>
-                <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">semanas</div>
+                <label className="text-sm font-medium">{t("detail.unit")}</label>
+                <div className="mt-1 w-full border rounded-lg p-2 bg-gray-50 text-gray-700">{t("portal.weeks")}</div>
               </div>
 
               {editingPlanId && (
                 <div>
-                  <label className="text-sm font-medium">Estado</label>
+                  <label className="text-sm font-medium">{t("detail.status")}</label>
                   <select
                     className="mt-1 w-full border rounded-lg p-2"
                     value={planStatus}
                     onChange={(event) => setPlanStatus(event.target.value as "active" | "closed")}
                   >
-                    <option value="active">Activo</option>
-                    <option value="closed">Cerrado</option>
+                    <option value="active">{t("portal.active")}</option>
+                    <option value="closed">{t("portal.closed")}</option>
                   </select>
                 </div>
               )}
 
               <div className="md:col-span-3">
-                <label className="text-sm font-medium">Observaciones</label>
+                <label className="text-sm font-medium">{t("detail.observations")}</label>
                 <textarea
                   className="mt-1 w-full border rounded-lg p-2 min-h-20"
                   value={planObservations}
@@ -1499,7 +1510,7 @@ export default function PatientDetailPage() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Ejercicios</h3>
+                <h3 className="font-medium">{t("detail.exercises")}</h3>
                 <button
                   type="button"
                   className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
@@ -1510,14 +1521,14 @@ export default function PatientDetailPage() {
                     ])
                   }
                 >
-                  Agregar ejercicio
+                  {t("detail.addExercise")}
                 </button>
               </div>
 
               {planItems.map((item, index) => (
                 <div key={index} className="border rounded-lg p-3 grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium">Nombre</label>
+                    <label className="text-sm font-medium">{t("detail.name")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       value={item.name}
@@ -1530,7 +1541,7 @@ export default function PatientDetailPage() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Minutos</label>
+                    <label className="text-sm font-medium">{t("detail.minutes")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       type="number"
@@ -1553,12 +1564,12 @@ export default function PatientDetailPage() {
                       disabled={planItems.length === 1}
                       onClick={() => setPlanItems((current) => current.filter((_, i) => i !== index))}
                     >
-                      Quitar
+                      {t("detail.remove")}
                     </button>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Series</label>
+                    <label className="text-sm font-medium">{t("detail.sets")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       type="number"
@@ -1573,7 +1584,7 @@ export default function PatientDetailPage() {
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium">Repeticiones</label>
+                    <label className="text-sm font-medium">{t("detail.reps")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       type="number"
@@ -1588,7 +1599,7 @@ export default function PatientDetailPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium">Descripción</label>
+                    <label className="text-sm font-medium">{t("detail.description")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       value={item.description}
@@ -1601,7 +1612,7 @@ export default function PatientDetailPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium">URL de video</label>
+                    <label className="text-sm font-medium">{t("detail.videoUrl")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       type="url"
@@ -1616,7 +1627,7 @@ export default function PatientDetailPage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-sm font-medium">URL de guía</label>
+                    <label className="text-sm font-medium">{t("detail.guideUrl")}</label>
                     <input
                       className="mt-1 w-full border rounded-lg p-2"
                       type="url"
@@ -1639,7 +1650,7 @@ export default function PatientDetailPage() {
               disabled={!planKinesiologistId || !hasValidPlanItems || planDurationWeeks <= 0 || savePlanM.isPending}
               onClick={() => savePlanM.mutate()}
             >
-              {savePlanM.isPending ? "Guardando..." : editingPlanId ? "Guardar cambios" : "Crear plan"}
+              {savePlanM.isPending ? t("common.saving") : editingPlanId ? t("common.saveChanges") : t("detail.createPlan")}
             </button>
             {editingPlanId && (
               <button
@@ -1647,15 +1658,15 @@ export default function PatientDetailPage() {
                 className="ml-2 px-4 py-2 rounded-lg border hover:bg-gray-50"
                 onClick={resetPlanForm}
               >
-                Cancelar edición
+                {t("detail.cancelEdit")}
               </button>
             )}
 
             {savePlanM.isError && (
-              <p className="text-sm text-red-600">No se pudo guardar el plan.</p>
+              <p className="text-sm text-red-600">{t("detail.errorSavePlan")}</p>
             )}
             {savePlanM.isSuccess && (
-              <p className="text-sm text-green-700">Plan guardado.</p>
+              <p className="text-sm text-green-700">{t("detail.planSaved")}</p>
             )}
           </section>
         )}
@@ -1665,28 +1676,28 @@ export default function PatientDetailPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Timeline clínico</h2>
+              <h2 className="text-lg font-semibold">{t("detail.timelineTitle")}</h2>
               <p className="text-sm text-gray-600">
                 {selectedClinicalDiagnosis
-                  ? `Filtrado por ${diagnosisLabel(selectedClinicalDiagnosis)}.`
-                  : "Toda la actividad clínica del paciente."}
+                  ? `${t("detail.filteredByPrefix")} ${diagnosisLabel(selectedClinicalDiagnosis)}.`
+                  : t("detail.allClinicalActivity")}
               </p>
               {selectedClinicalDiagnosis && (
                 <p className="text-sm text-gray-600">
-                  {filteredEvolutions.length} evoluciones · {filteredPlans.length} planes
+                  {filteredEvolutions.length} {t("detail.evolutionsCountWord")} · {filteredPlans.length} {t("detail.plansCountWord")}
                 </p>
               )}
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <div>
-                <label className="text-sm font-medium">Filtrar por diagnóstico</label>
+                <label className="text-sm font-medium">{t("detail.filterByDiagnosis")}</label>
                 <select
                   className="mt-1 w-full min-w-72 border rounded-lg p-2"
                   value={selectedClinicalDiagnosisId}
                   onChange={(event) => setSelectedClinicalDiagnosisId(event.target.value)}
                 >
-                  <option value="">Todos</option>
+                  <option value="">{t("detail.all")}</option>
                   {diagnoses.map((diagnosis) => (
                     <option key={diagnosis.id} value={diagnosis.id}>
                       {diagnosis.cie10_code} · {diagnosis.cie10_description}
@@ -1700,13 +1711,13 @@ export default function PatientDetailPage() {
                   className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
                   onClick={() => setSelectedClinicalDiagnosisId("")}
                 >
-                  Limpiar
+                  {t("detail.clear")}
                 </button>
               )}
             </div>
           </div>
           {timeline.length === 0 ? (
-            <p className="text-sm text-gray-600">Sin actividad registrada.</p>
+            <p className="text-sm text-gray-600">{t("detail.noActivity")}</p>
           ) : (
             <div className="divide-y">
               {timeline.map((item) => (
@@ -1728,11 +1739,11 @@ export default function PatientDetailPage() {
         </section>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
-          <h2 className="text-lg font-semibold">Turnos</h2>
-          {appointmentsQ.isLoading && <p className="text-sm text-gray-600">Cargando turnos...</p>}
-          {appointmentsQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los turnos.</p>}
+          <h2 className="text-lg font-semibold">{t("detail.appointmentsTitle")}</h2>
+          {appointmentsQ.isLoading && <p className="text-sm text-gray-600">{t("portal.loadingAppointments")}</p>}
+          {appointmentsQ.isError && <p className="text-sm text-red-600">{t("portal.errorLoadAppointments")}</p>}
           {!appointmentsQ.isLoading && appointments.length === 0 ? (
-            <p className="text-sm text-gray-600">No hay turnos en el rango consultado.</p>
+            <p className="text-sm text-gray-600">{t("detail.noAppointmentsInRange")}</p>
           ) : (
             <div className="divide-y">
               {appointments.map((appointment) => (
@@ -1743,20 +1754,20 @@ export default function PatientDetailPage() {
                       {formatLocalTime(appointment.start_at)} a {formatLocalTime(appointment.end_at)}
                     </div>
                     <div className="text-sm text-gray-600">
-                      {appointment.modality === "virtual" ? "Videollamada" : "Presencial"}
+                      {appointment.modality === "virtual" ? t("portal.videocall") : t("portal.inPerson")}
                       {appointment.modality === "virtual" && appointment.video_call_url && (
                         <>
                           {" · "}
                           <a className="underline text-blue-700" href={appointment.video_call_url} target="_blank" rel="noreferrer">
-                            Abrir videollamada
+                            {t("portal.openVideocall")}
                           </a>
                         </>
                       )}
                     </div>
-                    {appointment.notes && <div className="text-sm text-gray-600">Notas: {appointment.notes}</div>}
+                    {appointment.notes && <div className="text-sm text-gray-600">{t("portal.notes")}: {appointment.notes}</div>}
                   </div>
                   <span className={`text-xs px-2 py-1 rounded-md ${appointment.status === "cancelled" ? "bg-gray-100 text-gray-700" : "bg-blue-100 text-blue-700"}`}>
-                    {appointment.status === "cancelled" ? "Cancelado" : "Programado"}
+                    {appointment.status === "cancelled" ? t("portal.cancelled") : t("portal.scheduled")}
                   </span>
                 </div>
               ))}
@@ -1767,16 +1778,16 @@ export default function PatientDetailPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">
-              {selectedClinicalDiagnosis ? "Evolución clínica del diagnóstico" : "Evolución clínica"}
+              {selectedClinicalDiagnosis ? t("detail.diagnosisEvolutionTitle") : t("detail.clinicalEvolutionTitle")}
             </h2>
-            <p className="text-sm text-gray-600">Dolor, movilidad, fuerza y funcionalidad registrados en cada evolución.</p>
+            <p className="text-sm text-gray-600">{t("detail.evolutionChartSubtitle")}</p>
           </div>
           <ClinicalEvolutionChart evolutions={filteredEvolutions} />
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Panel
-            title={selectedClinicalDiagnosis ? "Evoluciones del diagnóstico" : "Evoluciones"}
+            title={selectedClinicalDiagnosis ? t("detail.diagnosisEvolutionsTitle") : t("detail.evolutionsTitle")}
             isLoading={evolutionsQ.isLoading}
             isError={evolutionsQ.isError}
             empty={filteredEvolutions.length === 0}
@@ -1787,7 +1798,7 @@ export default function PatientDetailPage() {
                 <EvolutionMetrics evolution={evolution} />
                 {evolution.patient_diagnosis_id && diagnosisById.has(evolution.patient_diagnosis_id) && (
                   <div className="text-sm text-gray-600">
-                    Diagnóstico: {diagnosisLabel(diagnosisById.get(evolution.patient_diagnosis_id))}
+                    {t("detail.diagnosisLabel")}: {diagnosisLabel(diagnosisById.get(evolution.patient_diagnosis_id))}
                   </div>
                 )}
                 <p className="text-sm text-gray-700 mt-1">{evolution.notes}</p>
@@ -1797,7 +1808,7 @@ export default function PatientDetailPage() {
 
           {!selectedClinicalDiagnosis && (
             <Panel
-              title="Seguimientos del paciente"
+              title={t("detail.patientCheckInsTitle")}
               isLoading={checkInsQ.isLoading}
               isError={checkInsQ.isError}
               empty={checkIns.length === 0}
@@ -1813,7 +1824,7 @@ export default function PatientDetailPage() {
           )}
 
           <Panel
-            title={selectedClinicalDiagnosis ? "Planes del diagnóstico" : "Planes"}
+            title={selectedClinicalDiagnosis ? t("detail.diagnosisPlansTitle") : t("detail.plansTitle")}
             isLoading={plansQ.isLoading}
             isError={plansQ.isError}
             empty={filteredPlans.length === 0}
@@ -1823,21 +1834,21 @@ export default function PatientDetailPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-medium">
-                      {plan.frequency === "daily" ? "Diario" : "Semanal"} · {plan.duration_weeks} semanas
+                      {plan.frequency === "daily" ? t("portal.daily") : t("portal.weekly")} · {plan.duration_weeks} {t("portal.weeks")}
                     </div>
-                    <div className="text-sm text-gray-600">Estado: {plan.status === "closed" ? "Cerrado" : "Activo"}</div>
+                    <div className="text-sm text-gray-600">{t("detail.status")}: {plan.status === "closed" ? t("portal.closed") : t("portal.active")}</div>
                     {plan.patient_diagnosis_id && diagnosisById.has(plan.patient_diagnosis_id) && (
                       <div className="text-sm text-gray-600">
-                        Diagnóstico: {diagnosisLabel(diagnosisById.get(plan.patient_diagnosis_id))}
+                        {t("detail.diagnosisLabel")}: {diagnosisLabel(diagnosisById.get(plan.patient_diagnosis_id))}
                       </div>
                     )}
-                    <div className="text-sm text-gray-600">Ejercicios: {plan.items.length}</div>
+                    <div className="text-sm text-gray-600">{t("detail.exercises")}: {plan.items.length}</div>
                     <div className="text-sm text-gray-600">
-                      Creado: {formatLocalDateTime(plan.created_at)}
+                      {t("detail.created")}: {formatLocalDateTime(plan.created_at)}
                       {plan.created_by_email ? ` · ${plan.created_by_email}` : ""}
                     </div>
                     <div className="text-sm text-gray-600">
-                      Última edición: {formatLocalDateTime(plan.updated_at)}
+                      {t("detail.lastEdit")}: {formatLocalDateTime(plan.updated_at)}
                       {plan.updated_by_email ? ` · ${plan.updated_by_email}` : ""}
                     </div>
                   </div>
@@ -1847,7 +1858,7 @@ export default function PatientDetailPage() {
                       className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                       onClick={() => loadPlanForEdit(plan)}
                     >
-                      Editar
+                      {t("detail.edit")}
                     </button>
                   )}
                 </div>
@@ -1858,9 +1869,9 @@ export default function PatientDetailPage() {
                       <div key={item.id} className="rounded-lg border p-2">
                         <div className="text-sm font-medium">{item.name}</div>
                         <div className="text-sm text-gray-600">
-                          {item.estimated_minutes} min
-                          {item.sets ? ` · ${item.sets} series` : ""}
-                          {item.reps ? ` · ${item.reps} repeticiones` : ""}
+                          {item.estimated_minutes} {t("portal.min")}
+                          {item.sets ? ` · ${item.sets} ${t("portal.sets")}` : ""}
+                          {item.reps ? ` · ${item.reps} ${t("portal.reps")}` : ""}
                         </div>
                         {item.description && <p className="text-sm text-gray-700 mt-1">{item.description}</p>}
                         {(item.video_url || item.guide_url) && (
@@ -1872,17 +1883,17 @@ export default function PatientDetailPage() {
                                   className="text-sm underline text-blue-700"
                                   onClick={() => setVideoPreview({ title: item.name, url: item.video_url! })}
                                 >
-                                  Ver video
+                                  {t("portal.watchVideo")}
                                 </button>
                               ) : (
                                 <a className="text-sm underline text-blue-700" href={item.video_url} target="_blank" rel="noreferrer">
-                                  Ver video
+                                  {t("portal.watchVideo")}
                                 </a>
                               )
                             )}
                             {item.guide_url && (
                               <a className="text-sm underline text-blue-700" href={item.guide_url} target="_blank" rel="noreferrer">
-                                Ver guía
+                                {t("portal.watchGuide")}
                               </a>
                             )}
                           </div>
@@ -1895,13 +1906,13 @@ export default function PatientDetailPage() {
             ))}
           </Panel>
 
-          <Panel title="Materiales" isLoading={loansQ.isLoading} isError={loansQ.isError} empty={loans.length === 0}>
+          <Panel title={t("detail.materialsTitle")} isLoading={loansQ.isLoading} isError={loansQ.isError} empty={loans.length === 0}>
             {loans.map((loan) => (
               <div key={loan.id} className="py-3 border-b last:border-b-0">
-                <div className="font-medium">Cantidad: {loan.qty}</div>
-                <div className="text-sm text-gray-600">Prestado: {formatLocalDateTime(loan.loaned_at)}</div>
+                <div className="font-medium">{t("detail.quantity")}: {loan.qty}</div>
+                <div className="text-sm text-gray-600">{t("materials.loaned")}: {formatLocalDateTime(loan.loaned_at)}</div>
                 <div className="text-sm text-gray-600">
-                  {loan.returned_at ? `Devuelto: ${formatLocalDateTime(loan.returned_at)}` : "Pendiente de devolución"}
+                  {loan.returned_at ? `${t("materials.returned")}: ${formatLocalDateTime(loan.returned_at)}` : t("materials.pendingReturn")}
                 </div>
                 {loan.notes && <p className="text-sm text-gray-700 mt-1">{loan.notes}</p>}
               </div>
@@ -1917,6 +1928,7 @@ export default function PatientDetailPage() {
 }
 
 function ClinicalReportCard({ report }: { report: ClinicalReport }) {
+  const { t } = useLanguage();
   return (
     <article className="rounded-lg border p-3 space-y-3">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
@@ -1925,28 +1937,28 @@ function ClinicalReportCard({ report }: { report: ClinicalReport }) {
             {report.period_from} a {report.period_to}
           </div>
           <div className="text-sm text-gray-600">
-            Generado: {formatLocalDateTime(report.created_at)}
+            {t("detail.generated")}: {formatLocalDateTime(report.created_at)}
             {report.created_by_email ? ` · ${report.created_by_email}` : ""}
           </div>
         </div>
         <span className="w-fit rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-700">
-          {report.evolution_count} evoluciones
+          {report.evolution_count} {t("detail.evolutionsCountWord")}
         </span>
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
-        <ReportMetric label="Dolor" value={formatReportMetric(report.avg_pain_level, "/10")} />
-        <ReportMetric label="Movilidad" value={formatReportMetric(report.avg_mobility_score, "/100")} />
-        <ReportMetric label="Fuerza" value={formatReportMetric(report.avg_strength_score, "/100")} />
-        <ReportMetric label="Funcionalidad" value={formatReportMetric(report.avg_functional_score, "/100")} />
-        <ReportMetric label="Planes" value={String(report.active_plan_count)} />
-        <ReportMetric label="Ejercicios" value={String(report.active_plan_item_count)} />
+        <ReportMetric label={t("portal.pain")} value={formatReportMetric(report.avg_pain_level, "/10")} />
+        <ReportMetric label={t("portal.mobility")} value={formatReportMetric(report.avg_mobility_score, "/100")} />
+        <ReportMetric label={t("portal.strength")} value={formatReportMetric(report.avg_strength_score, "/100")} />
+        <ReportMetric label={t("portal.functional")} value={formatReportMetric(report.avg_functional_score, "/100")} />
+        <ReportMetric label={t("detail.plans")} value={String(report.active_plan_count)} />
+        <ReportMetric label={t("detail.exercises")} value={String(report.active_plan_item_count)} />
       </div>
 
       <p className="text-sm text-gray-700">{report.summary}</p>
       {report.recommendations && (
         <div className="rounded-lg bg-gray-50 p-3">
-          <div className="text-sm font-medium">Recomendaciones</div>
+          <div className="text-sm font-medium">{t("detail.recommendations")}</div>
           <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{report.recommendations}</p>
         </div>
       )}
@@ -1981,13 +1993,14 @@ function Panel({
   empty: boolean;
   children: ReactNode;
 }) {
+  const { t } = useLanguage();
   return (
     <section className="bg-white rounded-xl shadow p-4">
       <h2 className="text-lg font-semibold">{title}</h2>
-      {isLoading && <p className="text-sm text-gray-600 mt-2">Cargando...</p>}
-      {isError && <p className="text-sm text-red-600 mt-2">No se pudo cargar la información.</p>}
+      {isLoading && <p className="text-sm text-gray-600 mt-2">{t("detail.loading")}</p>}
+      {isError && <p className="text-sm text-red-600 mt-2">{t("detail.errorLoadInfo")}</p>}
       {!isLoading && !isError && empty ? (
-        <p className="text-sm text-gray-600 mt-2">Sin registros.</p>
+        <p className="text-sm text-gray-600 mt-2">{t("detail.noRecords")}</p>
       ) : (
         <div className="mt-2">{children}</div>
       )}
@@ -1997,25 +2010,29 @@ function Panel({
 
 type EvolutionMetricKey = "pain_level" | "mobility_score" | "strength_score" | "functional_score";
 
-const evolutionMetricDefs: Array<{
+function getEvolutionMetricDefs(t: Translate): Array<{
   key: EvolutionMetricKey;
   label: string;
   color: string;
   max: number;
-}> = [
-  { key: "pain_level", label: "Dolor", color: "#dc2626", max: 10 },
-  { key: "mobility_score", label: "Movilidad", color: "#2563eb", max: 100 },
-  { key: "strength_score", label: "Fuerza", color: "#16a34a", max: 100 },
-  { key: "functional_score", label: "Funcionalidad", color: "#9333ea", max: 100 },
-];
+}> {
+  return [
+    { key: "pain_level", label: t("portal.pain"), color: "#dc2626", max: 10 },
+    { key: "mobility_score", label: t("portal.mobility"), color: "#2563eb", max: 100 },
+    { key: "strength_score", label: t("portal.strength"), color: "#16a34a", max: 100 },
+    { key: "functional_score", label: t("portal.functional"), color: "#9333ea", max: 100 },
+  ];
+}
 
 function ClinicalEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] }) {
+  const { t } = useLanguage();
+  const evolutionMetricDefs = getEvolutionMetricDefs(t);
   const points = [...evolutions]
     .filter((evolution) => evolutionMetricDefs.some((metric) => evolution[metric.key] != null))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   if (points.length === 0) {
-    return <p className="text-sm text-gray-600">Todavía no hay métricas clínicas registradas.</p>;
+    return <p className="text-sm text-gray-600">{t("detail.noMetricsYet")}</p>;
   }
 
   const width = 760;
@@ -2039,7 +2056,7 @@ function ClinicalEvolutionChart({ evolutions }: { evolutions: PatientEvolution[]
       </div>
 
       <div className="overflow-x-auto">
-        <svg className="min-w-[680px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Gráfico de evolución clínica">
+        <svg className="min-w-[680px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("detail.evolutionChartAriaLabel")}>
           {[0, 25, 50, 75, 100].map((value) => (
             <g key={value}>
               <line
@@ -2112,7 +2129,8 @@ function ClinicalEvolutionChart({ evolutions }: { evolutions: PatientEvolution[]
 }
 
 function EvolutionMetrics({ evolution }: { evolution: PatientEvolution }) {
-  const values = evolutionMetricDefs
+  const { t } = useLanguage();
+  const values = getEvolutionMetricDefs(t)
     .map((metric) => {
       const value = evolution[metric.key];
       return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
@@ -2131,7 +2149,8 @@ function EvolutionMetrics({ evolution }: { evolution: PatientEvolution }) {
 }
 
 function CheckInMetrics({ checkIn }: { checkIn: PatientCheckIn }) {
-  const values = evolutionMetricDefs
+  const { t } = useLanguage();
+  const values = getEvolutionMetricDefs(t)
     .map((metric) => {
       const value = checkIn[metric.key];
       return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
@@ -2149,8 +2168,8 @@ function CheckInMetrics({ checkIn }: { checkIn: PatientCheckIn }) {
   );
 }
 
-function evolutionMetricSummary(evolution: PatientEvolution) {
-  return evolutionMetricDefs
+function evolutionMetricSummary(evolution: PatientEvolution, t: Translate) {
+  return getEvolutionMetricDefs(t)
     .map((metric) => {
       const value = evolution[metric.key];
       return value == null ? null : `${metric.label} ${value}/${metric.max}`;
@@ -2159,8 +2178,8 @@ function evolutionMetricSummary(evolution: PatientEvolution) {
     .join(" · ");
 }
 
-function checkInMetricSummary(checkIn: PatientCheckIn) {
-  return evolutionMetricDefs
+function checkInMetricSummary(checkIn: PatientCheckIn, t: Translate) {
+  return getEvolutionMetricDefs(t)
     .map((metric) => {
       const value = checkIn[metric.key];
       return value == null ? null : `${metric.label} ${value}/${metric.max}`;
@@ -2169,14 +2188,14 @@ function checkInMetricSummary(checkIn: PatientCheckIn) {
     .join(" · ");
 }
 
-function diagnosisKindLabel(kind: string) {
-  return kind === "secondary" ? "Secundario" : "Principal";
+function diagnosisKindLabel(kind: string, t: Translate) {
+  return kind === "secondary" ? t("detail.secondary") : t("detail.primary");
 }
 
-function diagnosisStatusLabel(status: string) {
-  if (status === "confirmed") return "Confirmado";
-  if (status === "resolved") return "Resuelto";
-  return "Sospechado";
+function diagnosisStatusLabel(status: string, t: Translate) {
+  if (status === "confirmed") return t("detail.confirmed");
+  if (status === "resolved") return t("detail.resolved");
+  return t("detail.suspected");
 }
 
 function diagnosisLabel(diagnosis: PatientDiagnosis | undefined) {

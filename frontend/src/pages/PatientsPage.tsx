@@ -7,11 +7,13 @@ import type { Patient } from "@/features/patients/types";
 import { uploadPatientAttachment } from "@/features/patients/detailApi";
 import { listFinanciers, type Financier } from "@/features/finance/api";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function PatientsPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [dni, setDni] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -61,7 +63,7 @@ export default function PatientsPage() {
         : await listPatients(50, includeInactive);
       setPatients(res);
     } catch (e: any) {
-      setError(e?.message ?? "No se pudieron cargar los pacientes.");
+      setError(e?.message ?? t("patients.errorLoadFailed"));
     } finally {
       setIsLoadingPatients(false);
     }
@@ -107,19 +109,19 @@ export default function PatientsPage() {
       }
       await refreshPatients("");
     } catch (e: any) {
-      setError(e?.message ?? "Error");
+      setError(e?.message ?? t("patients.error"));
     }
   }
 
   function validatePatientForm() {
     const validation: Record<string, string> = {};
-    if (!dni.trim()) validation.dni = "Completá el DNI.";
-    if (!firstName.trim()) validation.firstName = "Completá el nombre.";
-    if (!lastName.trim()) validation.lastName = "Completá el apellido.";
+    if (!dni.trim()) validation.dni = t("patients.errorDni");
+    if (!firstName.trim()) validation.firstName = t("patients.errorFirstName");
+    if (!lastName.trim()) validation.lastName = t("patients.errorLastName");
     if (!email.trim()) {
-      validation.email = "Completá el email.";
+      validation.email = t("patients.errorEmailRequired");
     } else if (!emailPattern.test(email.trim())) {
-      validation.email = "Ingresá un email válido.";
+      validation.email = t("patients.errorEmailInvalid");
     }
     return validation;
   }
@@ -132,9 +134,9 @@ export default function PatientsPage() {
     setIsInviting(true);
     try {
       await inviteUserAccess({ email: created.email, role: "paciente" });
-      setInviteMessage(`Invitación enviada a ${created.email}.`);
+      setInviteMessage(`${t("patients.inviteSentToPrefix")} ${created.email}.`);
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo enviar la invitación.");
+      setError(e?.message ?? t("patients.errorInviteFailed"));
     } finally {
       setIsInviting(false);
     }
@@ -146,9 +148,9 @@ export default function PatientsPage() {
     setInvitingPatientId(patient.id);
     try {
       await inviteUserAccess({ email: patient.email, role: "paciente" });
-      setInviteMessage(`Invitación enviada a ${patient.email}.`);
+      setInviteMessage(`${t("patients.inviteSentToPrefix")} ${patient.email}.`);
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo enviar la invitación.");
+      setError(e?.message ?? t("patients.errorInviteFailed"));
     } finally {
       setInvitingPatientId(null);
     }
@@ -156,12 +158,12 @@ export default function PatientsPage() {
 
   function selectForAgenda(patient: Patient) {
     if (!patient.active) {
-      setError("No se puede usar en Agenda un paciente archivado.");
+      setError(t("patients.errorArchivedInAgenda"));
       return;
     }
     localStorage.setItem("last_patient_id", patient.id);
     setCreated(patient);
-    setInviteMessage(`${patient.last_name}, ${patient.first_name} quedó seleccionado para Agenda.`);
+    setInviteMessage(`${patient.last_name}, ${patient.first_name} ${t("patients.selectedForAgendaSuffix")}`);
   }
 
   async function togglePatientActive(patient: Patient) {
@@ -172,7 +174,7 @@ export default function PatientsPage() {
     try {
       if (patient.active) {
         await archivePatient(patient.id);
-        setInviteMessage(`${patient.last_name}, ${patient.first_name} fue archivado.`);
+        setInviteMessage(`${patient.last_name}, ${patient.first_name} ${t("patients.archivedNoticeSuffix")}`);
       } else {
         const updated = await updatePatient({
           id: patient.id,
@@ -183,11 +185,11 @@ export default function PatientsPage() {
           phone: patient.phone ?? null,
           active: true,
         });
-        setInviteMessage(`${updated.last_name}, ${updated.first_name} fue reactivado.`);
+        setInviteMessage(`${updated.last_name}, ${updated.first_name} ${t("patients.reactivatedNoticeSuffix")}`);
       }
       await refreshPatients();
     } catch (e: any) {
-      setError(e?.message ?? "No se pudo actualizar el estado del paciente.");
+      setError(e?.message ?? t("patients.errorToggleActiveFailed"));
     } finally {
       setTogglingPatientId(null);
     }
@@ -198,37 +200,37 @@ export default function PatientsPage() {
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Pacientes</h1>
-            <p className="text-sm text-gray-600">Alta, búsqueda y listado de pacientes.</p>
+            <h1 className="text-2xl font-semibold">{t("patients.title")}</h1>
+            <p className="text-sm text-gray-600">{t("patients.subtitle")}</p>
           </div>
-          <Link className="text-sm underline" to="/agenda">Ir a Agenda</Link>
+          <Link className="text-sm underline" to="/agenda">{t("patients.goToAgenda")}</Link>
         </header>
 
         <form className="bg-white rounded-xl shadow p-4 space-y-3" onSubmit={submit} noValidate>
-          <p className="text-xs text-gray-500">Los campos marcados con <span className="text-red-600">*</span> son obligatorios.</p>
+          <p className="text-xs text-gray-500">{t("patients.requiredFieldsNote")}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>DNI</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("patients.dni")}</RequiredLabel></label>
               <input className="mt-1 w-full border rounded-lg p-2" value={dni} onChange={(e) => setDni(e.target.value)} required />
               {formErrors.dni && <p className="text-xs text-red-600 mt-1">{formErrors.dni}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Email</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("patients.email")}</RequiredLabel></label>
               <input className="mt-1 w-full border rounded-lg p-2" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
               {formErrors.email && <p className="text-xs text-red-600 mt-1">{formErrors.email}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Nombre</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("patients.firstName")}</RequiredLabel></label>
               <input className="mt-1 w-full border rounded-lg p-2" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
               {formErrors.firstName && <p className="text-xs text-red-600 mt-1">{formErrors.firstName}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Apellido</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("patients.lastName")}</RequiredLabel></label>
               <input className="mt-1 w-full border rounded-lg p-2" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               {formErrors.lastName && <p className="text-xs text-red-600 mt-1">{formErrors.lastName}</p>}
             </div>
             <div>
-              <label className="text-sm font-medium">Financiador</label>
+              <label className="text-sm font-medium">{t("patients.financier")}</label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={financierId}
@@ -239,7 +241,7 @@ export default function PatientsPage() {
                   if (!next || next.kind === "particular") setFinancierMemberNumber("");
                 }}
               >
-                <option value="">Sin financiador</option>
+                <option value="">{t("patients.noFinancier")}</option>
                 {financiers.map((financier) => (
                   <option key={financier.id} value={financier.id}>
                     {financier.name}
@@ -249,7 +251,7 @@ export default function PatientsPage() {
             </div>
             {!selectedFinancierIsParticular && (
               <div>
-                <label className="text-sm font-medium">Número de afiliado</label>
+                <label className="text-sm font-medium">{t("patients.memberNumber")}</label>
                 <input
                   className="mt-1 w-full border rounded-lg p-2"
                   value={financierMemberNumber}
@@ -258,7 +260,7 @@ export default function PatientsPage() {
               </div>
             )}
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">Archivos iniciales</label>
+              <label className="text-sm font-medium">{t("patients.initialFiles")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="file"
@@ -268,24 +270,24 @@ export default function PatientsPage() {
               />
               {initialFiles.length > 0 && (
                 <p className="text-xs text-gray-500 mt-1">
-                  {initialFiles.length} archivo(s) se van a subir después de crear el paciente.
+                  {initialFiles.length} {t("patients.filesWillUpload")}
                 </p>
               )}
             </div>
           </div>
 
           <button className="px-4 py-2 rounded-lg bg-black text-white" type="submit">
-            Crear paciente
+            {t("patients.createPatient")}
           </button>
 
-          {error && <p className="text-sm text-red-600">Error: {error}</p>}
+          {error && <p className="text-sm text-red-600">{t("patients.error")}: {error}</p>}
 
           {created && (
             <div className="mt-2 border rounded-lg p-3 bg-gray-50">
-              <div className="font-medium">Paciente creado</div>
+              <div className="font-medium">{t("patients.patientCreated")}</div>
               <div className="text-sm text-gray-700">ID: <span className="font-mono">{created.id}</span></div>
               <div className="text-sm text-gray-700">{created.last_name}, {created.first_name} — {created.dni}</div>
-              <p className="text-xs text-gray-500 mt-1">Se guardó como last_patient_id para usar en Agenda.</p>
+              <p className="text-xs text-gray-500 mt-1">{t("patients.savedAsLastPatient")}</p>
               {user?.role === "admin" && (
                 <button
                   type="button"
@@ -293,7 +295,7 @@ export default function PatientsPage() {
                   disabled={isInviting}
                   onClick={invitePatient}
                 >
-                  {isInviting ? "Enviando..." : "Enviar acceso al portal"}
+                  {isInviting ? t("patients.sending") : t("patients.sendPortalAccess")}
                 </button>
               )}
               {inviteMessage && <p className="text-sm text-green-700 mt-2">{inviteMessage}</p>}
@@ -304,11 +306,11 @@ export default function PatientsPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div className="flex-1">
-              <h2 className="text-lg font-semibold">Listado de pacientes</h2>
-              <label className="text-sm font-medium mt-3 block">Buscar</label>
+              <h2 className="text-lg font-semibold">{t("patients.listTitle")}</h2>
+              <label className="text-sm font-medium mt-3 block">{t("patients.search")}</label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
-                placeholder="DNI, email, nombre o apellido"
+                placeholder={t("patients.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -318,7 +320,7 @@ export default function PatientsPage() {
                   checked={includeInactive}
                   onChange={(e) => setIncludeInactive(e.target.checked)}
                 />
-                Mostrar pacientes archivados
+                {t("patients.showArchived")}
               </label>
             </div>
             <button
@@ -326,26 +328,26 @@ export default function PatientsPage() {
               className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
               onClick={() => refreshPatients()}
             >
-              Actualizar
+              {t("patients.refresh")}
             </button>
           </div>
 
-          {isLoadingPatients && <p className="text-sm text-gray-600">Cargando pacientes...</p>}
+          {isLoadingPatients && <p className="text-sm text-gray-600">{t("patients.loading")}</p>}
 
           <div className="divide-y">
             {!isLoadingPatients && patients.length === 0 ? (
-              <p className="text-sm text-gray-600 py-3">No hay pacientes para mostrar.</p>
+              <p className="text-sm text-gray-600 py-3">{t("patients.empty")}</p>
             ) : (
               patients.map((patient) => (
                 <div key={patient.id} className="py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <div className="font-medium">{patient.last_name}, {patient.first_name}</div>
-                    <div className="text-sm text-gray-600">DNI: {patient.dni}</div>
+                    <div className="text-sm text-gray-600">{t("patients.dni")}: {patient.dni}</div>
                     <div className="text-sm text-gray-600">{patient.email}</div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className={`text-xs px-2 py-1 rounded-md self-center ${patient.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
-                      {patient.active ? "Activo" : "Archivado"}
+                      {patient.active ? t("patients.active") : t("patients.archived")}
                     </span>
                     <button
                       type="button"
@@ -353,13 +355,13 @@ export default function PatientsPage() {
                       disabled={!patient.active}
                       onClick={() => selectForAgenda(patient)}
                     >
-                      Usar en Agenda
+                      {t("patients.useInAgenda")}
                     </button>
                     <Link
                       className="px-3 py-1 rounded-lg border text-sm hover:bg-gray-50"
                       to={`/patients/${patient.id}`}
                     >
-                      Ver detalle
+                      {t("patients.viewDetail")}
                     </Link>
                     {user?.role === "admin" && (
                       <button
@@ -368,7 +370,7 @@ export default function PatientsPage() {
                         disabled={invitingPatientId === patient.id}
                         onClick={() => invitePatientFromList(patient)}
                       >
-                        {invitingPatientId === patient.id ? "Enviando..." : "Enviar acceso"}
+                        {invitingPatientId === patient.id ? t("patients.sending") : t("patients.sendAccess")}
                       </button>
                     )}
                     <button
@@ -378,10 +380,10 @@ export default function PatientsPage() {
                       onClick={() => togglePatientActive(patient)}
                     >
                       {togglingPatientId === patient.id
-                        ? "Guardando..."
+                        ? t("patients.saving")
                         : patient.active
-                          ? "Archivar"
-                          : "Reactivar"}
+                          ? t("patients.archive")
+                          : t("patients.reactivate")}
                     </button>
                   </div>
                 </div>

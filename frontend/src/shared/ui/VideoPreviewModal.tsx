@@ -1,4 +1,5 @@
 import { getYouTubeEmbedUrl } from "@/shared/media/youtube";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export type VideoPreview = {
   title: string;
@@ -12,6 +13,8 @@ export function VideoPreviewModal({
   preview: VideoPreview | null;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
+
   if (!preview) return null;
 
   const embedUrl = getYouTubeEmbedUrl(preview.url);
@@ -24,11 +27,11 @@ export function VideoPreviewModal({
           <div>
             <h2 className="text-lg font-semibold">{preview.title}</h2>
             <a className="text-sm text-blue-700 underline" href={preview.url} target="_blank" rel="noreferrer">
-              Abrir en YouTube
+              {t("common.openInYoutube")}
             </a>
           </div>
           <button type="button" className="rounded-lg border px-3 py-1 text-sm hover:bg-gray-50" onClick={onClose}>
-            Cerrar
+            {t("common.close")}
           </button>
         </div>
         <div className="aspect-video bg-black">

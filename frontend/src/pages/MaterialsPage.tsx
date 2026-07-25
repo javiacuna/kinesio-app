@@ -17,6 +17,7 @@ import { listPatients } from "@/features/patients/api";
 import type { Patient } from "@/features/patients/types";
 import { formatLocalDate, formatLocalDateTime } from "@/shared/time/format";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
 function isStockError(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "insufficient_stock";
@@ -33,6 +34,7 @@ function isOverdue(loan: MaterialLoan): boolean {
 
 export default function MaterialsPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [loanPatient, setLoanPatient] = useState<Patient | null>(null);
   const [returnPatient, setReturnPatient] = useState<Patient | null>(null);
   const [materialId, setMaterialId] = useState("");
@@ -195,18 +197,18 @@ export default function MaterialsPage() {
 
   function patientName(id: string) {
     const patient = patientById.get(id);
-    return patient ? `${patient.last_name}, ${patient.first_name}` : "Paciente";
+    return patient ? `${patient.last_name}, ${patient.first_name}` : t("materials.defaultPatientName");
   }
 
   function kinesiologistName(id: string) {
     const kinesiologist = kinesiologistById.get(id);
-    return kinesiologist ? `${kinesiologist.last_name}, ${kinesiologist.first_name}` : "Kinesiólogo";
+    return kinesiologist ? `${kinesiologist.last_name}, ${kinesiologist.first_name}` : t("materials.defaultKinesiologistName");
   }
 
   function auditText(email?: string | null, role?: string | null) {
-    if (!email && !role) return "Sin auditoría";
+    if (!email && !role) return t("materials.noAudit");
     if (email && role) return `${email} · ${role}`;
-    return email || role || "Sin auditoría";
+    return email || role || t("materials.noAudit");
   }
 
   function borrowedQty(material: Material) {
@@ -216,16 +218,16 @@ export default function MaterialsPage() {
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">Materiales</h1>
-        <p className="text-sm text-gray-600">Préstamos, devoluciones y stock disponible.</p>
+        <h1 className="text-2xl font-semibold">{t("materials.title")}</h1>
+        <p className="text-sm text-gray-600">{t("materials.subtitle")}</p>
       </header>
 
       <section className="bg-white rounded-xl shadow p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Stock</h2>
+        <h2 className="text-lg font-semibold">{t("materials.stock")}</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_1fr_auto] gap-3">
           <div>
-            <label className="text-sm font-medium"><RequiredLabel required>Material</RequiredLabel></label>
+            <label className="text-sm font-medium"><RequiredLabel required>{t("materials.material")}</RequiredLabel></label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               required
@@ -233,11 +235,11 @@ export default function MaterialsPage() {
               onChange={(event) => setNewMaterialName(event.target.value)}
             />
             {showMaterialValidation && !newMaterialName.trim() && (
-              <p className="text-xs text-red-600 mt-1">Completá el nombre del material.</p>
+              <p className="text-xs text-red-600 mt-1">{t("materials.errorMaterialNameRequired")}</p>
             )}
           </div>
           <div>
-            <label className="text-sm font-medium"><RequiredLabel required>Cantidad</RequiredLabel></label>
+            <label className="text-sm font-medium"><RequiredLabel required>{t("materials.quantity")}</RequiredLabel></label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="number"
@@ -247,11 +249,11 @@ export default function MaterialsPage() {
               onChange={(event) => setNewMaterialQty(Number(event.target.value))}
             />
             {showMaterialValidation && newMaterialQty <= 0 && (
-              <p className="text-xs text-red-600 mt-1">La cantidad debe ser mayor a 0.</p>
+              <p className="text-xs text-red-600 mt-1">{t("materials.errorQtyPositive")}</p>
             )}
           </div>
           <div>
-            <label className="text-sm font-medium">Descripción</label>
+            <label className="text-sm font-medium">{t("materials.description")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               value={newMaterialDescription}
@@ -268,16 +270,16 @@ export default function MaterialsPage() {
               createMaterialM.mutate();
             }}
           >
-            {createMaterialM.isPending ? "Guardando..." : "Crear"}
+            {createMaterialM.isPending ? t("common.saving") : t("materials.create")}
           </button>
         </div>
 
         {createMaterialM.isError && (
-          <p className="text-sm text-red-600">No se pudo crear el material.</p>
+          <p className="text-sm text-red-600">{t("materials.errorCreateFailed")}</p>
         )}
 
-        {materialsQ.isLoading && <p className="text-sm text-gray-600">Cargando stock...</p>}
-        {materialsQ.isError && <p className="text-sm text-red-600">No se pudo cargar el stock.</p>}
+        {materialsQ.isLoading && <p className="text-sm text-gray-600">{t("materials.loadingStock")}</p>}
+        {materialsQ.isError && <p className="text-sm text-red-600">{t("materials.errorLoadStockFailed")}</p>}
         {materials.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {materials.map((material) => (
@@ -285,7 +287,7 @@ export default function MaterialsPage() {
                 {editingMaterialId === material.id ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-sm font-medium">Material</label>
+                      <label className="text-sm font-medium">{t("materials.material")}</label>
                       <input
                         className="mt-1 w-full border rounded-lg p-2"
                         value={editMaterialName}
@@ -294,7 +296,7 @@ export default function MaterialsPage() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-3">
                       <div>
-                        <label className="text-sm font-medium">Cantidad</label>
+                        <label className="text-sm font-medium">{t("materials.quantity")}</label>
                         <input
                           className="mt-1 w-full border rounded-lg p-2"
                           type="number"
@@ -304,7 +306,7 @@ export default function MaterialsPage() {
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium">Descripción</label>
+                        <label className="text-sm font-medium">{t("materials.description")}</label>
                         <input
                           className="mt-1 w-full border rounded-lg p-2"
                           value={editMaterialDescription}
@@ -323,18 +325,18 @@ export default function MaterialsPage() {
                         }
                         onClick={() => updateMaterialM.mutate()}
                       >
-                        {updateMaterialM.isPending ? "Guardando..." : "Guardar"}
+                        {updateMaterialM.isPending ? t("common.saving") : t("materials.save")}
                       </button>
                       <button
                         type="button"
                         className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
                         onClick={() => setEditingMaterialId(null)}
                       >
-                        Cancelar
+                        {t("common.cancel")}
                       </button>
                     </div>
                     {updateMaterialM.isError && (
-                      <p className="text-sm text-red-600">No se pudo editar el material.</p>
+                      <p className="text-sm text-red-600">{t("materials.errorEditFailed")}</p>
                     )}
                   </div>
                 ) : (
@@ -343,7 +345,7 @@ export default function MaterialsPage() {
                       <div>
                         <div className="font-medium">{material.name}</div>
                         <div className="text-sm text-gray-600">
-                          Disponible: {material.available_qty} / {material.total_qty}
+                          {t("materials.available")}: {material.available_qty} / {material.total_qty}
                         </div>
                       </div>
                       <button
@@ -351,12 +353,12 @@ export default function MaterialsPage() {
                         className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
                         onClick={() => startEditingMaterial(material)}
                       >
-                        Editar
+                        {t("materials.edit")}
                       </button>
                     </div>
                     {material.description && <p className="text-sm text-gray-700">{material.description}</p>}
                     <p className="text-xs text-gray-500">
-                      Actualizado por {auditText(material.updated_by_email, material.updated_by_role)}
+                      {t("materials.updatedBy")} {auditText(material.updated_by_email, material.updated_by_role)}
                     </p>
                   </div>
                 )}
@@ -368,22 +370,22 @@ export default function MaterialsPage() {
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
-          <h2 className="text-lg font-semibold">Préstamo de material</h2>
+          <h2 className="text-lg font-semibold">{t("materials.loanTitle")}</h2>
 
           <PatientSearch
             valuePatientId={loanPatient?.id ?? ""}
             onSelect={setLoanPatient}
-            placeholder="Buscar paciente activo..."
+            placeholder={t("materials.searchActivePatient")}
           />
 
           <div>
-            <label className="text-sm font-medium">Kinesiólogo responsable</label>
+            <label className="text-sm font-medium">{t("materials.responsibleKinesiologist")}</label>
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={kinesiologistId}
               onChange={(event) => setKinesiologistId(event.target.value)}
             >
-              <option value="">Seleccionar...</option>
+              <option value="">{t("materials.select")}</option>
               {kinesiologists.map((kinesiologist) => (
                 <option key={kinesiologist.id} value={kinesiologist.id}>
                   {kinesiologist.last_name}, {kinesiologist.first_name}
@@ -394,22 +396,22 @@ export default function MaterialsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_120px] gap-3">
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Material</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("materials.material")}</RequiredLabel></label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={materialId}
                 onChange={(event) => setMaterialId(event.target.value)}
               >
-                <option value="">Seleccionar...</option>
+                <option value="">{t("materials.select")}</option>
                 {materials.map((material) => (
                   <option key={material.id} value={material.id} disabled={material.available_qty <= 0}>
-                    {material.name} ({material.available_qty} disp.)
+                    {material.name} ({material.available_qty} {t("materials.availableAbbrev")})
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Cantidad</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("materials.quantity")}</RequiredLabel></label>
               <input
                 className="mt-1 w-full border rounded-lg p-2"
                 type="number"
@@ -422,7 +424,7 @@ export default function MaterialsPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Fecha límite de devolución</label>
+            <label className="text-sm font-medium">{t("materials.dueDate")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="date"
@@ -432,7 +434,7 @@ export default function MaterialsPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Notas</label>
+            <label className="text-sm font-medium">{t("materials.notes")}</label>
             <textarea
               className="mt-1 w-full border rounded-lg p-2 min-h-20"
               value={notes}
@@ -450,44 +452,44 @@ export default function MaterialsPage() {
               loanM.mutate();
             }}
           >
-            {loanM.isPending ? "Registrando..." : "Registrar préstamo"}
+            {loanM.isPending ? t("materials.registering") : t("materials.registerLoan")}
           </button>
 
           {showLoanValidation && !canLoan && (
             <p className="text-sm text-red-600">
               {!loanPatient?.id
-                ? "Seleccioná un paciente."
+                ? t("materials.errorSelectPatient")
                 : !materialId
-                  ? "Seleccioná un material."
+                  ? t("materials.errorSelectMaterial")
                   : !kinesiologistId
-                    ? "Seleccioná un kinesiólogo responsable."
+                    ? t("materials.errorSelectKinesiologist")
                     : qty <= 0
-                      ? "La cantidad debe ser mayor a 0."
-                      : "La cantidad no puede superar el stock disponible."}
+                      ? t("materials.errorQtyPositive")
+                      : t("materials.errorQtyExceedsStock")}
             </p>
           )}
 
           {loanM.isError && (
             <p className="text-sm text-red-600">
-              {isStockError(loanM.error) ? "No hay stock suficiente." : "No se pudo registrar el préstamo."}
+              {isStockError(loanM.error) ? t("materials.errorInsufficientStock") : t("materials.errorLoanFailed")}
             </p>
           )}
-          {loanM.isSuccess && <p className="text-sm text-green-700">Préstamo registrado.</p>}
+          {loanM.isSuccess && <p className="text-sm text-green-700">{t("materials.loanRegistered")}</p>}
         </section>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
-          <h2 className="text-lg font-semibold">Devolución de material</h2>
+          <h2 className="text-lg font-semibold">{t("materials.returnTitle")}</h2>
 
           <PatientSearch
             valuePatientId={returnPatient?.id ?? ""}
             onSelect={setReturnPatient}
-            placeholder="Buscar paciente con préstamo activo..."
+            placeholder={t("materials.searchPatientWithLoan")}
           />
 
-          {returnLoansQ.isLoading && <p className="text-sm text-gray-600">Cargando préstamos activos...</p>}
-          {returnLoansQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los préstamos.</p>}
+          {returnLoansQ.isLoading && <p className="text-sm text-gray-600">{t("materials.loadingActiveLoans")}</p>}
+          {returnLoansQ.isError && <p className="text-sm text-red-600">{t("materials.errorLoadLoansFailed")}</p>}
           {returnPatient && !returnLoansQ.isLoading && activeLoans.length === 0 && (
-            <p className="text-sm text-gray-600">El paciente no tiene materiales pendientes de devolución.</p>
+            <p className="text-sm text-gray-600">{t("materials.noPendingReturns")}</p>
           )}
 
           {activeLoans.length > 0 && (
@@ -497,14 +499,14 @@ export default function MaterialsPage() {
                 return (
                   <article key={loan.id} className="py-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="font-medium">{material?.name ?? "Material"}</div>
+                      <div className="font-medium">{material?.name ?? t("materials.defaultMaterialName")}</div>
                       <div className="text-sm text-gray-600">
-                        Cantidad: {loan.qty} · Prestado: {formatLocalDateTime(loan.loaned_at)}
+                        {t("materials.quantity")}: {loan.qty} · {t("materials.loaned")}: {formatLocalDateTime(loan.loaned_at)}
                       </div>
                       {loan.due_date && (
                         <div className={`text-sm ${isOverdue(loan) ? "text-red-600 font-medium" : "text-gray-600"}`}>
-                          Vencimiento: {formatLocalDate(loan.due_date)}
-                          {isOverdue(loan) && " · Vencido"}
+                          {t("materials.dueDateLabel")}: {formatLocalDate(loan.due_date)}
+                          {isOverdue(loan) && ` · ${t("materials.overdue")}`}
                         </div>
                       )}
                       {loan.notes && <p className="text-sm text-gray-700 mt-1">{loan.notes}</p>}
@@ -515,7 +517,7 @@ export default function MaterialsPage() {
                       disabled={returnM.isPending}
                       onClick={() => returnM.mutate(loan)}
                     >
-                      {returnM.isPending ? "Registrando..." : "Registrar devolución"}
+                      {returnM.isPending ? t("materials.registering") : t("materials.registerReturn")}
                     </button>
                   </article>
                 );
@@ -525,20 +527,20 @@ export default function MaterialsPage() {
 
           {returnM.isError && (
             <p className="text-sm text-red-600">
-              {isAlreadyReturned(returnM.error) ? "Ese préstamo ya fue devuelto." : "No se pudo registrar la devolución."}
+              {isAlreadyReturned(returnM.error) ? t("materials.errorAlreadyReturned") : t("materials.errorReturnFailed")}
             </p>
           )}
-          {returnM.isSuccess && <p className="text-sm text-green-700">Devolución registrada.</p>}
+          {returnM.isSuccess && <p className="text-sm text-green-700">{t("materials.returnRegistered")}</p>}
         </section>
       </section>
 
       <section className="bg-white rounded-xl shadow p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Pendientes de devolución</h2>
+        <h2 className="text-lg font-semibold">{t("materials.pendingTitle")}</h2>
 
-        {pendingLoansQ.isLoading && <p className="text-sm text-gray-600">Cargando materiales pendientes...</p>}
-        {pendingLoansQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los pendientes.</p>}
+        {pendingLoansQ.isLoading && <p className="text-sm text-gray-600">{t("materials.loadingPending")}</p>}
+        {pendingLoansQ.isError && <p className="text-sm text-red-600">{t("materials.errorLoadPendingFailed")}</p>}
         {!pendingLoansQ.isLoading && pendingLoans.length === 0 && (
-          <p className="text-sm text-gray-600">No hay materiales pendientes de devolución.</p>
+          <p className="text-sm text-gray-600">{t("materials.noPending")}</p>
         )}
         {pendingLoans.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -559,12 +561,12 @@ export default function MaterialsPage() {
       </section>
 
       <section className="bg-white rounded-xl shadow p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Historial de préstamos</h2>
+        <h2 className="text-lg font-semibold">{t("materials.historyTitle")}</h2>
 
-        {loanHistoryQ.isLoading && <p className="text-sm text-gray-600">Cargando historial...</p>}
-        {loanHistoryQ.isError && <p className="text-sm text-red-600">No se pudo cargar el historial.</p>}
+        {loanHistoryQ.isLoading && <p className="text-sm text-gray-600">{t("materials.loadingHistory")}</p>}
+        {loanHistoryQ.isError && <p className="text-sm text-red-600">{t("materials.errorLoadHistoryFailed")}</p>}
         {!loanHistoryQ.isLoading && loanHistory.length === 0 && (
-          <p className="text-sm text-gray-600">Todavía no hay préstamos registrados.</p>
+          <p className="text-sm text-gray-600">{t("materials.noHistory")}</p>
         )}
         {loanHistory.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -596,30 +598,31 @@ type LoanRowProps = {
 };
 
 function LoanRow({ loan, material, patientName, kinesiologistName, auditText, onReturn, isReturning }: LoanRowProps) {
+  const { t } = useLanguage();
   return (
     <article className="rounded-lg border p-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="space-y-1.5">
-        <div className="font-medium">{material?.name ?? "Material"}</div>
+        <div className="font-medium">{material?.name ?? t("materials.defaultMaterialName")}</div>
         <div className="text-sm text-gray-600">
-          {patientName} · Cantidad: {loan.qty} · Prestado: {formatLocalDateTime(loan.loaned_at)}
+          {patientName} · {t("materials.quantity")}: {loan.qty} · {t("materials.loaned")}: {formatLocalDateTime(loan.loaned_at)}
         </div>
-        <div className="text-sm text-gray-600">Responsable: {kinesiologistName}</div>
+        <div className="text-sm text-gray-600">{t("materials.responsible")}: {kinesiologistName}</div>
         {loan.returned_at ? (
-          <div className="text-sm text-gray-600">Devuelto: {formatLocalDateTime(loan.returned_at)}</div>
+          <div className="text-sm text-gray-600">{t("materials.returned")}: {formatLocalDateTime(loan.returned_at)}</div>
         ) : (
-          <div className="text-sm font-medium text-amber-700">Pendiente de devolución</div>
+          <div className="text-sm font-medium text-amber-700">{t("materials.pendingReturn")}</div>
         )}
         {loan.due_date && (
           <div className={`text-sm ${isOverdue(loan) ? "text-red-600 font-medium" : "text-gray-600"}`}>
-            Vencimiento: {formatLocalDate(loan.due_date)}
-            {isOverdue(loan) && " · Vencido"}
+            {t("materials.dueDateLabel")}: {formatLocalDate(loan.due_date)}
+            {isOverdue(loan) && ` · ${t("materials.overdue")}`}
           </div>
         )}
         {loan.notes && <p className="text-sm text-gray-700">{loan.notes}</p>}
-        <p className="text-xs text-gray-500">Prestó: {auditText(loan.loaned_by_email, loan.loaned_by_role)}</p>
+        <p className="text-xs text-gray-500">{t("materials.lentBy")}: {auditText(loan.loaned_by_email, loan.loaned_by_role)}</p>
         {loan.returned_at && (
           <p className="text-xs text-gray-500">
-            Recibió: {auditText(loan.returned_by_email, loan.returned_by_role)}
+            {t("materials.receivedBy")}: {auditText(loan.returned_by_email, loan.returned_by_role)}
           </p>
         )}
       </div>
@@ -630,7 +633,7 @@ function LoanRow({ loan, material, patientName, kinesiologistName, auditText, on
           disabled={isReturning}
           onClick={onReturn}
         >
-          {isReturning ? "Registrando..." : "Registrar devolución"}
+          {isReturning ? t("materials.registering") : t("materials.registerReturn")}
         </button>
       )}
     </article>

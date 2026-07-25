@@ -17,6 +17,9 @@ import {
 } from "@/features/finance/api";
 import { formatLocalDateTime } from "@/shared/time/format";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
+
+type Translate = (key: string) => string;
 
 type FinancierForm = {
   id?: string;
@@ -74,6 +77,7 @@ const emptyFeeRuleForm: FeeRuleForm = {
 };
 
 export default function FinancePage() {
+  const { t } = useLanguage();
   const [financierForm, setFinancierForm] = useState<FinancierForm>(emptyFinancierForm);
   const [tariffForm, setTariffForm] = useState<TariffForm>(emptyTariffForm);
   const [feeRuleForm, setFeeRuleForm] = useState<FeeRuleForm>(emptyFeeRuleForm);
@@ -154,7 +158,7 @@ export default function FinancePage() {
   const saveFinancierM = useMutation({
     mutationFn: saveFinancier,
     onSuccess: async () => {
-      setMessage(financierForm.id ? "Financiador actualizado." : "Financiador creado.");
+      setMessage(financierForm.id ? t("finance.financierUpdated") : t("finance.financierCreated"));
       setError("");
       setFinancierForm(emptyFinancierForm);
       await financiersQ.refetch();
@@ -165,7 +169,7 @@ export default function FinancePage() {
   const saveTariffM = useMutation({
     mutationFn: savePracticeTariff,
     onSuccess: async () => {
-      setMessage(tariffForm.id ? "Tarifa actualizada." : "Tarifa creada.");
+      setMessage(tariffForm.id ? t("finance.tariffUpdated") : t("finance.tariffCreated"));
       setError("");
       setTariffForm(emptyTariffForm);
       await tariffsQ.refetch();
@@ -176,7 +180,7 @@ export default function FinancePage() {
   const saveFeeRuleM = useMutation({
     mutationFn: saveProfessionalFeeRule,
     onSuccess: async () => {
-      setMessage(feeRuleForm.id ? "Honorario actualizado." : "Honorario creado.");
+      setMessage(feeRuleForm.id ? t("finance.feeUpdated") : t("finance.feeCreated"));
       setError("");
       setFeeRuleForm(emptyFeeRuleForm);
       await feeRulesQ.refetch();
@@ -187,7 +191,7 @@ export default function FinancePage() {
   const updateMovementStatusM = useMutation({
     mutationFn: updateFinancialMovementStatus,
     onSuccess: async () => {
-      setMessage("Estado financiero actualizado.");
+      setMessage(t("finance.movementUpdated"));
       setError("");
       setCancellingMovementId("");
       setCancellationReason("");
@@ -200,7 +204,7 @@ export default function FinancePage() {
     event.preventDefault();
     setMessage("");
     if (!financierForm.name.trim()) {
-      setError("Completá el nombre del financiador.");
+      setError(t("finance.errorFinancierNameRequired"));
       return;
     }
     saveFinancierM.mutate({
@@ -217,7 +221,7 @@ export default function FinancePage() {
     const billing = amountToCents(tariffForm.billing_value);
     const copay = amountToCents(tariffForm.copay);
     if (!tariffForm.practice_id || !tariffForm.financier_id || billing == null || copay == null || !tariffForm.valid_from) {
-      setError("Completá práctica, financiador, valor, copago y vigencia.");
+      setError(t("finance.errorTariffRequired"));
       return;
     }
     saveTariffM.mutate({
@@ -239,15 +243,15 @@ export default function FinancePage() {
     const fixed = amountToCents(feeRuleForm.fixed_value);
     const percentage = parseNumber(feeRuleForm.percentage);
     if (!feeRuleForm.kinesiologist_id || !feeRuleForm.practice_id) {
-      setError("Completá kinesiólogo y práctica.");
+      setError(t("finance.errorFeeKinesiologistPractice"));
       return;
     }
     if (feeRuleForm.rule_type === "fixed" && fixed == null) {
-      setError("Completá el monto fijo del honorario.");
+      setError(t("finance.errorFeeFixedRequired"));
       return;
     }
     if (feeRuleForm.rule_type === "percentage" && (percentage == null || percentage < 0 || percentage > 100)) {
-      setError("Completá un porcentaje entre 0 y 100.");
+      setError(t("finance.errorFeePercentageRequired"));
       return;
     }
     saveFeeRuleM.mutate({
@@ -276,7 +280,7 @@ export default function FinancePage() {
           }),
         ),
       );
-      setMessage("Liquidación marcada como pagada.");
+      setMessage(t("finance.settlementPaid"));
       await movementsQ.refetch();
     } catch (err) {
       setError((err as Error).message);
@@ -305,8 +309,8 @@ export default function FinancePage() {
     <main>
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold">Finanzas</h1>
-          <p className="text-sm text-gray-600">Tarifarios, honorarios profesionales y movimientos generados por turnos realizados.</p>
+          <h1 className="text-2xl font-semibold">{t("finance.title")}</h1>
+          <p className="text-sm text-gray-600">{t("finance.subtitle")}</p>
         </header>
 
         {(message || error) && (
@@ -316,41 +320,41 @@ export default function FinancePage() {
         )}
 
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <SummaryBox label="Facturación" value={formatMoney(totalBilling)} />
-          <SummaryBox label="Cobrado" value={formatMoney(totalCollected)} />
-          <SummaryBox label="Honorarios pendientes" value={formatMoney(totalPendingProfessional)} />
-          <SummaryBox label="Centro" value={formatMoney(totalCenter)} />
+          <SummaryBox label={t("finance.billing")} value={formatMoney(totalBilling)} />
+          <SummaryBox label={t("finance.collected")} value={formatMoney(totalCollected)} />
+          <SummaryBox label={t("finance.pendingFees")} value={formatMoney(totalPendingProfessional)} />
+          <SummaryBox label={t("finance.center")} value={formatMoney(totalCenter)} />
         </section>
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Financiadores</h2>
-            <p className="text-sm text-gray-600">Particulares, obras sociales, prepagas o convenios.</p>
+            <h2 className="text-lg font-semibold">{t("finance.financiersTitle")}</h2>
+            <p className="text-sm text-gray-600">{t("finance.financiersSubtitle")}</p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-[1fr_180px_120px_auto] gap-3 items-end" onSubmit={submitFinancier}>
             <div>
-              <label className="text-sm font-medium"><RequiredLabel required>Nombre</RequiredLabel></label>
+              <label className="text-sm font-medium"><RequiredLabel required>{t("finance.name")}</RequiredLabel></label>
               <input className="mt-1 w-full border rounded-lg p-2" value={financierForm.name} onChange={(event) => setFinancierForm({ ...financierForm, name: event.target.value })} />
             </div>
             <div>
-              <label className="text-sm font-medium">Tipo</label>
+              <label className="text-sm font-medium">{t("finance.type")}</label>
               <select className="mt-1 w-full border rounded-lg p-2" value={financierForm.kind} onChange={(event) => setFinancierForm({ ...financierForm, kind: event.target.value })}>
-                <option value="particular">Particular</option>
-                <option value="obra_social">Obra social</option>
-                <option value="prepaga">Prepaga</option>
-                <option value="convenio">Convenio</option>
+                <option value="particular">{t("finance.particular")}</option>
+                <option value="obra_social">{t("finance.obraSocial")}</option>
+                <option value="prepaga">{t("finance.prepaga")}</option>
+                <option value="convenio">{t("finance.convenio")}</option>
               </select>
             </div>
             <label className="flex items-center gap-2 text-sm pb-3">
               <input type="checkbox" checked={financierForm.active} onChange={(event) => setFinancierForm({ ...financierForm, active: event.target.checked })} />
-              Activo
+              {t("finance.active")}
             </label>
             <div className="flex gap-2">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={saveFinancierM.isPending}>
-                {saveFinancierM.isPending ? "Guardando..." : financierForm.id ? "Guardar" : "Crear"}
+                {saveFinancierM.isPending ? t("common.saving") : financierForm.id ? t("finance.save") : t("finance.create")}
               </button>
-              {financierForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setFinancierForm(emptyFinancierForm)}>Cancelar</button>}
+              {financierForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setFinancierForm(emptyFinancierForm)}>{t("common.cancel")}</button>}
             </div>
           </form>
 
@@ -359,10 +363,10 @@ export default function FinancePage() {
               <div key={financier.id} className="py-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="font-medium">{financier.name}</div>
-                  <div className="text-sm text-gray-600">{financier.kind} · {financier.active ? "Activo" : "Inactivo"}</div>
+                  <div className="text-sm text-gray-600">{financier.kind} · {financier.active ? t("finance.active") : t("finance.inactive")}</div>
                 </div>
                 <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => setFinancierForm(financier)}>
-                  Editar
+                  {t("finance.edit")}
                 </button>
               </div>
             ))}
@@ -371,33 +375,33 @@ export default function FinancePage() {
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Tarifario de prácticas</h2>
-            <p className="text-sm text-gray-600">Valor que se factura según práctica y financiador.</p>
+            <h2 className="text-lg font-semibold">{t("finance.tariffsTitle")}</h2>
+            <p className="text-sm text-gray-600">{t("finance.tariffsSubtitle")}</p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-3 gap-3" onSubmit={submitTariff}>
-            <SelectField label="Práctica" value={tariffForm.practice_id} onChange={(value) => setTariffForm({ ...tariffForm, practice_id: value })}>
-              <option value="">Seleccionar...</option>
+            <SelectField label={t("finance.practice")} value={tariffForm.practice_id} onChange={(value) => setTariffForm({ ...tariffForm, practice_id: value })}>
+              <option value="">{t("finance.select")}</option>
               {activePractices.map((practice) => <option key={practice.id} value={practice.id}>{practice.name}</option>)}
             </SelectField>
-            <SelectField label="Financiador" value={tariffForm.financier_id} onChange={(value) => setTariffForm({ ...tariffForm, financier_id: value })}>
-              <option value="">Seleccionar...</option>
+            <SelectField label={t("finance.financier")} value={tariffForm.financier_id} onChange={(value) => setTariffForm({ ...tariffForm, financier_id: value })}>
+              <option value="">{t("finance.select")}</option>
               {financiers.filter((item) => item.active).map((financier) => <option key={financier.id} value={financier.id}>{financier.name}</option>)}
             </SelectField>
-            <InputField label="Valor facturación" value={tariffForm.billing_value} onChange={(value) => setTariffForm({ ...tariffForm, billing_value: value })} />
-            <InputField label="Copago" value={tariffForm.copay} onChange={(value) => setTariffForm({ ...tariffForm, copay: value })} />
-            <InputField label="Moneda" value={tariffForm.currency} onChange={(value) => setTariffForm({ ...tariffForm, currency: value.toUpperCase() })} />
-            <InputField label="Vigente desde" type="date" value={tariffForm.valid_from} onChange={(value) => setTariffForm({ ...tariffForm, valid_from: value })} />
-            <InputField label="Vigente hasta" type="date" value={tariffForm.valid_to} onChange={(value) => setTariffForm({ ...tariffForm, valid_to: value })} required={false} />
+            <InputField label={t("finance.billingValue")} value={tariffForm.billing_value} onChange={(value) => setTariffForm({ ...tariffForm, billing_value: value })} />
+            <InputField label={t("finance.copay")} value={tariffForm.copay} onChange={(value) => setTariffForm({ ...tariffForm, copay: value })} />
+            <InputField label={t("finance.currency")} value={tariffForm.currency} onChange={(value) => setTariffForm({ ...tariffForm, currency: value.toUpperCase() })} />
+            <InputField label={t("finance.validFrom")} type="date" value={tariffForm.valid_from} onChange={(value) => setTariffForm({ ...tariffForm, valid_from: value })} />
+            <InputField label={t("finance.validTo")} type="date" value={tariffForm.valid_to} onChange={(value) => setTariffForm({ ...tariffForm, valid_to: value })} required={false} />
             <label className="flex items-center gap-2 text-sm md:self-end md:pb-3">
               <input type="checkbox" checked={tariffForm.active} onChange={(event) => setTariffForm({ ...tariffForm, active: event.target.checked })} />
-              Activa
+              {t("finance.activeFem")}
             </label>
             <div className="flex gap-2 md:self-end">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={saveTariffM.isPending}>
-                {saveTariffM.isPending ? "Guardando..." : tariffForm.id ? "Guardar tarifa" : "Crear tarifa"}
+                {saveTariffM.isPending ? t("common.saving") : tariffForm.id ? t("finance.saveTariff") : t("finance.createTariff")}
               </button>
-              {tariffForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setTariffForm(emptyTariffForm)}>Cancelar</button>}
+              {tariffForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setTariffForm(emptyTariffForm)}>{t("common.cancel")}</button>}
             </div>
           </form>
 
@@ -407,11 +411,11 @@ export default function FinancePage() {
                 <div>
                   <div className="font-medium">{practiceById.get(tariff.practice_id)?.name ?? tariff.practice_id}</div>
                   <div className="text-sm text-gray-600">
-                    {financierById.get(tariff.financier_id)?.name ?? tariff.financier_id} · {formatMoney(tariff.billing_value_cents)} · copago {formatMoney(tariff.copay_cents)} · desde {tariff.valid_from}
+                    {financierById.get(tariff.financier_id)?.name ?? tariff.financier_id} · {formatMoney(tariff.billing_value_cents)} · {t("finance.copayInline")} {formatMoney(tariff.copay_cents)} · {t("finance.since")} {tariff.valid_from}
                   </div>
                 </div>
                 <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editTariff(tariff, setTariffForm)}>
-                  Editar
+                  {t("finance.edit")}
                 </button>
               </div>
             ))}
@@ -420,39 +424,39 @@ export default function FinancePage() {
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Honorarios profesionales</h2>
-            <p className="text-sm text-gray-600">Regla de cálculo por kinesiólogo y práctica.</p>
+            <h2 className="text-lg font-semibold">{t("finance.feeRulesTitle")}</h2>
+            <p className="text-sm text-gray-600">{t("finance.feeRulesSubtitle")}</p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-3 gap-3" onSubmit={submitFeeRule}>
-            <SelectField label="Kinesiólogo" value={feeRuleForm.kinesiologist_id} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, kinesiologist_id: value })}>
-              <option value="">Seleccionar...</option>
+            <SelectField label={t("finance.kinesiologist")} value={feeRuleForm.kinesiologist_id} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, kinesiologist_id: value })}>
+              <option value="">{t("finance.select")}</option>
               {kinesiologists.filter((item) => item.active).map((kinesiologist) => (
                 <option key={kinesiologist.id} value={kinesiologist.id}>{kinesiologist.last_name}, {kinesiologist.first_name}</option>
               ))}
             </SelectField>
-            <SelectField label="Práctica" value={feeRuleForm.practice_id} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, practice_id: value })}>
-              <option value="">Seleccionar...</option>
+            <SelectField label={t("finance.practice")} value={feeRuleForm.practice_id} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, practice_id: value })}>
+              <option value="">{t("finance.select")}</option>
               {activePractices.map((practice) => <option key={practice.id} value={practice.id}>{practice.name}</option>)}
             </SelectField>
-            <SelectField label="Tipo" value={feeRuleForm.rule_type} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, rule_type: value as "fixed" | "percentage" })}>
-              <option value="percentage">Porcentaje</option>
-              <option value="fixed">Monto fijo</option>
+            <SelectField label={t("finance.ruleType")} value={feeRuleForm.rule_type} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, rule_type: value as "fixed" | "percentage" })}>
+              <option value="percentage">{t("finance.percentage")}</option>
+              <option value="fixed">{t("finance.fixedAmount")}</option>
             </SelectField>
             {feeRuleForm.rule_type === "percentage" ? (
-              <InputField label="Porcentaje" value={feeRuleForm.percentage} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, percentage: value })} />
+              <InputField label={t("finance.percentage")} value={feeRuleForm.percentage} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, percentage: value })} />
             ) : (
-              <InputField label="Monto fijo" value={feeRuleForm.fixed_value} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, fixed_value: value })} />
+              <InputField label={t("finance.fixedAmount")} value={feeRuleForm.fixed_value} onChange={(value) => setFeeRuleForm({ ...feeRuleForm, fixed_value: value })} />
             )}
             <label className="flex items-center gap-2 text-sm md:self-end md:pb-3">
               <input type="checkbox" checked={feeRuleForm.active} onChange={(event) => setFeeRuleForm({ ...feeRuleForm, active: event.target.checked })} />
-              Activa
+              {t("finance.activeFem")}
             </label>
             <div className="flex gap-2 md:self-end">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={saveFeeRuleM.isPending}>
-                {saveFeeRuleM.isPending ? "Guardando..." : feeRuleForm.id ? "Guardar honorario" : "Crear honorario"}
+                {saveFeeRuleM.isPending ? t("common.saving") : feeRuleForm.id ? t("finance.saveFee") : t("finance.createFee")}
               </button>
-              {feeRuleForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setFeeRuleForm(emptyFeeRuleForm)}>Cancelar</button>}
+              {feeRuleForm.id && <button type="button" className="px-3 py-2 rounded-lg border" onClick={() => setFeeRuleForm(emptyFeeRuleForm)}>{t("common.cancel")}</button>}
             </div>
           </form>
 
@@ -460,13 +464,13 @@ export default function FinancePage() {
             {feeRules.map((rule) => (
               <div key={rule.id} className="py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="font-medium">{kinesiologistName(kinesiologistById.get(rule.kinesiologist_id))}</div>
+                  <div className="font-medium">{kinesiologistName(kinesiologistById.get(rule.kinesiologist_id), t)}</div>
                   <div className="text-sm text-gray-600">
-                    {practiceById.get(rule.practice_id)?.name ?? rule.practice_id} · {rule.rule_type === "fixed" ? formatMoney(rule.fixed_value_cents ?? 0) : `${rule.percentage ?? 0}%`} · {rule.active ? "Activa" : "Inactiva"}
+                    {practiceById.get(rule.practice_id)?.name ?? rule.practice_id} · {rule.rule_type === "fixed" ? formatMoney(rule.fixed_value_cents ?? 0) : `${rule.percentage ?? 0}%`} · {rule.active ? t("finance.activeFem") : t("finance.inactiveFem")}
                   </div>
                 </div>
                 <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editFeeRule(rule, setFeeRuleForm)}>
-                  Editar
+                  {t("finance.edit")}
                 </button>
               </div>
             ))}
@@ -475,48 +479,48 @@ export default function FinancePage() {
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Movimientos financieros</h2>
-            <p className="text-sm text-gray-600">Se generan al marcar un turno como realizado.</p>
+            <h2 className="text-lg font-semibold">{t("finance.movementsTitle")}</h2>
+            <p className="text-sm text-gray-600">{t("finance.movementsSubtitle")}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <InputField label="Desde" type="date" value={movementFrom} onChange={setMovementFrom} required={false} />
-            <InputField label="Hasta" type="date" value={movementTo} onChange={setMovementTo} required={false} />
-            <SelectField label="Kinesiólogo" value={movementKinesiologistId} onChange={setMovementKinesiologistId} required={false}>
-              <option value="">Todos</option>
+            <InputField label={t("finance.from")} type="date" value={movementFrom} onChange={setMovementFrom} required={false} />
+            <InputField label={t("finance.to")} type="date" value={movementTo} onChange={setMovementTo} required={false} />
+            <SelectField label={t("finance.kinesiologist")} value={movementKinesiologistId} onChange={setMovementKinesiologistId} required={false}>
+              <option value="">{t("finance.all")}</option>
               {kinesiologists.map((kinesiologist) => (
                 <option key={kinesiologist.id} value={kinesiologist.id}>
                   {kinesiologist.last_name}, {kinesiologist.first_name}
                 </option>
               ))}
             </SelectField>
-            <SelectField label="Práctica" value={movementPracticeId} onChange={setMovementPracticeId} required={false}>
-              <option value="">Todas</option>
+            <SelectField label={t("finance.practice")} value={movementPracticeId} onChange={setMovementPracticeId} required={false}>
+              <option value="">{t("finance.allFem")}</option>
               {practices.map((practice) => (
                 <option key={practice.id} value={practice.id}>
                   {practice.name}
                 </option>
               ))}
             </SelectField>
-            <SelectField label="Financiador" value={movementFinancierId} onChange={setMovementFinancierId} required={false}>
-              <option value="">Todos</option>
+            <SelectField label={t("finance.financier")} value={movementFinancierId} onChange={setMovementFinancierId} required={false}>
+              <option value="">{t("finance.all")}</option>
               {financiers.map((financier) => (
                 <option key={financier.id} value={financier.id}>
                   {financier.name}
                 </option>
               ))}
             </SelectField>
-            <SelectField label="Cobro" value={movementCollectionStatus} onChange={setMovementCollectionStatus} required={false}>
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="collected">Cobrado</option>
-              <option value="cancelled">Anulado</option>
+            <SelectField label={t("finance.collectionStatus")} value={movementCollectionStatus} onChange={setMovementCollectionStatus} required={false}>
+              <option value="">{t("finance.all")}</option>
+              <option value="pending">{t("finance.pending")}</option>
+              <option value="collected">{t("finance.collected")}</option>
+              <option value="cancelled">{t("finance.cancelled")}</option>
             </SelectField>
-            <SelectField label="Pago profesional" value={movementProfessionalPaymentStatus} onChange={setMovementProfessionalPaymentStatus} required={false}>
-              <option value="">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="paid">Pagado</option>
-              <option value="cancelled">Anulado</option>
+            <SelectField label={t("finance.professionalPayment")} value={movementProfessionalPaymentStatus} onChange={setMovementProfessionalPaymentStatus} required={false}>
+              <option value="">{t("finance.all")}</option>
+              <option value="pending">{t("finance.pending")}</option>
+              <option value="paid">{t("finance.paid")}</option>
+              <option value="cancelled">{t("finance.cancelled")}</option>
             </SelectField>
             <div className="flex items-end">
               <button
@@ -532,7 +536,7 @@ export default function FinancePage() {
                   setMovementProfessionalPaymentStatus("");
                 }}
               >
-                Limpiar filtros
+                {t("finance.clearFilters")}
               </button>
             </div>
           </div>
@@ -540,11 +544,11 @@ export default function FinancePage() {
           <div className="border rounded-lg p-3 space-y-3">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 className="font-medium">Liquidación por kinesiólogo</h3>
+                <h3 className="font-medium">{t("finance.settlementTitle")}</h3>
                 <p className="text-sm text-gray-600">
                   {movementKinesiologistId
-                    ? `${kinesiologistName(kinesiologistById.get(movementKinesiologistId))} · ${movementFrom || "sin inicio"} a ${movementTo || "sin fin"}`
-                    : "Seleccioná un kinesiólogo en los filtros para liquidar honorarios."}
+                    ? `${kinesiologistName(kinesiologistById.get(movementKinesiologistId), t)} · ${movementFrom || t("finance.settlementNoStart")} ${t("portal.errorOutsideScheduleMiddle")} ${movementTo || t("finance.settlementNoEnd")}`
+                    : t("finance.settlementSelectKinesiologist")}
                 </p>
               </div>
               <button
@@ -553,54 +557,54 @@ export default function FinancePage() {
                 disabled={!movementKinesiologistId || settlementPendingTotal <= 0 || isPayingSettlement}
                 onClick={markSettlementPaid}
               >
-                {isPayingSettlement ? "Liquidando..." : "Marcar liquidación pagada"}
+                {isPayingSettlement ? t("finance.settling") : t("finance.markSettlementPaid")}
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <SummaryBox label="Sesiones" value={String(settlementMovements.length)} />
-              <SummaryBox label="Honorarios período" value={formatMoney(settlementTotal)} />
-              <SummaryBox label="Pendiente de pago" value={formatMoney(settlementPendingTotal)} />
+              <SummaryBox label={t("finance.sessions")} value={String(settlementMovements.length)} />
+              <SummaryBox label={t("finance.periodFees")} value={formatMoney(settlementTotal)} />
+              <SummaryBox label={t("finance.pendingPayment")} value={formatMoney(settlementPendingTotal)} />
             </div>
           </div>
 
-          {movementsQ.isLoading && <p className="text-sm text-gray-600">Cargando movimientos...</p>}
-          {movementsQ.isError && <p className="text-sm text-red-600">No se pudieron cargar los movimientos.</p>}
-          {!movementsQ.isLoading && movements.length === 0 && <p className="text-sm text-gray-600">Todavía no hay movimientos.</p>}
+          {movementsQ.isLoading && <p className="text-sm text-gray-600">{t("finance.loadingMovements")}</p>}
+          {movementsQ.isError && <p className="text-sm text-red-600">{t("finance.errorLoadMovements")}</p>}
+          {!movementsQ.isLoading && movements.length === 0 && <p className="text-sm text-gray-600">{t("finance.noMovements")}</p>}
           {movements.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b">
-                    <th className="py-2 pr-3">Fecha</th>
-                    <th className="py-2 pr-3">Paciente</th>
-                    <th className="py-2 pr-3">Kinesiólogo</th>
-                    <th className="py-2 pr-3">Práctica</th>
-                    <th className="py-2 pr-3">Financiador</th>
-                    <th className="py-2 pr-3">Facturado</th>
-                    <th className="py-2 pr-3">Cobro</th>
-                    <th className="py-2 pr-3">Honorario</th>
-                    <th className="py-2 pr-3">Pago prof.</th>
-                    <th className="py-2 pr-3">Centro</th>
-                    <th className="py-2 pr-3">Acciones</th>
+                    <th className="py-2 pr-3">{t("finance.colDate")}</th>
+                    <th className="py-2 pr-3">{t("finance.colPatient")}</th>
+                    <th className="py-2 pr-3">{t("finance.colKinesiologist")}</th>
+                    <th className="py-2 pr-3">{t("finance.colPractice")}</th>
+                    <th className="py-2 pr-3">{t("finance.colFinancier")}</th>
+                    <th className="py-2 pr-3">{t("finance.colBilled")}</th>
+                    <th className="py-2 pr-3">{t("finance.colCollection")}</th>
+                    <th className="py-2 pr-3">{t("finance.colFee")}</th>
+                    <th className="py-2 pr-3">{t("finance.colProfPayment")}</th>
+                    <th className="py-2 pr-3">{t("finance.colCenter")}</th>
+                    <th className="py-2 pr-3">{t("finance.colActions")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {movements.map((movement) => (
                     <tr key={movement.id} className="border-b last:border-b-0">
                       <td className="py-2 pr-3 whitespace-nowrap">{formatLocalDateTime(movement.created_at)}</td>
-                      <td className="py-2 pr-3">{patientName(patientById.get(movement.patient_id))}</td>
-                      <td className="py-2 pr-3">{kinesiologistName(kinesiologistById.get(movement.kinesiologist_id))}</td>
+                      <td className="py-2 pr-3">{patientName(patientById.get(movement.patient_id), t)}</td>
+                      <td className="py-2 pr-3">{kinesiologistName(kinesiologistById.get(movement.kinesiologist_id), t)}</td>
                       <td className="py-2 pr-3">{practiceById.get(movement.practice_id)?.name ?? movement.practice_id}</td>
                       <td className="py-2 pr-3">{financierById.get(movement.financier_id)?.name ?? movement.financier_id}</td>
                       <td className="py-2 pr-3">{formatMoney(movement.billing_value_cents)}</td>
                       <td className="py-2 pr-3">
-                        {collectionStatusLabel(movement.collection_status)}
+                        {collectionStatusLabel(movement.collection_status, t)}
                         {movement.cancellation_reason && (
-                          <div className="text-xs text-gray-500 mt-1">Motivo: {movement.cancellation_reason}</div>
+                          <div className="text-xs text-gray-500 mt-1">{t("finance.reasonLabel")}: {movement.cancellation_reason}</div>
                         )}
                       </td>
                       <td className="py-2 pr-3">{formatMoney(movement.professional_fee_cents)}</td>
-                      <td className="py-2 pr-3">{professionalPaymentStatusLabel(movement.professional_payment_status)}</td>
+                      <td className="py-2 pr-3">{professionalPaymentStatusLabel(movement.professional_payment_status, t)}</td>
                       <td className="py-2 pr-3">{formatMoney(movement.center_amount_cents)}</td>
                       <td className="py-2 pr-3">
                         <div className="flex flex-wrap gap-2">
@@ -611,7 +615,7 @@ export default function FinancePage() {
                               disabled={updateMovementStatusM.isPending || movement.collection_status === "cancelled"}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, collection_status: "collected" })}
                             >
-                              Marcar cobrado
+                              {t("finance.markCollected")}
                             </button>
                           ) : (
                             <button
@@ -620,7 +624,7 @@ export default function FinancePage() {
                               disabled={updateMovementStatusM.isPending}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, collection_status: "pending" })}
                             >
-                              Reabrir cobro
+                              {t("finance.reopenCollection")}
                             </button>
                           )}
                           {movement.professional_payment_status !== "paid" ? (
@@ -630,7 +634,7 @@ export default function FinancePage() {
                               disabled={updateMovementStatusM.isPending || movement.professional_payment_status === "cancelled"}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, professional_payment_status: "paid" })}
                             >
-                              Pagar prof.
+                              {t("finance.payProfessional")}
                             </button>
                           ) : (
                             <button
@@ -639,7 +643,7 @@ export default function FinancePage() {
                               disabled={updateMovementStatusM.isPending}
                               onClick={() => updateMovementStatusM.mutate({ movement_id: movement.id, professional_payment_status: "pending" })}
                             >
-                              Reabrir pago
+                              {t("finance.reopenPayment")}
                             </button>
                           )}
                           {movement.collection_status === "cancelled" || movement.professional_payment_status === "cancelled" ? (
@@ -655,7 +659,7 @@ export default function FinancePage() {
                                 })
                               }
                             >
-                              Reabrir movimiento
+                              {t("finance.reopenMovement")}
                             </button>
                           ) : (
                             <button
@@ -667,12 +671,12 @@ export default function FinancePage() {
                                 setCancellationReason("");
                               }}
                             >
-                              Anular
+                              {t("finance.cancelMovement")}
                             </button>
                           )}
                           {cancellingMovementId === movement.id && (
                             <div className="w-full min-w-56 rounded-lg border bg-gray-50 p-2 space-y-2">
-                              <label className="text-xs font-medium">Motivo de anulación</label>
+                              <label className="text-xs font-medium">{t("finance.cancellationReason")}</label>
                               <textarea
                                 className="w-full border rounded-lg p-2 text-xs min-h-20"
                                 value={cancellationReason}
@@ -692,7 +696,7 @@ export default function FinancePage() {
                                     })
                                   }
                                 >
-                                  Confirmar
+                                  {t("finance.confirm")}
                                 </button>
                                 <button
                                   type="button"
@@ -702,7 +706,7 @@ export default function FinancePage() {
                                     setCancellationReason("");
                                   }}
                                 >
-                                  Cancelar
+                                  {t("common.cancel")}
                                 </button>
                               </div>
                             </div>
@@ -849,22 +853,22 @@ function formatMoney(value: number) {
   }).format(value / 100);
 }
 
-function kinesiologistName(kinesiologist?: { first_name: string; last_name: string }) {
-  return kinesiologist ? `${kinesiologist.last_name}, ${kinesiologist.first_name}` : "Kinesiólogo";
+function kinesiologistName(kinesiologist: { first_name: string; last_name: string } | undefined, t: Translate) {
+  return kinesiologist ? `${kinesiologist.last_name}, ${kinesiologist.first_name}` : t("finance.kinesiologist");
 }
 
-function patientName(patient?: { first_name: string; last_name: string }) {
-  return patient ? `${patient.last_name}, ${patient.first_name}` : "Paciente";
+function patientName(patient: { first_name: string; last_name: string } | undefined, t: Translate) {
+  return patient ? `${patient.last_name}, ${patient.first_name}` : t("finance.colPatient");
 }
 
-function collectionStatusLabel(status: string) {
-  if (status === "collected") return "Cobrado";
-  if (status === "cancelled") return "Anulado";
-  return "Pendiente";
+function collectionStatusLabel(status: string, t: Translate) {
+  if (status === "collected") return t("finance.collected");
+  if (status === "cancelled") return t("finance.cancelled");
+  return t("finance.pending");
 }
 
-function professionalPaymentStatusLabel(status: string) {
-  if (status === "paid") return "Pagado";
-  if (status === "cancelled") return "Anulado";
-  return "Pendiente";
+function professionalPaymentStatusLabel(status: string, t: Translate) {
+  if (status === "paid") return t("finance.paid");
+  if (status === "cancelled") return t("finance.cancelled");
+  return t("finance.pending");
 }

@@ -24,16 +24,19 @@ import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { addMinutesToHHmm, localDateTimeToUTC } from "@/shared/time/rfc3339";
 import { getYouTubeEmbedUrl } from "@/shared/media/youtube";
 import { VideoPreviewModal, type VideoPreview } from "@/shared/ui/VideoPreviewModal";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
+
+type Translate = (key: string) => string;
 
 const defaultWorkDays = [1, 2, 3, 4, 5];
-const workDayLabels: Record<number, string> = {
-  1: "Lun",
-  2: "Mar",
-  3: "Mié",
-  4: "Jue",
-  5: "Vie",
-  6: "Sáb",
-  7: "Dom",
+const workDayKeys: Record<number, string> = {
+  1: "day.mon",
+  2: "day.tue",
+  3: "day.wed",
+  4: "day.thu",
+  5: "day.fri",
+  6: "day.sat",
+  7: "day.sun",
 };
 
 function appointmentRange() {
@@ -89,13 +92,14 @@ function isOutsideWorkingSchedule(dateISO: string, startHHmm: string, durationMi
   return !days.includes(isoDay);
 }
 
-function workDaysLabel(days?: number[]) {
+function workDaysLabel(days: number[] | undefined, t: Translate) {
   const selected = days?.length ? days : defaultWorkDays;
-  return selected.map((day) => workDayLabels[day]).filter(Boolean).join(", ");
+  return selected.map((day) => t(workDayKeys[day])).filter(Boolean).join(", ");
 }
 
 export default function PatientPortalPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const range = useMemo(() => appointmentRange(), []);
   const [kinesiologistId, setKinesiologistId] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -216,16 +220,16 @@ export default function PatientPortalPage() {
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">Portal paciente</h1>
+        <h1 className="text-2xl font-semibold">{t("portal.title")}</h1>
         <p className="text-sm text-gray-600">{user?.email}</p>
       </header>
 
       <section className="bg-white border rounded-lg p-4 space-y-4">
-        <h2 className="text-lg font-semibold">Nuevo turno</h2>
+        <h2 className="text-lg font-semibold">{t("portal.newAppointment")}</h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="md:col-span-2">
-            <label className="text-sm font-medium">Kinesiólogo</label>
+            <label className="text-sm font-medium">{t("portal.kinesiologist")}</label>
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={kinesiologistId}
@@ -234,7 +238,7 @@ export default function PatientPortalPage() {
                 setNewAppointmentTouched(true);
               }}
             >
-              <option value="">Seleccionar...</option>
+              <option value="">{t("portal.select")}</option>
               {kinesiologists.map((kinesiologist) => (
                 <option key={kinesiologist.id} value={kinesiologist.id}>
                   {kinesiologist.last_name}, {kinesiologist.first_name}
@@ -242,17 +246,17 @@ export default function PatientPortalPage() {
               ))}
             </select>
             {kinesiologistsQ.isError && (
-              <p className="text-sm text-red-600 mt-1">No se pudieron cargar los kinesiólogos.</p>
+              <p className="text-sm text-red-600 mt-1">{t("portal.errorLoadKinesiologists")}</p>
             )}
             {selectedKinesiologist && (
               <p className="text-sm text-gray-600 mt-2">
-                Horario de atención: {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days)}.
+                {t("portal.workingHours")}: {selectedKinesiologist.work_start_time} {t("portal.errorOutsideScheduleMiddle")} {selectedKinesiologist.work_end_time} · {workDaysLabel(selectedKinesiologist.work_days, t)}.
               </p>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium">Fecha</label>
+            <label className="text-sm font-medium">{t("portal.date")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="date"
@@ -266,7 +270,7 @@ export default function PatientPortalPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Hora</label>
+            <label className="text-sm font-medium">{t("portal.time")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="time"
@@ -279,7 +283,7 @@ export default function PatientPortalPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Duración</label>
+            <label className="text-sm font-medium">{t("portal.duration")}</label>
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={durationMin}
@@ -288,14 +292,14 @@ export default function PatientPortalPage() {
                 setNewAppointmentTouched(true);
               }}
             >
-              <option value={30}>30 min</option>
-              <option value={45}>45 min</option>
-              <option value={60}>60 min</option>
+              <option value={30}>30 {t("portal.min")}</option>
+              <option value={45}>45 {t("portal.min")}</option>
+              <option value={60}>60 {t("portal.min")}</option>
             </select>
           </div>
 
           <div>
-            <label className="text-sm font-medium">Notas</label>
+            <label className="text-sm font-medium">{t("portal.notes")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               value={notes}
@@ -309,43 +313,43 @@ export default function PatientPortalPage() {
           disabled={!kinesiologistId || isCreateInPast || isCreateOutsideWorkingSchedule || createM.isPending}
           onClick={create}
         >
-          {createM.isPending ? "Reservando..." : "Reservar turno"}
+          {createM.isPending ? t("portal.booking") : t("portal.bookAppointment")}
         </button>
 
         {newAppointmentTouched && isCreateInPast && (
-          <p className="text-sm text-red-600">No se pueden reservar turnos en horarios pasados.</p>
+          <p className="text-sm text-red-600">{t("portal.errorPastTime")}</p>
         )}
 
         {newAppointmentTouched && isCreateOutsideWorkingSchedule && selectedKinesiologist && (
           <p className="text-sm text-red-600">
-            El turno debe estar dentro del horario de {selectedKinesiologist.work_start_time} a {selectedKinesiologist.work_end_time} y en sus días laborales: {workDaysLabel(selectedKinesiologist.work_days)}.
+            {t("portal.errorOutsideSchedulePrefix")} {selectedKinesiologist.work_start_time} {t("portal.errorOutsideScheduleMiddle")} {selectedKinesiologist.work_end_time} {t("portal.errorOutsideScheduleSuffix")} {workDaysLabel(selectedKinesiologist.work_days, t)}.
           </p>
         )}
 
         {createM.isError && (
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 text-sm text-red-700">
             {isOverlapError(createM.error)
-              ? "Ese horario ya no está disponible para el kinesiólogo seleccionado."
-              : `No se pudo reservar el turno: ${(createM.error as any)?.message}`}
+              ? t("portal.errorOverlap")
+              : `${t("portal.errorBookFailedPrefix")} ${(createM.error as any)?.message}`}
           </div>
         )}
       </section>
 
       <section className="bg-white border rounded-lg p-4 space-y-4">
         <div>
-          <h2 className="text-lg font-semibold">Registrar seguimiento</h2>
-          <p className="text-sm text-gray-600">Compartí cómo venís entre sesiones para que tu kinesiólogo lo revise.</p>
+          <h2 className="text-lg font-semibold">{t("portal.checkInTitle")}</h2>
+          <p className="text-sm text-gray-600">{t("portal.checkInSubtitle")}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
-            <label className="text-sm font-medium">Dolor</label>
+            <label className="text-sm font-medium">{t("portal.pain")}</label>
             <select
               className="mt-1 w-full border rounded-lg p-2"
               value={checkInPainLevel}
               onChange={(event) => setCheckInPainLevel(event.target.value)}
             >
-              <option value="">Sin registrar</option>
+              <option value="">{t("portal.notRegistered")}</option>
               {Array.from({ length: 11 }, (_, value) => (
                 <option key={value} value={value}>
                   {value}/10
@@ -355,51 +359,51 @@ export default function PatientPortalPage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium">Movilidad</label>
+            <label className="text-sm font-medium">{t("portal.mobility")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="number"
               min={0}
               max={100}
-              placeholder="0 a 100"
+              placeholder={t("portal.rangePlaceholder")}
               value={checkInMobilityScore}
               onChange={(event) => setCheckInMobilityScore(event.target.value)}
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium">Fuerza</label>
+            <label className="text-sm font-medium">{t("portal.strength")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="number"
               min={0}
               max={100}
-              placeholder="0 a 100"
+              placeholder={t("portal.rangePlaceholder")}
               value={checkInStrengthScore}
               onChange={(event) => setCheckInStrengthScore(event.target.value)}
             />
           </div>
 
           <div>
-            <label className="text-sm font-medium">Funcionalidad</label>
+            <label className="text-sm font-medium">{t("portal.functional")}</label>
             <input
               className="mt-1 w-full border rounded-lg p-2"
               type="number"
               min={0}
               max={100}
-              placeholder="0 a 100"
+              placeholder={t("portal.rangePlaceholder")}
               value={checkInFunctionalScore}
               onChange={(event) => setCheckInFunctionalScore(event.target.value)}
             />
           </div>
 
           <div className="md:col-span-4">
-            <label className="text-sm font-medium">Comentario</label>
+            <label className="text-sm font-medium">{t("portal.comment")}</label>
             <textarea
               className="mt-1 w-full border rounded-lg p-2 min-h-24"
               value={checkInNotes}
               onChange={(event) => setCheckInNotes(event.target.value)}
-              placeholder="Ej: dolor despues de los ejercicios, mejora al caminar, dudas o molestias."
+              placeholder={t("portal.checkInNotesPlaceholder")}
             />
           </div>
         </div>
@@ -410,22 +414,22 @@ export default function PatientPortalPage() {
           disabled={!checkInNotes.trim() || createCheckInM.isPending}
           onClick={() => createCheckInM.mutate()}
         >
-          {createCheckInM.isPending ? "Enviando..." : "Enviar seguimiento"}
+          {createCheckInM.isPending ? t("portal.sending") : t("portal.sendCheckIn")}
         </button>
 
         {createCheckInM.isError && (
-          <p className="text-sm text-red-600">No se pudo registrar el seguimiento.</p>
+          <p className="text-sm text-red-600">{t("portal.errorCheckInFailed")}</p>
         )}
         {createCheckInM.isSuccess && (
-          <p className="text-sm text-green-700">Seguimiento enviado.</p>
+          <p className="text-sm text-green-700">{t("portal.checkInSent")}</p>
         )}
 
         <div className="border-t pt-4">
-          <h3 className="font-medium">Mis seguimientos</h3>
-          {checkInsQ.isLoading && <p className="text-sm text-gray-600 mt-2">Cargando seguimientos...</p>}
-          {checkInsQ.isError && <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus seguimientos.</p>}
+          <h3 className="font-medium">{t("portal.myCheckIns")}</h3>
+          {checkInsQ.isLoading && <p className="text-sm text-gray-600 mt-2">{t("portal.loadingCheckIns")}</p>}
+          {checkInsQ.isError && <p className="text-sm text-red-600 mt-2">{t("portal.errorLoadCheckIns")}</p>}
           {!checkInsQ.isLoading && !checkInsQ.isError && checkIns.length === 0 && (
-            <p className="text-sm text-gray-600 mt-2">Todavía no registraste seguimientos.</p>
+            <p className="text-sm text-gray-600 mt-2">{t("portal.noCheckIns")}</p>
           )}
           {checkIns.length > 0 && (
             <div className="mt-3 divide-y">
@@ -438,18 +442,18 @@ export default function PatientPortalPage() {
       </section>
 
       <section className="bg-white border rounded-lg p-4">
-        <h2 className="text-lg font-semibold">Mi evolución clínica</h2>
+        <h2 className="text-lg font-semibold">{t("portal.myEvolution")}</h2>
 
         {evolutionsQ.isLoading && (
-          <p className="text-sm text-gray-600 mt-2">Cargando evolución...</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.loadingEvolution")}</p>
         )}
 
         {evolutionsQ.isError && (
-          <p className="text-sm text-red-600 mt-2">No se pudo cargar tu evolución clínica.</p>
+          <p className="text-sm text-red-600 mt-2">{t("portal.errorLoadEvolution")}</p>
         )}
 
         {evolutionsQ.isSuccess && evolutions.length === 0 && (
-          <p className="text-sm text-gray-600 mt-2">Todavía no hay evoluciones compartidas.</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.noEvolution")}</p>
         )}
 
         {evolutions.length > 0 && (
@@ -469,18 +473,18 @@ export default function PatientPortalPage() {
       </section>
 
       <section className="bg-white border rounded-lg p-4">
-        <h2 className="text-lg font-semibold">Mis planes</h2>
+        <h2 className="text-lg font-semibold">{t("portal.myPlans")}</h2>
 
         {plansQ.isLoading && (
-          <p className="text-sm text-gray-600 mt-2">Cargando planes...</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.loadingPlans")}</p>
         )}
 
         {plansQ.isError && (
-          <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus planes.</p>
+          <p className="text-sm text-red-600 mt-2">{t("portal.errorLoadPlans")}</p>
         )}
 
         {plansQ.isSuccess && plans.length === 0 && (
-          <p className="text-sm text-gray-600 mt-2">No tenés planes de ejercicios.</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.noPlans")}</p>
         )}
 
         {plans.length > 0 && (
@@ -489,10 +493,10 @@ export default function PatientPortalPage() {
               <article key={plan.id} className="py-3">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="font-medium">
-                    {plan.frequency === "daily" ? "Diario" : "Semanal"} · {plan.duration_weeks} semanas
+                    {plan.frequency === "daily" ? t("portal.daily") : t("portal.weekly")} · {plan.duration_weeks} {t("portal.weeks")}
                   </div>
                   <span className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700 w-fit">
-                    {plan.status === "closed" ? "Cerrado" : "Activo"}
+                    {plan.status === "closed" ? t("portal.closed") : t("portal.active")}
                   </span>
                 </div>
                 {plan.observations && (
@@ -503,9 +507,9 @@ export default function PatientPortalPage() {
                     <div key={item.id} className="rounded-lg border p-3">
                       <div className="font-medium">{item.name}</div>
                       <div className="text-sm text-gray-600">
-                        {item.estimated_minutes} min
-                        {item.sets ? ` · ${item.sets} series` : ""}
-                        {item.reps ? ` · ${item.reps} repeticiones` : ""}
+                        {item.estimated_minutes} {t("portal.min")}
+                        {item.sets ? ` · ${item.sets} ${t("portal.sets")}` : ""}
+                        {item.reps ? ` · ${item.reps} ${t("portal.reps")}` : ""}
                       </div>
                       {item.description && (
                         <p className="text-sm text-gray-700 mt-1">{item.description}</p>
@@ -519,17 +523,17 @@ export default function PatientPortalPage() {
                                 className="text-sm underline text-blue-700"
                                 onClick={() => setVideoPreview({ title: item.name, url: item.video_url! })}
                               >
-                                Ver video
+                                {t("portal.watchVideo")}
                               </button>
                             ) : (
                               <a className="text-sm underline text-blue-700" href={item.video_url} target="_blank" rel="noreferrer">
-                                Ver video
+                                {t("portal.watchVideo")}
                               </a>
                             )
                           )}
                           {item.guide_url && (
                             <a className="text-sm underline text-blue-700" href={item.guide_url} target="_blank" rel="noreferrer">
-                              Ver guía
+                              {t("portal.watchGuide")}
                             </a>
                           )}
                         </div>
@@ -544,18 +548,18 @@ export default function PatientPortalPage() {
       </section>
 
       <section className="bg-white border rounded-lg p-4">
-        <h2 className="text-lg font-semibold">Mis estudios</h2>
+        <h2 className="text-lg font-semibold">{t("portal.myStudies")}</h2>
 
         {attachmentsQ.isLoading && (
-          <p className="text-sm text-gray-600 mt-2">Cargando estudios...</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.loadingStudies")}</p>
         )}
 
         {attachmentsQ.isError && (
-          <p className="text-sm text-red-600 mt-2">No se pudieron cargar tus estudios.</p>
+          <p className="text-sm text-red-600 mt-2">{t("portal.errorLoadStudies")}</p>
         )}
 
         {attachmentsQ.isSuccess && attachments.length === 0 && (
-          <p className="text-sm text-gray-600 mt-2">No tenés estudios compartidos.</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.noStudies")}</p>
         )}
 
         {attachments.length > 0 && (
@@ -574,7 +578,7 @@ export default function PatientPortalPage() {
                   className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
                   onClick={() => openAttachment(attachment)}
                 >
-                  Ver archivo
+                  {t("portal.viewFile")}
                 </button>
               </article>
             ))}
@@ -583,20 +587,20 @@ export default function PatientPortalPage() {
       </section>
 
       <section className="bg-white border rounded-lg p-4">
-        <h2 className="text-lg font-semibold">Mis turnos</h2>
+        <h2 className="text-lg font-semibold">{t("portal.myAppointments")}</h2>
 
         {appointmentsQ.isLoading && (
-          <p className="text-sm text-gray-600 mt-2">Cargando turnos...</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.loadingAppointments")}</p>
         )}
 
         {appointmentsQ.isError && (
           <p className="text-sm text-red-600 mt-2">
-            No se pudieron cargar tus turnos.
+            {t("portal.errorLoadAppointments")}
           </p>
         )}
 
         {appointmentsQ.isSuccess && appointments.length === 0 && (
-          <p className="text-sm text-gray-600 mt-2">No tenés turnos próximos agendados.</p>
+          <p className="text-sm text-gray-600 mt-2">{t("portal.noUpcomingAppointments")}</p>
         )}
 
         {appointments.length > 0 && (
@@ -611,21 +615,21 @@ export default function PatientPortalPage() {
                     {formatLocalTime(appointment.start_at)} a {formatLocalTime(appointment.end_at)}
                   </div>
                   <div className="text-sm text-gray-600">
-                    {appointment.modality === "virtual" ? "Videollamada" : "Presencial"}
+                    {appointment.modality === "virtual" ? t("portal.videocall") : t("portal.inPerson")}
                     {appointment.modality === "virtual" && appointment.video_call_url && (
                       <>
                         {" · "}
                         <a className="underline text-blue-700" href={appointment.video_call_url} target="_blank" rel="noreferrer">
-                          Abrir videollamada
+                          {t("portal.openVideocall")}
                         </a>
                       </>
                     )}
                   </div>
                   {appointment.notes && (
-                    <div className="text-sm text-gray-600 mt-1">Notas: {appointment.notes}</div>
+                    <div className="text-sm text-gray-600 mt-1">{t("portal.notes")}: {appointment.notes}</div>
                   )}
                   {appointment.status === "cancelled" && appointment.cancelled_reason && (
-                    <div className="text-sm text-gray-600 mt-1">Motivo: {appointment.cancelled_reason}</div>
+                    <div className="text-sm text-gray-600 mt-1">{t("portal.reasonLabel")}: {appointment.cancelled_reason}</div>
                   )}
                 </div>
 
@@ -637,7 +641,7 @@ export default function PatientPortalPage() {
                         : "text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700"
                     }
                   >
-                    {appointment.status === "cancelled" ? "Cancelado" : "Programado"}
+                    {appointment.status === "cancelled" ? t("portal.cancelled") : t("portal.scheduled")}
                   </span>
 
                   {appointment.status !== "cancelled" && (
@@ -649,7 +653,7 @@ export default function PatientPortalPage() {
                         setCancelReason("");
                       }}
                     >
-                      Cancelar
+                      {t("common.cancel")}
                     </button>
                   )}
                 </div>
@@ -661,16 +665,16 @@ export default function PatientPortalPage() {
         {cancelTarget && (
           <div className="mt-4 border rounded-lg p-3 space-y-3 bg-gray-50">
             <div>
-              <h3 className="font-medium">Cancelar turno</h3>
+              <h3 className="font-medium">{t("portal.cancelAppointmentTitle")}</h3>
               <p className="text-sm text-gray-600">{formatLocalDateTime(cancelTarget.start_at)}</p>
             </div>
             <div>
-              <label className="text-sm font-medium">Motivo</label>
+              <label className="text-sm font-medium">{t("portal.reasonLabel")}</label>
               <textarea
                 className="mt-1 w-full border rounded-lg p-2 min-h-20 bg-white"
                 value={cancelReason}
                 onChange={(event) => setCancelReason(event.target.value)}
-                placeholder="Opcional"
+                placeholder={t("portal.optional")}
               />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -680,7 +684,7 @@ export default function PatientPortalPage() {
                 disabled={cancelM.isPending}
                 onClick={() => cancelM.mutate({ id: cancelTarget.id, reason: cancelReason.trim() || undefined })}
               >
-                {cancelM.isPending ? "Cancelando..." : "Confirmar cancelación"}
+                {cancelM.isPending ? t("portal.cancelling") : t("portal.confirmCancel")}
               </button>
               <button
                 type="button"
@@ -691,7 +695,7 @@ export default function PatientPortalPage() {
                   setCancelReason("");
                 }}
               >
-                Volver
+                {t("common.back")}
               </button>
             </div>
           </div>
@@ -699,7 +703,7 @@ export default function PatientPortalPage() {
 
         {cancelM.isError && (
           <p className="text-sm text-red-600 mt-2">
-            No se pudo cancelar el turno: {(cancelM.error as any)?.message}
+            {t("portal.errorCancelFailedPrefix")} {(cancelM.error as any)?.message}
           </p>
         )}
       </section>
@@ -711,25 +715,29 @@ export default function PatientPortalPage() {
 
 type EvolutionMetricKey = "pain_level" | "mobility_score" | "strength_score" | "functional_score";
 
-const evolutionMetricDefs: Array<{
+function getEvolutionMetricDefs(t: Translate): Array<{
   key: EvolutionMetricKey;
   label: string;
   color: string;
   max: number;
-}> = [
-  { key: "pain_level", label: "Dolor", color: "#dc2626", max: 10 },
-  { key: "mobility_score", label: "Movilidad", color: "#2563eb", max: 100 },
-  { key: "strength_score", label: "Fuerza", color: "#16a34a", max: 100 },
-  { key: "functional_score", label: "Funcionalidad", color: "#9333ea", max: 100 },
-];
+}> {
+  return [
+    { key: "pain_level", label: t("portal.pain"), color: "#dc2626", max: 10 },
+    { key: "mobility_score", label: t("portal.mobility"), color: "#2563eb", max: 100 },
+    { key: "strength_score", label: t("portal.strength"), color: "#16a34a", max: 100 },
+    { key: "functional_score", label: t("portal.functional"), color: "#9333ea", max: 100 },
+  ];
+}
 
 function PatientEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] }) {
+  const { t } = useLanguage();
+  const evolutionMetricDefs = getEvolutionMetricDefs(t);
   const points = [...evolutions]
     .filter((evolution) => evolutionMetricDefs.some((metric) => evolution[metric.key] != null))
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   if (points.length === 0) {
-    return <p className="text-sm text-gray-600">No hay métricas clínicas para graficar.</p>;
+    return <p className="text-sm text-gray-600">{t("portal.noMetricsToChart")}</p>;
   }
 
   const width = 700;
@@ -752,7 +760,7 @@ function PatientEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] 
       </div>
 
       <div className="overflow-x-auto">
-        <svg className="min-w-[620px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Gráfico de evolución clínica">
+        <svg className="min-w-[620px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={t("portal.evolutionChartAriaLabel")}>
           {[0, 25, 50, 75, 100].map((value) => (
             <g key={value}>
               <line x1={padding.left} x2={width - padding.right} y1={yFor(value)} y2={yFor(value)} stroke="#e5e7eb" />
@@ -808,7 +816,8 @@ function PatientEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] 
 }
 
 function EvolutionMetricLine({ evolution }: { evolution: PatientEvolution }) {
-  const values = evolutionMetricDefs
+  const { t } = useLanguage();
+  const values = getEvolutionMetricDefs(t)
     .map((metric) => {
       const value = evolution[metric.key];
       return value == null ? null : `${metric.label}: ${value}/${metric.max}`;
@@ -837,11 +846,12 @@ function PatientCheckInLine({ checkIn }: { checkIn: PatientCheckIn }) {
 }
 
 function CheckInMetricLine({ checkIn }: { checkIn: PatientCheckIn }) {
+  const { t } = useLanguage();
   const values = [
-    checkIn.pain_level == null ? null : `Dolor: ${checkIn.pain_level}/10`,
-    checkIn.mobility_score == null ? null : `Movilidad: ${checkIn.mobility_score}/100`,
-    checkIn.strength_score == null ? null : `Fuerza: ${checkIn.strength_score}/100`,
-    checkIn.functional_score == null ? null : `Funcionalidad: ${checkIn.functional_score}/100`,
+    checkIn.pain_level == null ? null : `${t("portal.pain")}: ${checkIn.pain_level}/10`,
+    checkIn.mobility_score == null ? null : `${t("portal.mobility")}: ${checkIn.mobility_score}/100`,
+    checkIn.strength_score == null ? null : `${t("portal.strength")}: ${checkIn.strength_score}/100`,
+    checkIn.functional_score == null ? null : `${t("portal.functional")}: ${checkIn.functional_score}/100`,
   ].filter((value): value is string => value != null);
 
   if (values.length === 0) return null;

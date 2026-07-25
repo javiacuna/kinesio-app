@@ -10,12 +10,15 @@ import (
 	"github.com/javiacuna/kinesio-backend/internal/patients/ports"
 )
 
+const patientDeactivatedReason = "Paciente dado de baja"
+
 type DeletePatientUseCase struct {
-	repo ports.Repository
+	repo                 ports.Repository
+	appointmentCanceller ports.AppointmentCanceller
 }
 
-func NewDeletePatientUseCase(repo ports.Repository) *DeletePatientUseCase {
-	return &DeletePatientUseCase{repo: repo}
+func NewDeletePatientUseCase(repo ports.Repository, appointmentCanceller ports.AppointmentCanceller) *DeletePatientUseCase {
+	return &DeletePatientUseCase{repo: repo, appointmentCanceller: appointmentCanceller}
 }
 
 func (uc *DeletePatientUseCase) Execute(ctx context.Context, id string) (map[string]string, error) {
@@ -27,5 +30,12 @@ func (uc *DeletePatientUseCase) Execute(ctx context.Context, id string) (map[str
 	if err := uc.repo.SetActive(ctx, trimmedID, false); err != nil {
 		return nil, err
 	}
+
+	if uc.appointmentCanceller != nil {
+		if err := uc.appointmentCanceller.Execute(ctx, trimmedID, patientDeactivatedReason); err != nil {
+			return nil, err
+		}
+	}
+
 	return nil, nil
 }

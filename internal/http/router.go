@@ -107,11 +107,15 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	saveStaffUC := staffUC.NewSaveStaffMemberUseCase(staffRepository)
 	staffHandler := staffHTTP.NewHandler(listStaffUC, saveStaffUC)
 
+	// Appointments repo (adelantado para poder cancelar turnos futuros al dar de baja un paciente)
+	apptRepo := appointmentsRepo.New(db)
+	cancelFutureApptByPatientUC := appointmentsUC.NewCancelFutureAppointmentsByPatientUseCase(apptRepo)
+
 	// Patients wiring
 	patientRepo := patientsRepo.New(db)
 	registerPatientUC := patientsUC.NewRegisterPatientUseCase(patientRepo)
 	updatePatientUC := patientsUC.NewUpdatePatientUseCase(patientRepo)
-	deletePatientUC := patientsUC.NewDeletePatientUseCase(patientRepo)
+	deletePatientUC := patientsUC.NewDeletePatientUseCase(patientRepo, cancelFutureApptByPatientUC)
 	getPatientByIDUC := patientsUC.NewGetPatientByIDUseCase(patientRepo)
 	listPatientsUC := patientsUC.NewListPatientsUseCase(patientRepo)
 	searchPatients := patientsUC.NewSearchPatientsUseCase(patientRepo)
@@ -126,7 +130,6 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	savePracticeUC := kineUC.NewSavePracticeUseCase(kRepo)
 	kHandler := kineHTTP.NewHandler(listKUC, saveKUC, listSpecialtiesUC, saveSpecialtyUC, listPracticesUC, savePracticeUC)
 
-	apptRepo := appointmentsRepo.New(db)
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
 	updateApptUC := appointmentsUC.NewUpdateAppointmentUseCase(apptRepo)

@@ -25,12 +25,17 @@ import {
 import type { StaffMember, StaffRole } from "@/features/staff/types";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
 import { Tabs } from "@/shared/ui/Tabs";
+import { useLanguage } from "@/shared/i18n/LanguageProvider";
 
-const staffTabs = [
-  { key: "equipo", label: "Equipo" },
-  { key: "especialidades", label: "Especialidades y prácticas" },
-  { key: "accesos", label: "Accesos" },
-];
+type Translate = (key: string) => string;
+
+function getStaffTabs(t: Translate) {
+  return [
+    { key: "equipo", label: t("staff.tabTeam") },
+    { key: "especialidades", label: t("staff.tabSpecialties") },
+    { key: "accesos", label: t("staff.tabAccess") },
+  ];
+}
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -70,15 +75,17 @@ type TeamListItem = {
 
 const defaultWorkDays = [1, 2, 3, 4, 5];
 
-const workDayOptions = [
-  { value: 1, label: "Lun" },
-  { value: 2, label: "Mar" },
-  { value: 3, label: "Mié" },
-  { value: 4, label: "Jue" },
-  { value: 5, label: "Vie" },
-  { value: 6, label: "Sáb" },
-  { value: 7, label: "Dom" },
-];
+function getWorkDayOptions(t: Translate) {
+  return [
+    { value: 1, label: t("day.mon") },
+    { value: 2, label: t("day.tue") },
+    { value: 3, label: t("day.wed") },
+    { value: 4, label: t("day.thu") },
+    { value: 5, label: t("day.fri") },
+    { value: 6, label: t("day.sat") },
+    { value: 7, label: t("day.sun") },
+  ];
+}
 
 const emptyTeamForm: TeamForm = {
   first_name: "",
@@ -101,19 +108,24 @@ const emptyPracticeForm: PracticeForm = {
   active: true,
 };
 
-const emptySpecialtyForm: SpecialtyForm = {
-  name: "Kinesiología",
-  active: true,
-};
+function getEmptySpecialtyForm(t: Translate): SpecialtyForm {
+  return {
+    name: t("staff.defaultSpecialtyName"),
+    active: true,
+  };
+}
 
 export default function StaffPage() {
+  const { t } = useLanguage();
+  const staffTabs = getStaffTabs(t);
+  const workDayOptions = getWorkDayOptions(t);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [kinesiologists, setKinesiologists] = useState<Kinesiologist[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [practices, setPractices] = useState<Practice[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [form, setForm] = useState<TeamForm>(emptyTeamForm);
-  const [specialtyForm, setSpecialtyForm] = useState<SpecialtyForm>(emptySpecialtyForm);
+  const [specialtyForm, setSpecialtyForm] = useState<SpecialtyForm>(() => getEmptySpecialtyForm(t));
   const [practiceForm, setPracticeForm] = useState<PracticeForm>(emptyPracticeForm);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [editingStaffEmail, setEditingStaffEmail] = useState<string | null>(null);
@@ -224,7 +236,7 @@ export default function StaffPage() {
         }));
       }
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudo cargar el equipo.");
+      setError((err as Error)?.message ?? t("staff.errorLoadTeam"));
     }
   }
 
@@ -233,7 +245,7 @@ export default function StaffPage() {
     try {
       setUsers(await listAdminUsers());
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudieron cargar los usuarios.");
+      setError((err as Error)?.message ?? t("staff.errorLoadUsers"));
     }
   }
 
@@ -283,7 +295,7 @@ export default function StaffPage() {
       setMessage(teamMessage(saved));
       resetForm();
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudo guardar el miembro del equipo.");
+      setError((err as Error)?.message ?? t("staff.errorSaveMember"));
     } finally {
       setIsSaving(false);
     }
@@ -291,20 +303,20 @@ export default function StaffPage() {
 
   function validateTeamForm() {
     const validation: Record<string, string> = {};
-    if (!form.first_name.trim()) validation.first_name = "Completá el nombre.";
-    if (!form.last_name.trim()) validation.last_name = "Completá el apellido.";
+    if (!form.first_name.trim()) validation.first_name = t("staff.errorFirstName");
+    if (!form.last_name.trim()) validation.last_name = t("staff.errorLastName");
     if (!form.email.trim()) {
-      validation.email = "Completá el email.";
+      validation.email = t("staff.errorEmailRequired");
     } else if (!emailPattern.test(form.email.trim())) {
-      validation.email = "Ingresá un email válido.";
+      validation.email = t("staff.errorEmailInvalid");
     }
     if (form.role === "kinesiologo") {
-      if (!form.work_start_time) validation.work_start_time = "Completá el horario de inicio.";
-      if (!form.work_end_time) validation.work_end_time = "Completá el horario de fin.";
+      if (!form.work_start_time) validation.work_start_time = t("staff.errorWorkStart");
+      if (!form.work_end_time) validation.work_end_time = t("staff.errorWorkEnd");
       if (form.work_start_time && form.work_end_time && form.work_start_time >= form.work_end_time) {
-        validation.work_end_time = "Debe ser mayor al horario de inicio.";
+        validation.work_end_time = t("staff.errorWorkEndAfterStart");
       }
-      if (form.work_days.length === 0) validation.work_days = "Seleccioná al menos un día laboral.";
+      if (form.work_days.length === 0) validation.work_days = t("staff.errorWorkDays");
     }
     return validation;
   }
@@ -356,7 +368,7 @@ export default function StaffPage() {
     setError("");
     setMessage("");
     const validation: Record<string, string> = {};
-    if (!specialtyForm.name.trim()) validation.name = "Completá el nombre de la especialidad.";
+    if (!specialtyForm.name.trim()) validation.name = t("staff.errorSpecialtyName");
     setSpecialtyFormErrors(validation);
     if (Object.keys(validation).length > 0) return;
     setIsSavingSpecialty(true);
@@ -371,12 +383,12 @@ export default function StaffPage() {
       } else {
         await createSpecialty(payload);
       }
-      setMessage(editingSpecialtyId ? "Especialidad actualizada." : "Especialidad creada.");
+      setMessage(editingSpecialtyId ? t("staff.specialtyUpdated") : t("staff.specialtyCreated"));
       resetSpecialtyForm();
       await refreshTeam();
     } catch (err) {
       const apiError = err as Error;
-      setError(apiError.message === "nombre_duplicado" ? "Ya existe una especialidad con ese nombre." : apiError.message);
+      setError(apiError.message === "nombre_duplicado" ? t("staff.errorDuplicateSpecialty") : apiError.message);
     } finally {
       setIsSavingSpecialty(false);
     }
@@ -391,10 +403,10 @@ export default function StaffPage() {
         name: specialty.name,
         active: !specialty.active,
       });
-      setMessage(!specialty.active ? "Especialidad activada." : "Especialidad desactivada.");
+      setMessage(!specialty.active ? t("staff.specialtyActivated") : t("staff.specialtyDeactivated"));
       await refreshTeam();
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudo actualizar la especialidad.");
+      setError((err as Error)?.message ?? t("staff.errorUpdateSpecialty"));
     }
   }
 
@@ -411,7 +423,7 @@ export default function StaffPage() {
 
   function resetSpecialtyForm() {
     setEditingSpecialtyId(null);
-    setSpecialtyForm(emptySpecialtyForm);
+    setSpecialtyForm(getEmptySpecialtyForm(t));
     setSpecialtyFormErrors({});
   }
 
@@ -421,8 +433,8 @@ export default function StaffPage() {
     setMessage("");
     const validation: Record<string, string> = {};
     const specialtyId = practiceForm.specialty_id || primarySpecialty?.id || "";
-    if (!specialtyId) validation.specialty_id = "Primero creá una especialidad.";
-    if (!practiceForm.name.trim()) validation.name = "Completá el nombre de la práctica.";
+    if (!specialtyId) validation.specialty_id = t("staff.errorSpecialtyFirst");
+    if (!practiceForm.name.trim()) validation.name = t("staff.errorPracticeName");
     setPracticeFormErrors(validation);
     if (Object.keys(validation).length > 0) return;
     setIsSavingPractice(true);
@@ -439,12 +451,12 @@ export default function StaffPage() {
       } else {
         await createPractice(payload);
       }
-      setMessage(editingPracticeId ? "Práctica actualizada." : "Práctica creada.");
+      setMessage(editingPracticeId ? t("staff.practiceUpdated") : t("staff.practiceCreated"));
       resetPracticeForm();
       await refreshTeam();
     } catch (err) {
       const apiError = err as Error;
-      setError(apiError.message === "nombre_duplicado" ? "Ya existe una práctica con ese nombre." : apiError.message);
+      setError(apiError.message === "nombre_duplicado" ? t("staff.errorDuplicatePractice") : apiError.message);
     } finally {
       setIsSavingPractice(false);
     }
@@ -461,10 +473,10 @@ export default function StaffPage() {
         description: practice.description ?? null,
         active: !practice.active,
       });
-      setMessage(!practice.active ? "Práctica activada." : "Práctica desactivada.");
+      setMessage(!practice.active ? t("staff.practiceActivated") : t("staff.practiceDeactivated"));
       await refreshTeam();
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudo actualizar la práctica.");
+      setError((err as Error)?.message ?? t("staff.errorUpdatePractice"));
     }
   }
 
@@ -496,9 +508,9 @@ export default function StaffPage() {
     setMessage("");
     const validation: Record<string, string> = {};
     if (!roleEmail.trim()) {
-      validation.roleEmail = "Completá el email.";
+      validation.roleEmail = t("staff.errorEmailRequired");
     } else if (!emailPattern.test(roleEmail.trim())) {
-      validation.roleEmail = "Ingresá un email válido.";
+      validation.roleEmail = t("staff.errorEmailInvalid");
     }
     setRoleFormErrors(validation);
     if (Object.keys(validation).length > 0) return;
@@ -508,13 +520,13 @@ export default function StaffPage() {
       const res = await inviteUserAccess({ email: roleEmail.trim().toLowerCase(), role });
       setMessage(
         res.created
-          ? `Usuario creado e invitación enviada a ${res.email}.`
-          : `Invitación enviada a ${res.email} y rol ${res.role} confirmado.`,
+          ? `${t("staff.userCreatedInvitedPrefix")} ${res.email}.`
+          : `${t("staff.invitationSentPrefix")} ${res.email} ${t("staff.roleConfirmedMiddle")} ${res.role} ${t("staff.roleConfirmedSuffix")}`,
       );
       setRoleEmail("");
       await refreshUsers();
     } catch (err) {
-      setError((err as Error)?.message ?? "No se pudo asignar el rol.");
+      setError((err as Error)?.message ?? t("staff.errorAssignRole"));
     } finally {
       setIsAssigningRole(false);
     }
@@ -557,16 +569,16 @@ export default function StaffPage() {
   }
 
   function teamMessage(saved: StaffMember) {
-    const access = sendAccess ? " e invitación enviada" : "";
-    return `${saved.first_name} ${saved.last_name} guardado${access}.`;
+    const access = sendAccess ? ` ${t("staff.andInvitationSent")}` : "";
+    return `${saved.first_name} ${saved.last_name} ${t("staff.savedSuffix")}${access}.`;
   }
 
   return (
     <main>
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <header>
-          <h1 className="text-2xl font-semibold">Equipo</h1>
-          <p className="text-sm text-gray-600">Administración de profesionales y roles de acceso.</p>
+          <h1 className="text-2xl font-semibold">{t("staff.title")}</h1>
+          <p className="text-sm text-gray-600">{t("staff.subtitle")}</p>
         </header>
 
         {(message || error) && (
@@ -580,27 +592,27 @@ export default function StaffPage() {
         {activeTab === "equipo" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">{editingStaffId ? "Editar miembro del equipo" : "Crear miembro del equipo"}</h2>
-            <p className="text-sm text-gray-600">Los datos profesionales aparecen cuando el rol es kinesiólogo.</p>
+            <h2 className="text-lg font-semibold">{editingStaffId ? t("staff.editMember") : t("staff.createMember")}</h2>
+            <p className="text-sm text-gray-600">{t("staff.professionalDataNote")}</p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={submitTeamMember} noValidate>
-            <p className="text-xs text-gray-500 md:col-span-2">Los campos marcados con <span className="text-red-600">*</span> son obligatorios.</p>
-            <Field label="Nombre" value={form.first_name} onChange={(value) => setForm({ ...form, first_name: value })} error={teamFormErrors.first_name} />
-            <Field label="Apellido" value={form.last_name} onChange={(value) => setForm({ ...form, last_name: value })} error={teamFormErrors.last_name} />
-            <Field label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} error={teamFormErrors.email} />
-            <Field label="Teléfono" value={form.phone ?? ""} onChange={(value) => setForm({ ...form, phone: value })} required={false} />
+            <p className="text-xs text-gray-500 md:col-span-2">{t("staff.requiredFieldsNote")}</p>
+            <Field label={t("staff.firstName")} value={form.first_name} onChange={(value) => setForm({ ...form, first_name: value })} error={teamFormErrors.first_name} />
+            <Field label={t("staff.lastName")} value={form.last_name} onChange={(value) => setForm({ ...form, last_name: value })} error={teamFormErrors.last_name} />
+            <Field label={t("staff.email")} type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} error={teamFormErrors.email} />
+            <Field label={t("staff.phone")} value={form.phone ?? ""} onChange={(value) => setForm({ ...form, phone: value })} required={false} />
 
             <div>
-              <label className="text-sm font-medium">Rol</label>
+              <label className="text-sm font-medium">{t("staff.role")}</label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={form.role}
                 onChange={(event) => setForm({ ...form, role: event.target.value as StaffRole })}
               >
-                <option value="recepcionista">Recepcionista</option>
-                <option value="admin">Admin</option>
-                <option value="kinesiologo">Kinesiólogo</option>
+                <option value="recepcionista">{t("staff.roleReceptionist")}</option>
+                <option value="admin">{t("staff.roleAdmin")}</option>
+                <option value="kinesiologo">{t("staff.roleKinesiologist")}</option>
               </select>
             </div>
 
@@ -611,7 +623,7 @@ export default function StaffPage() {
                   checked={form.active}
                   onChange={(event) => setForm({ ...form, active: event.target.checked })}
                 />
-                Activo
+                {t("staff.active")}
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -619,17 +631,17 @@ export default function StaffPage() {
                   checked={sendAccess}
                   onChange={(event) => setSendAccess(event.target.checked)}
                 />
-                Enviar acceso por email
+                {t("staff.sendAccessEmail")}
               </label>
             </div>
 
             {isKinesiologistRole && (
               <>
-                <Field label="Matrícula" value={form.license_number} onChange={(value) => setForm({ ...form, license_number: value })} required={false} />
-                <Field label="Horario inicio" type="time" value={form.work_start_time} onChange={(value) => setForm({ ...form, work_start_time: value })} error={teamFormErrors.work_start_time} />
-                <Field label="Horario fin" type="time" value={form.work_end_time} onChange={(value) => setForm({ ...form, work_end_time: value })} error={teamFormErrors.work_end_time} />
+                <Field label={t("staff.licenseNumber")} value={form.license_number} onChange={(value) => setForm({ ...form, license_number: value })} required={false} />
+                <Field label={t("staff.workStart")} type="time" value={form.work_start_time} onChange={(value) => setForm({ ...form, work_start_time: value })} error={teamFormErrors.work_start_time} />
+                <Field label={t("staff.workEnd")} type="time" value={form.work_end_time} onChange={(value) => setForm({ ...form, work_end_time: value })} error={teamFormErrors.work_end_time} />
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium"><RequiredLabel required>Días laborales</RequiredLabel></label>
+                  <label className="text-sm font-medium"><RequiredLabel required>{t("staff.workDays")}</RequiredLabel></label>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {workDayOptions.map((day) => {
                       const checked = form.work_days.includes(day.value);
@@ -657,10 +669,10 @@ export default function StaffPage() {
                   {teamFormErrors.work_days && <p className="text-xs text-red-600 mt-1">{teamFormErrors.work_days}</p>}
                 </div>
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Prácticas</label>
-                  <p className="text-xs text-gray-500 mt-1">Especialidad: {primarySpecialty?.name ?? "Kinesiología"}</p>
+                  <label className="text-sm font-medium">{t("staff.practices")}</label>
+                  <p className="text-xs text-gray-500 mt-1">{t("staff.specialtyLabel")} {primarySpecialty?.name ?? t("staff.defaultSpecialtyName")}</p>
                   {activePractices.length === 0 ? (
-                    <p className="text-sm text-amber-700 mt-2">No hay prácticas activas para asignar.</p>
+                    <p className="text-sm text-amber-700 mt-2">{t("staff.noActivePractices")}</p>
                   ) : (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {activePractices.map((practice) => {
@@ -689,7 +701,7 @@ export default function StaffPage() {
                   )}
                 </div>
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Documentación profesional</label>
+                  <label className="text-sm font-medium">{t("staff.professionalDocs")}</label>
                   <input
                     className="mt-1 w-full border rounded-lg p-2"
                     type="file"
@@ -699,7 +711,7 @@ export default function StaffPage() {
                   />
                   {professionalFiles.length > 0 && (
                     <p className="text-xs text-gray-500 mt-1">
-                      {professionalFiles.length} archivo(s) se van a subir al guardar el kinesiólogo.
+                      {professionalFiles.length} {t("staff.filesWillUploadOnSave")}
                     </p>
                   )}
                 </div>
@@ -708,11 +720,11 @@ export default function StaffPage() {
 
             <div className="flex gap-2 md:col-span-2">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isSaving}>
-                {isSaving ? "Guardando..." : editingStaffId ? "Guardar cambios" : "Crear miembro"}
+                {isSaving ? t("common.saving") : editingStaffId ? t("common.saveChanges") : t("staff.createMemberBtn")}
               </button>
               {editingStaffId && (
                 <button type="button" className="px-4 py-2 rounded-lg border" onClick={resetForm}>
-                  Cancelar
+                  {t("common.cancel")}
                 </button>
               )}
             </div>
@@ -723,19 +735,19 @@ export default function StaffPage() {
         {activeTab === "especialidades" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Especialidades y prácticas</h2>
-            <p className="text-sm text-gray-600">Catálogo para asignar prácticas al perfil de cada kinesiólogo.</p>
+            <h2 className="text-lg font-semibold">{t("staff.specialtiesTitle")}</h2>
+            <p className="text-sm text-gray-600">{t("staff.specialtiesSubtitle")}</p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="border rounded-lg p-3 space-y-3">
               <div>
-                <h3 className="font-medium">Especialidades</h3>
-                <p className="text-xs text-gray-500">Por ahora la especialidad operativa es Kinesiología.</p>
+                <h3 className="font-medium">{t("staff.specialtiesBoxTitle")}</h3>
+                <p className="text-xs text-gray-500">{t("staff.specialtiesBoxNote")}</p>
               </div>
               <form className="space-y-3" onSubmit={submitSpecialty} noValidate>
                 <Field
-                  label="Nombre especialidad"
+                  label={t("staff.specialtyNameLabel")}
                   value={specialtyForm.name}
                   onChange={(value) => setSpecialtyForm({ ...specialtyForm, name: value })}
                   error={specialtyFormErrors.name}
@@ -746,15 +758,15 @@ export default function StaffPage() {
                     checked={specialtyForm.active}
                     onChange={(event) => setSpecialtyForm({ ...specialtyForm, active: event.target.checked })}
                   />
-                  Activa
+                  {t("staff.activeFem")}
                 </label>
                 <div className="flex gap-2">
                   <button className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-50" disabled={isSavingSpecialty}>
-                    {isSavingSpecialty ? "Guardando..." : editingSpecialtyId ? "Guardar especialidad" : "Crear especialidad"}
+                    {isSavingSpecialty ? t("common.saving") : editingSpecialtyId ? t("staff.saveSpecialty") : t("staff.createSpecialty")}
                   </button>
                   {editingSpecialtyId && (
                     <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={resetSpecialtyForm}>
-                      Cancelar
+                      {t("common.cancel")}
                     </button>
                   )}
                 </div>
@@ -762,20 +774,20 @@ export default function StaffPage() {
 
               <div className="divide-y">
                 {specialties.length === 0 ? (
-                  <p className="text-sm text-gray-600 py-2">No hay especialidades.</p>
+                  <p className="text-sm text-gray-600 py-2">{t("staff.noSpecialties")}</p>
                 ) : (
                   specialties.map((specialty) => (
                     <div key={specialty.id} className="py-2 flex items-center justify-between gap-2">
                       <div>
                         <div className="font-medium">{specialty.name}</div>
-                        <div className="text-xs text-gray-500">{specialty.active ? "Activa" : "Inactiva"}</div>
+                        <div className="text-xs text-gray-500">{specialty.active ? t("staff.activeFem") : t("staff.inactiveFem")}</div>
                       </div>
                       <div className="flex gap-2">
                         <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editSpecialty(specialty)}>
-                          Editar
+                          {t("staff.edit")}
                         </button>
                         <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => toggleSpecialty(specialty)}>
-                          {specialty.active ? "Desactivar" : "Activar"}
+                          {specialty.active ? t("staff.deactivate") : t("staff.activateBtn")}
                         </button>
                       </div>
                     </div>
@@ -786,34 +798,34 @@ export default function StaffPage() {
 
             <div className="border rounded-lg p-3 space-y-3">
               <div>
-                <h3 className="font-medium">Prácticas</h3>
-                <p className="text-xs text-gray-500">Motora, respiratoria, pediátrica u otras prácticas de kinesiología.</p>
+                <h3 className="font-medium">{t("staff.practicesBoxTitle")}</h3>
+                <p className="text-xs text-gray-500">{t("staff.practicesBoxNote")}</p>
               </div>
               <form className="space-y-3" onSubmit={submitPractice} noValidate>
                 <div>
-                  <label className="text-sm font-medium"><RequiredLabel required>Especialidad</RequiredLabel></label>
+                  <label className="text-sm font-medium"><RequiredLabel required>{t("staff.specialty")}</RequiredLabel></label>
                   <select
                     className="mt-1 w-full border rounded-lg p-2"
                     value={practiceForm.specialty_id || primarySpecialty?.id || ""}
                     onChange={(event) => setPracticeForm({ ...practiceForm, specialty_id: event.target.value })}
                   >
-                    <option value="">Seleccionar...</option>
+                    <option value="">{t("staff.select")}</option>
                     {specialties.map((specialty) => (
                       <option key={specialty.id} value={specialty.id}>
-                        {specialty.name}{specialty.active ? "" : " (inactiva)"}
+                        {specialty.name}{specialty.active ? "" : ` ${t("staff.inactiveSuffix")}`}
                       </option>
                     ))}
                   </select>
                   {practiceFormErrors.specialty_id && <p className="text-xs text-red-600 mt-1">{practiceFormErrors.specialty_id}</p>}
                 </div>
                 <Field
-                  label="Nombre práctica"
+                  label={t("staff.practiceNameLabel")}
                   value={practiceForm.name}
                   onChange={(value) => setPracticeForm({ ...practiceForm, name: value })}
                   error={practiceFormErrors.name}
                 />
                 <div>
-                  <label className="text-sm font-medium">Descripción</label>
+                  <label className="text-sm font-medium">{t("staff.description")}</label>
                   <textarea
                     className="mt-1 w-full border rounded-lg p-2"
                     rows={3}
@@ -827,15 +839,15 @@ export default function StaffPage() {
                     checked={practiceForm.active}
                     onChange={(event) => setPracticeForm({ ...practiceForm, active: event.target.checked })}
                   />
-                  Activa
+                  {t("staff.activeFem")}
                 </label>
                 <div className="flex gap-2">
                   <button className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-50" disabled={isSavingPractice}>
-                    {isSavingPractice ? "Guardando..." : editingPracticeId ? "Guardar práctica" : "Crear práctica"}
+                    {isSavingPractice ? t("common.saving") : editingPracticeId ? t("staff.savePractice") : t("staff.createPractice")}
                   </button>
                   {editingPracticeId && (
                     <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={resetPracticeForm}>
-                      Cancelar
+                      {t("common.cancel")}
                     </button>
                   )}
                 </div>
@@ -843,23 +855,23 @@ export default function StaffPage() {
 
               <div className="divide-y">
                 {practices.length === 0 ? (
-                  <p className="text-sm text-gray-600 py-2">No hay prácticas.</p>
+                  <p className="text-sm text-gray-600 py-2">{t("staff.noPractices")}</p>
                 ) : (
                   practices.map((practice) => (
                     <div key={practice.id} className="py-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="font-medium">{practice.name}</div>
                         <div className="text-xs text-gray-500">
-                          {specialties.find((item) => item.id === practice.specialty_id)?.name ?? "Kinesiología"} · {practice.active ? "Activa" : "Inactiva"}
+                          {specialties.find((item) => item.id === practice.specialty_id)?.name ?? t("staff.defaultSpecialtyName")} · {practice.active ? t("staff.activeFem") : t("staff.inactiveFem")}
                         </div>
                         {practice.description && <div className="text-sm text-gray-600">{practice.description}</div>}
                       </div>
                       <div className="flex gap-2">
                         <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editPractice(practice)}>
-                          Editar
+                          {t("staff.edit")}
                         </button>
                         <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => togglePractice(practice)}>
-                          {practice.active ? "Desactivar" : "Activar"}
+                          {practice.active ? t("staff.deactivate") : t("staff.activateBtn")}
                         </button>
                       </div>
                     </div>
@@ -874,29 +886,29 @@ export default function StaffPage() {
         {activeTab === "accesos" && (
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Reenviar acceso</h2>
+            <h2 className="text-lg font-semibold">{t("staff.resendAccessTitle")}</h2>
             <p className="text-sm text-gray-600">
-              Para resetear contraseña o corregir un rol sin editar el perfil interno.
+              {t("staff.resendAccessNote")}
             </p>
           </div>
 
           <form className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3" onSubmit={submitRole} noValidate>
-            <Field label="Email" type="email" value={roleEmail} onChange={setRoleEmail} error={roleFormErrors.roleEmail} />
+            <Field label={t("staff.email")} type="email" value={roleEmail} onChange={setRoleEmail} error={roleFormErrors.roleEmail} />
             <div>
-              <label className="text-sm font-medium">Rol</label>
+              <label className="text-sm font-medium">{t("staff.role")}</label>
               <select
                 className="mt-1 w-full border rounded-lg p-2"
                 value={role}
                 onChange={(event) => setRole(event.target.value as AuthRole)}
               >
-                <option value="recepcionista">Recepcionista</option>
-                <option value="admin">Admin</option>
-                <option value="kinesiologo">Kinesiólogo</option>
+                <option value="recepcionista">{t("staff.roleReceptionist")}</option>
+                <option value="admin">{t("staff.roleAdmin")}</option>
+                <option value="kinesiologo">{t("staff.roleKinesiologist")}</option>
               </select>
             </div>
             <div className="flex items-end">
               <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" disabled={isAssigningRole}>
-                {isAssigningRole ? "Enviando..." : "Enviar invitación"}
+                {isAssigningRole ? t("staff.sending") : t("staff.sendInvitation")}
               </button>
             </div>
           </form>
@@ -907,32 +919,32 @@ export default function StaffPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Staff</h2>
-              <p className="text-sm text-gray-600">Listado unificado del equipo.</p>
+              <h2 className="text-lg font-semibold">{t("staff.staffTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("staff.staffSubtitle")}</p>
             </div>
             <div className="flex items-end gap-2">
               <div>
-                <label className="text-sm font-medium">Filtrar por rol</label>
+                <label className="text-sm font-medium">{t("staff.filterByRole")}</label>
                 <select
                   className="mt-1 w-full min-w-48 border rounded-lg p-2"
                   value={roleFilter}
                   onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}
                 >
-                  <option value="all">Todos</option>
-                  <option value="recepcionista">Recepcionista</option>
-                  <option value="admin">Admin</option>
-                  <option value="kinesiologo">Kinesiólogo</option>
+                  <option value="all">{t("staff.all")}</option>
+                  <option value="recepcionista">{t("staff.roleReceptionist")}</option>
+                  <option value="admin">{t("staff.roleAdmin")}</option>
+                  <option value="kinesiologo">{t("staff.roleKinesiologist")}</option>
                 </select>
               </div>
               <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={refreshTeam}>
-                Actualizar
+                {t("staff.refresh")}
               </button>
             </div>
           </div>
 
           <div className="divide-y">
             {visibleTeamMembers.length === 0 ? (
-              <p className="text-sm text-gray-600 py-3">No hay miembros del equipo para mostrar.</p>
+              <p className="text-sm text-gray-600 py-3">{t("staff.noMembers")}</p>
             ) : (
               visibleTeamMembers.map((member) => {
                 const profile = member.profile;
@@ -942,23 +954,23 @@ export default function StaffPage() {
                     <div>
                       <div className="font-medium">{member.last_name}, {member.first_name}</div>
                       <div className="text-sm text-gray-600">{member.email}</div>
-                      {member.phone && <div className="text-sm text-gray-600">Tel: {member.phone}</div>}
+                      {member.phone && <div className="text-sm text-gray-600">{t("staff.tel")}: {member.phone}</div>}
                       {member.role === "kinesiologo" && profile && (
                         <>
                           <div className="text-sm text-gray-600">
-                            {profile.license_number ? `Matrícula: ${profile.license_number} · ` : ""}
-                            Horario: {profile.work_start_time} a {profile.work_end_time} · Días: {workDaysLabel(profile.work_days)}
+                            {profile.license_number ? `${t("staff.licenseNumber")}: ${profile.license_number} · ` : ""}
+                            {t("staff.scheduleLabel")}: {profile.work_start_time} {t("portal.errorOutsideScheduleMiddle")} {profile.work_end_time} · {t("staff.daysLabel")}: {workDaysLabel(profile.work_days, t)}
                           </div>
                           <div className="text-sm text-gray-600">
-                            Prácticas: {profile.practices?.length ? profile.practices.map((practice) => practice.name).join(", ") : "Sin asignar"}
+                            {t("staff.practicesLabel")}: {profile.practices?.length ? profile.practices.map((practice) => practice.name).join(", ") : t("staff.unassigned")}
                           </div>
                         </>
                       )}
                       {member.role === "kinesiologo" && !profile && (
-                        <div className="text-sm text-red-600">Perfil profesional pendiente.</div>
+                        <div className="text-sm text-red-600">{t("staff.pendingProfile")}</div>
                       )}
                       {!member.staff && (
-                        <div className="text-sm text-amber-700">Solo perfil profesional, falta crear miembro de staff.</div>
+                        <div className="text-sm text-amber-700">{t("staff.onlyProfessionalProfile")}</div>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -966,10 +978,10 @@ export default function StaffPage() {
                         {member.role}
                       </span>
                       <span className={`text-xs px-2 py-1 rounded-md ${member.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
-                        {member.active ? "Activo" : "Inactivo"}
+                        {member.active ? t("staff.active") : t("staff.inactive")}
                       </span>
                       <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => edit(member)}>
-                        Editar
+                        {t("staff.edit")}
                       </button>
                     </div>
                   </div>
@@ -984,17 +996,17 @@ export default function StaffPage() {
         <section className="bg-white rounded-xl shadow p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Usuarios Firebase</h2>
-              <p className="text-sm text-gray-600">Usuarios existentes y rol configurado en custom claims.</p>
+              <h2 className="text-lg font-semibold">{t("staff.firebaseUsersTitle")}</h2>
+              <p className="text-sm text-gray-600">{t("staff.firebaseUsersNote")}</p>
             </div>
             <button type="button" className="px-3 py-2 rounded-lg border text-sm" onClick={refreshUsers}>
-              Actualizar
+              {t("staff.refresh")}
             </button>
           </div>
 
           <div className="divide-y">
             {sortedUsers.length === 0 ? (
-              <p className="text-sm text-gray-600 py-3">No hay usuarios para mostrar.</p>
+              <p className="text-sm text-gray-600 py-3">{t("staff.noUsers")}</p>
             ) : (
               sortedUsers.map((user) => (
                 <div key={user.uid} className="py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1004,11 +1016,11 @@ export default function StaffPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`text-xs px-2 py-1 rounded-md ${user.role ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700"}`}>
-                      {user.role || "sin rol"}
+                      {user.role || t("staff.noRole")}
                     </span>
                     {user.disabled && (
                       <span className="text-xs px-2 py-1 rounded-md bg-red-100 text-red-700">
-                        Deshabilitado
+                        {t("staff.disabled")}
                       </span>
                     )}
                     <button
@@ -1021,7 +1033,7 @@ export default function StaffPage() {
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
-                      Invitar/resetear
+                      {t("staff.inviteReset")}
                     </button>
                   </div>
                 </div>
@@ -1065,10 +1077,11 @@ function Field({
   );
 }
 
-function workDaysLabel(days: number[] | undefined) {
+function workDaysLabel(days: number[] | undefined, t: Translate) {
   const selected = days?.length ? days : defaultWorkDays;
+  const options = getWorkDayOptions(t);
   return selected
-    .map((value) => workDayOptions.find((day) => day.value === value)?.label)
+    .map((value) => options.find((day) => day.value === value)?.label)
     .filter(Boolean)
     .join(", ");
 }

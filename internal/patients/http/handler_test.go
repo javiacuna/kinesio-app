@@ -451,7 +451,7 @@ func TestDeletePatientEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deleteUC := usecase.NewDeletePatientUseCase(tt.repo)
+			deleteUC := usecase.NewDeletePatientUseCase(tt.repo, nil)
 			handler := NewHandler(nil, nil, deleteUC, nil, nil, nil)
 
 			router := gin.New()
