@@ -99,10 +99,17 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-4 text-center">
-          <Link className="text-sm underline" to="/forgot-password">
-            {t("auth.forgotPassword")}
-          </Link>
+        <div className="mt-4 text-center space-y-2">
+          <div>
+            <Link className="text-sm underline" to="/forgot-password">
+              {t("auth.forgotPassword")}
+            </Link>
+          </div>
+          <div>
+            <Link className="text-sm underline" to="/register">
+              {t("auth.registerCta")}
+            </Link>
+          </div>
         </div>
       </section>
     </main>

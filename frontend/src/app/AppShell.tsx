@@ -1,7 +1,9 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "./queryClient";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { NotificationBell } from "@/features/notifications/NotificationBell";
+import { listPendingPatientSignups } from "@/features/patientSignups/api";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 
 export function AppShell() {
@@ -22,7 +24,16 @@ export function AppShell() {
   const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeFinance = user?.role === "admin" || user?.role === "recepcionista";
   const canSeeReports = user?.role === "admin" || user?.role === "recepcionista";
+  const canSeePatientSignups = user?.role === "admin" || user?.role === "recepcionista";
   const canSeeStaff = user?.role === "admin";
+
+  const pendingSignupsQ = useQuery({
+    queryKey: ["patientSignups", "pending", "count"],
+    queryFn: () => listPendingPatientSignups("pending"),
+    enabled: canSeePatientSignups,
+    refetchInterval: 30_000,
+  });
+  const pendingSignupsCount = pendingSignupsQ.data?.length ?? 0;
   const roleText =
     user?.role === "admin"
       ? t("role.admin")
@@ -113,6 +124,19 @@ export function AppShell() {
                 to="/reports"
               >
                 {t("nav.reports")}
+              </Link>
+            )}
+            {canSeePatientSignups && (
+              <Link
+                className={`${navClass(location.pathname === "/patient-signups")} flex items-center justify-between gap-2`}
+                to="/patient-signups"
+              >
+                <span>{t("nav.patientSignups")}</span>
+                {pendingSignupsCount > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-amber-500 text-white text-[11px] font-medium flex items-center justify-center">
+                    {pendingSignupsCount > 99 ? "99+" : pendingSignupsCount}
+                  </span>
+                )}
               </Link>
             )}
             <Link

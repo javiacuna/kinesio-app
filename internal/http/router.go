@@ -25,6 +25,10 @@ import (
 	patientsRepo "github.com/javiacuna/kinesio-backend/internal/patients/infra/gorm"
 	patientsUC "github.com/javiacuna/kinesio-backend/internal/patients/usecase"
 
+	patientSignupsHTTP "github.com/javiacuna/kinesio-backend/internal/patientsignups/http"
+	patientSignupsRepo "github.com/javiacuna/kinesio-backend/internal/patientsignups/infra/gorm"
+	patientSignupsUC "github.com/javiacuna/kinesio-backend/internal/patientsignups/usecase"
+
 	appointmentsHTTP "github.com/javiacuna/kinesio-backend/internal/appointments/http"
 	appointmentsRepo "github.com/javiacuna/kinesio-backend/internal/appointments/infra/gorm"
 	appointmentsUC "github.com/javiacuna/kinesio-backend/internal/appointments/usecase"
@@ -151,6 +155,13 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	notificationService := notificationsService.New(notificationRepo, notificationMailer)
 	notificationHandler := notificationsHTTP.NewHandler(notificationService)
 
+	patientSignupsRepository := patientSignupsRepo.New(db)
+	createSignupUC := patientSignupsUC.NewCreateSignupRequestUseCase(patientSignupsRepository, patientRepo, firebaseAuthClient)
+	approveSignupUC := patientSignupsUC.NewApproveSignupRequestUseCase(patientSignupsRepository, patientRepo, registerPatientUC, firebaseAuthClient, notificationService)
+	rejectSignupUC := patientSignupsUC.NewRejectSignupRequestUseCase(patientSignupsRepository, firebaseAuthClient, notificationService)
+	listSignupsUC := patientSignupsUC.NewListSignupRequestsUseCase(patientSignupsRepository)
+	patientSignupHandler := patientSignupsHTTP.NewHandler(createSignupUC, approveSignupUC, rejectSignupUC, listSignupsUC)
+
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
 
@@ -233,6 +244,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/auth/login", authHandler.Login)
 	v1.POST("/auth/password-reset", authHandler.RequestPasswordReset)
+	v1.POST("/auth/patient-signup", patientSignupHandler.Register)
 
 	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
@@ -245,6 +257,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/admin/users", authHandler.ListUsers)
 	v1.POST("/admin/users/invite", authHandler.InviteUser)
 	v1.POST("/admin/users/role", authHandler.AssignRole)
+	v1.GET("/admin/patient-signups", middleware.RequireRole("admin", "recepcionista"), patientSignupHandler.List)
+	v1.POST("/admin/patient-signups/:request_id/approve", middleware.RequireRole("admin", "recepcionista"), patientSignupHandler.Approve)
+	v1.POST("/admin/patient-signups/:request_id/reject", middleware.RequireRole("admin", "recepcionista"), patientSignupHandler.Reject)
 	v1.GET("/staff", staffHandler.List)
 	v1.POST("/staff", staffHandler.Create)
 	v1.PUT("/staff/:id", staffHandler.Update)

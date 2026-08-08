@@ -63,6 +63,10 @@ func (r *registerPatientRepo) GetByID(ctx context.Context, id string) (domain.Pa
 	return r.patient, r.found, nil
 }
 
+func (r *registerPatientRepo) FindByDNIAndEmail(ctx context.Context, dni, email string) (domain.Patient, bool, error) {
+	return domain.Patient{}, false, nil
+}
+
 func (r *registerPatientRepo) List(ctx context.Context, limit int, offset int, includeInactive bool) ([]domain.Patient, error) {
 	if offset > len(r.patients) {
 		return []domain.Patient{}, nil

@@ -10,7 +10,9 @@ import LoginPage from "../pages/LoginPage";
 import PatientPortalPage from "../pages/PatientPortalPage";
 import PatientDetailPage from "../pages/PatientDetailPage";
 import PatientsPage from "../pages/PatientsPage";
+import PatientSignupsPage from "../pages/PatientSignupsPage";
 import ProfilePage from "../pages/ProfilePage";
+import RegisterPage from "../pages/RegisterPage";
 import ReportsPage from "../pages/ReportsPage";
 import StaffPage from "../pages/StaffPage";
 import SupportPage from "../pages/SupportPage";
@@ -23,6 +25,7 @@ const errorElement = <ErrorPage />;
 export const router = createBrowserRouter([
   { path: "/", element: <RoleRedirect />, errorElement },
   { path: "/login", element: <LoginPage />, errorElement },
+  { path: "/register", element: <RegisterPage />, errorElement },
   { path: "/forgot-password", element: <ForgotPasswordPage />, errorElement },
   { path: "/unauthorized", element: <UnauthorizedPage />, errorElement },
   {
@@ -47,6 +50,7 @@ export const router = createBrowserRouter([
         children: [
           { path: "/finance", element: <FinancePage /> },
           { path: "/reports", element: <ReportsPage /> },
+          { path: "/patient-signups", element: <PatientSignupsPage /> },
         ],
       },
     ],
