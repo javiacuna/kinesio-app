@@ -5,6 +5,8 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { PasswordInput } from "@/shared/ui/PasswordInput";
+import { passwordPolicyPattern } from "@/shared/validation/password";
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,8 +33,8 @@ export default function RegisterPage() {
     if (!email || !emailPattern.test(email)) {
       errors.email = t("patients.errorEmailInvalid");
     }
-    if (password.length < 6) {
-      errors.password = t("auth.registerFailed");
+    if (!passwordPolicyPattern.test(password)) {
+      errors.password = t("profile.passwordPolicy");
     }
     if (!dni || !/^\d+$/.test(dni)) {
       errors.dni = t("patients.errorDni");
@@ -121,13 +123,13 @@ export default function RegisterPage() {
               <label className="text-sm font-medium" htmlFor="password">
                 <RequiredLabel required>{t("auth.password")}</RequiredLabel>
               </label>
-              <input
+              <PasswordInput
                 id="password"
                 className="mt-1 w-full border rounded-lg p-2"
-                type="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                minLength={8}
               />
               {fieldErrors.password && <p className="text-xs text-red-600 mt-1">{fieldErrors.password}</p>}
             </div>

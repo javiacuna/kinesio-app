@@ -4,8 +4,8 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { saveAuthTokens } from "@/features/auth/session";
 import { useLanguage } from "@/shared/i18n/LanguageProvider";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
-
-const passwordPolicyPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+import { PasswordInput } from "@/shared/ui/PasswordInput";
+import { passwordPolicyPattern } from "@/shared/validation/password";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -95,10 +95,9 @@ export default function ProfilePage() {
             <label className="text-sm font-medium" htmlFor="current-password">
               <RequiredLabel required>{t("profile.currentPassword")}</RequiredLabel>
             </label>
-            <input
+            <PasswordInput
               id="current-password"
               className="mt-1 w-full border rounded-lg p-2"
-              type="password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
@@ -111,10 +110,9 @@ export default function ProfilePage() {
               <label className="text-sm font-medium" htmlFor="new-password">
                 <RequiredLabel required>{t("profile.newPassword")}</RequiredLabel>
               </label>
-              <input
+              <PasswordInput
                 id="new-password"
                 className="mt-1 w-full border rounded-lg p-2"
-                type="password"
                 autoComplete="new-password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -126,10 +124,9 @@ export default function ProfilePage() {
               <label className="text-sm font-medium" htmlFor="repeat-password">
                 <RequiredLabel required>{t("profile.repeatPassword")}</RequiredLabel>
               </label>
-              <input
+              <PasswordInput
                 id="repeat-password"
                 className="mt-1 w-full border rounded-lg p-2"
-                type="password"
                 autoComplete="new-password"
                 value={repeatPassword}
                 onChange={(event) => setRepeatPassword(event.target.value)}

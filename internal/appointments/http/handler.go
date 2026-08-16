@@ -761,6 +761,20 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
+	if h.isCurrentPatient(c) {
+		patientID, ok := h.patientIDForCurrentPatient(c, "")
+		if !ok {
+			return
+		}
+		if out.PatientID.String() != patientID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+	} else if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	c.JSON(http.StatusOK, toResp(out))
 }
 

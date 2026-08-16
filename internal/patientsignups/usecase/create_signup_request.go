@@ -7,6 +7,7 @@ import (
 
 	"firebase.google.com/go/v4/auth"
 
+	sharedDomain "github.com/javiacuna/kinesio-backend/internal/domain"
 	patientsDomain "github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patientsignups/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patientsignups/ports"
@@ -47,8 +48,8 @@ func (uc *CreateSignupRequestUseCase) Execute(ctx context.Context, in CreateSign
 	} else if !strings.Contains(in.Email, "@") {
 		errs["email"] = "Formato inválido"
 	}
-	if len(in.Password) < 6 {
-		errs["password"] = "Debe tener al menos 6 caracteres"
+	if sharedDomain.PasswordPolicyViolation(in.Password) != "" {
+		errs["password"] = "Debe tener al menos 8 caracteres, con mayúscula, minúscula, número y carácter especial"
 	}
 	if in.DNI == "" {
 		errs["dni"] = "Campo obligatorio"
