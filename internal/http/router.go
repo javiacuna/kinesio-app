@@ -3,6 +3,9 @@ package http
 import (
 	"context"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -352,6 +355,23 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/support/tickets/:ticket_id/attachment", middleware.RequireAuth(), supportHandler.DownloadAttachment)
 
 	_ = db
+
+	if cfg.StaticDir != "" {
+		r.Static("/assets", filepath.Join(cfg.StaticDir, "assets"))
+		r.NoRoute(func(c *gin.Context) {
+			reqPath := c.Request.URL.Path
+			if strings.HasPrefix(reqPath, "/api/") {
+				c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+				return
+			}
+			if info, err := os.Stat(filepath.Join(cfg.StaticDir, filepath.Clean(reqPath))); err == nil && !info.IsDir() {
+				c.File(filepath.Join(cfg.StaticDir, filepath.Clean(reqPath)))
+				return
+			}
+			// SPA: cualquier ruta de cliente (ej. /login, /patients) sirve index.html
+			c.File(filepath.Join(cfg.StaticDir, "index.html"))
+		})
+	}
 
 	return r
 }

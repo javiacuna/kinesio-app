@@ -43,6 +43,11 @@ type Config struct {
 	WherebyAPIKey      string
 	WherebyRoomPrefix  string
 	VideoCallExpiryMin int
+
+	// StaticDir, si se setea, hace que el backend sirva el frontend ya compilado
+	// (frontend/dist) desde ese directorio, ademas de la API. Vacio = desactivado
+	// (modo desarrollo normal, con el frontend corriendo aparte via Vite).
+	StaticDir string
 }
 
 func MustLoad() Config {
@@ -76,6 +81,7 @@ func MustLoad() Config {
 		WherebyAPIKey:            getenv("WHEREBY_API_KEY", ""),
 		WherebyRoomPrefix:        getenv("WHEREBY_ROOM_PREFIX", "kinesio"),
 		VideoCallExpiryMin:       getenvInt("VIDEO_CALL_EXPIRY_MIN", 60),
+		StaticDir:                getenv("STATIC_DIR", ""),
 	}
 
 	// Validaciones mínimas
