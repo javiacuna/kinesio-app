@@ -27,3 +27,8 @@ export type ChangePasswordInput = {
   current_password: string;
   new_password: string;
 };
+
+export type ConfirmPasswordResetInput = {
+  oob_code: string;
+  new_password: string;
+};

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,12 @@ type Config struct {
 	FirebaseProjectID       string
 	FirebaseWebAPIKey       string
 	FirebaseCredentialsFile string
+
+	// PublicBaseURL es la URL publica de esta app (ej. https://kinesio-app.onrender.com).
+	// Si esta seteada, el link de "olvide mi contrasena" lleva a nuestra propia pantalla
+	// de reseteo en vez de a la generica de Firebase. Requiere que el dominio este en
+	// Firebase Console > Authentication > Settings > Authorized domains.
+	PublicBaseURL string
 
 	PatientFilesDir       string
 	KinesiologistFilesDir string
@@ -64,6 +71,7 @@ func MustLoad() Config {
 		FirebaseProjectID:        getenv("FIREBASE_PROJECT_ID", ""),
 		FirebaseWebAPIKey:        getenv("FIREBASE_WEB_API_KEY", ""),
 		FirebaseCredentialsFile:  getenv("GOOGLE_APPLICATION_CREDENTIALS", ""),
+		PublicBaseURL:            strings.TrimRight(getenv("PUBLIC_BASE_URL", ""), "/"),
 		PatientFilesDir:          getenv("PATIENT_FILES_DIR", "uploads/patient-attachments"),
 		KinesiologistFilesDir:    getenv("KINESIOLOGIST_FILES_DIR", "uploads/kinesiologist-attachments"),
 		NotificationEmailEnabled: getenvBool("NOTIFICATIONS_EMAIL_ENABLED", false),

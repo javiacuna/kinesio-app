@@ -107,7 +107,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	if err != nil {
 		log.Warn().Err(err).Msg("firebase admin auth client could not be initialized")
 	}
-	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey, firebaseAuthClient)
+	authHandler := authHTTP.NewHandler(cfg.FirebaseWebAPIKey, cfg.PublicBaseURL, firebaseAuthClient)
 
 	staffRepository := staffRepo.New(db)
 	listStaffUC := staffUC.NewListStaffMembersUseCase(staffRepository)
@@ -247,6 +247,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 
 	v1.POST("/auth/login", authHandler.Login)
 	v1.POST("/auth/password-reset", authHandler.RequestPasswordReset)
+	v1.POST("/auth/confirm-password-reset", authHandler.ConfirmPasswordReset)
 	v1.POST("/auth/patient-signup", patientSignupHandler.Register)
 
 	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.

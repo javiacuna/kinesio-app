@@ -75,6 +75,16 @@ func (uc *SavePatientDiagnosisUseCase) Create(ctx context.Context, in SavePatien
 		return domain.PatientDiagnosis{}, map[string]string{"cie10_code": "Código CIE-10 no encontrado"}, domain.ErrValidation
 	}
 
+	existing, err := uc.repo.ListByPatient(ctx, diagnosis.PatientID)
+	if err != nil {
+		return domain.PatientDiagnosis{}, nil, err
+	}
+	for _, other := range existing {
+		if other.CIE10Code == diagnosis.CIE10Code && other.Kind == diagnosis.Kind && other.Status != domain.DiagnosisStatusResolved {
+			return domain.PatientDiagnosis{}, map[string]string{"cie10_code": "El paciente ya tiene este diagnóstico activo registrado"}, domain.ErrValidation
+		}
+	}
+
 	out, err := uc.repo.CreatePatientDiagnosis(ctx, diagnosis)
 	return out, nil, err
 }

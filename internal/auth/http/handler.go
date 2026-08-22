@@ -21,21 +21,23 @@ import (
 )
 
 type Handler struct {
-	apiKey      string
-	client      *http.Client
-	adminClient *auth.Client
+	apiKey        string
+	publicBaseURL string
+	client        *http.Client
+	adminClient   *auth.Client
 }
 
-func NewHandler(apiKey string, adminClient ...*auth.Client) *Handler {
+func NewHandler(apiKey string, publicBaseURL string, adminClient ...*auth.Client) *Handler {
 	var firebaseAdmin *auth.Client
 	if len(adminClient) > 0 {
 		firebaseAdmin = adminClient[0]
 	}
 
 	return &Handler{
-		apiKey:      strings.TrimSpace(apiKey),
-		client:      &http.Client{Timeout: 10 * time.Second},
-		adminClient: firebaseAdmin,
+		apiKey:        strings.TrimSpace(apiKey),
+		publicBaseURL: strings.TrimSpace(publicBaseURL),
+		client:        &http.Client{Timeout: 10 * time.Second},
+		adminClient:   firebaseAdmin,
 	}
 }
 
@@ -106,8 +108,20 @@ type adminUserResponse struct {
 }
 
 type sendOobCodeRequest struct {
-	RequestType string `json:"requestType"`
-	Email       string `json:"email"`
+	RequestType        string `json:"requestType"`
+	Email              string `json:"email"`
+	ContinueUrl        string `json:"continueUrl,omitempty"`
+	CanHandleCodeInApp bool   `json:"canHandleCodeInApp,omitempty"`
+}
+
+type confirmPasswordResetRequest struct {
+	OobCode     string `json:"oob_code"`
+	NewPassword string `json:"new_password"`
+}
+
+type firebaseResetPasswordRequest struct {
+	OobCode     string `json:"oobCode"`
+	NewPassword string `json:"newPassword"`
 }
 
 var validRoles = map[string]struct{}{
@@ -229,6 +243,43 @@ func (h *Handler) RequestPasswordReset(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"email_sent": true})
+}
+
+// ConfirmPasswordReset aplica una nueva contraseña usando el oobCode que Firebase
+// manda por email. Al pasar por acá (en vez de la pantalla generica de Firebase)
+// podemos exigir la misma política de contraseña que en el resto de la app.
+func (h *Handler) ConfirmPasswordReset(c *gin.Context) {
+	if h.apiKey == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "firebase_api_key_not_configured"})
+		return
+	}
+
+	var req confirmPasswordResetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
+		return
+	}
+
+	oobCode := strings.TrimSpace(req.OobCode)
+	newPassword := strings.TrimSpace(req.NewPassword)
+	validation := map[string]string{}
+	if oobCode == "" {
+		validation["oob_code"] = "required"
+	}
+	if reason := domain.PasswordPolicyViolation(newPassword); reason != "" {
+		validation["new_password"] = reason
+	}
+	if len(validation) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": validation})
+		return
+	}
+
+	if err := h.resetFirebasePassword(c.Request.Context(), oobCode, newPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_or_expired_code"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reset": true})
 }
 
 func (h *Handler) ChangePassword(c *gin.Context) {
@@ -452,10 +503,16 @@ func (h *Handler) setUserRole(ctx context.Context, user *auth.UserRecord, role s
 }
 
 func (h *Handler) sendPasswordResetEmail(ctx context.Context, email string) error {
-	payload, err := json.Marshal(sendOobCodeRequest{
+	oobReq := sendOobCodeRequest{
 		RequestType: "PASSWORD_RESET",
 		Email:       email,
-	})
+	}
+	if h.publicBaseURL != "" {
+		oobReq.ContinueUrl = h.publicBaseURL + "/reset-password"
+		oobReq.CanHandleCodeInApp = true
+	}
+
+	payload, err := json.Marshal(oobReq)
 	if err != nil {
 		return err
 	}
@@ -476,6 +533,35 @@ func (h *Handler) sendPasswordResetEmail(ctx context.Context, email string) erro
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return errFirebaseEmail
+	}
+
+	return nil
+}
+
+func (h *Handler) resetFirebasePassword(ctx context.Context, oobCode string, newPassword string) error {
+	payload, err := json.Marshal(firebaseResetPasswordRequest{
+		OobCode:     oobCode,
+		NewPassword: newPassword,
+	})
+	if err != nil {
+		return err
+	}
+
+	endpoint := "https://identitytoolkit.googleapis.com/v1/accounts:resetPassword?key=" + h.apiKey
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := h.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return errors.New("firebase_reset_password_failed")
 	}
 
 	return nil

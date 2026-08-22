@@ -1,5 +1,12 @@
 import { apiFetch } from "@/shared/api/http";
-import type { AuthUser, ChangePasswordInput, LoginInput, LoginResponse, PasswordResetInput } from "./types";
+import type {
+  AuthUser,
+  ChangePasswordInput,
+  ConfirmPasswordResetInput,
+  LoginInput,
+  LoginResponse,
+  PasswordResetInput,
+} from "./types";
 
 export function login(input: LoginInput) {
   return apiFetch<LoginResponse>("/api/v1/auth/login", {
@@ -21,6 +28,13 @@ export function requestPasswordReset(input: PasswordResetInput) {
 
 export function changePassword(input: ChangePasswordInput) {
   return apiFetch<LoginResponse>("/api/v1/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function confirmPasswordReset(input: ConfirmPasswordResetInput) {
+  return apiFetch<{ reset: boolean }>("/api/v1/auth/confirm-password-reset", {
     method: "POST",
     body: JSON.stringify(input),
   });

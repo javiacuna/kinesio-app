@@ -43,6 +43,15 @@ function todayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function currentRoundedTime() {
+  const d = new Date();
+  const roundedMinutes = Math.ceil(d.getMinutes() / 15) * 15;
+  d.setMinutes(roundedMinutes, 0, 0);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 function isOverlapError(error: unknown) {
   return (error as any)?.status === 409 || (error as any)?.message === "overlap";
 }
@@ -164,7 +173,7 @@ export default function AgendaPage() {
   const [patientId, setPatientId] = useState("");
   const [createMode, setCreateMode] = useState<"single" | "package">("single");
   const [apptDate, setApptDate] = useState(todayISO());
-  const [startTime, setStartTime] = useState("09:00");
+  const [startTime, setStartTime] = useState(currentRoundedTime());
   const [durationMin, setDurationMin] = useState(45);
   const [practiceId, setPracticeId] = useState("");
   const [financierId, setFinancierId] = useState("");
@@ -598,6 +607,7 @@ export default function AgendaPage() {
                     return;
                   }
                   clearCreatePatient();
+                  setStartTime(currentRoundedTime());
                   setShowCreateForm(true);
                 }}
               >

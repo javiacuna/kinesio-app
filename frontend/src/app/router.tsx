@@ -14,6 +14,7 @@ import PatientSignupsPage from "../pages/PatientSignupsPage";
 import ProfilePage from "../pages/ProfilePage";
 import RegisterPage from "../pages/RegisterPage";
 import ReportsPage from "../pages/ReportsPage";
+import ResetPasswordPage from "../pages/ResetPasswordPage";
 import StaffPage from "../pages/StaffPage";
 import SupportPage from "../pages/SupportPage";
 import MaterialsPage from "../pages/MaterialsPage";
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage />, errorElement },
   { path: "/register", element: <RegisterPage />, errorElement },
   { path: "/forgot-password", element: <ForgotPasswordPage />, errorElement },
+  { path: "/reset-password", element: <ResetPasswordPage />, errorElement },
   { path: "/unauthorized", element: <UnauthorizedPage />, errorElement },
   {
     element: <ProtectedRoute />,
