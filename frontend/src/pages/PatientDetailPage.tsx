@@ -2116,7 +2116,14 @@ function ClinicalEvolutionChart({ evolutions }: { evolutions: PatientEvolution[]
                 stroke="#f3f4f6"
               />
               {labelIndexes.has(index) && (
-                <text x={xFor(index)} y={height - 18} textAnchor="middle" className="fill-gray-600 text-[11px]">
+                <text
+                  x={xFor(index)}
+                  y={height - 18}
+                  textAnchor={
+                    points.length === 1 ? "middle" : index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"
+                  }
+                  className="fill-gray-600 text-[11px]"
+                >
                   {formatLocalDateTime(evolution.created_at)}
                 </text>
               )}

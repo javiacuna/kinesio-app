@@ -804,11 +804,15 @@ function PatientEvolutionChart({ evolutions }: { evolutions: PatientEvolution[] 
             );
           })}
 
-          {points.map((evolution, index) => (
-            <text key={evolution.id} x={xFor(index)} y={height - 18} textAnchor="middle" className="fill-gray-600 text-[11px]">
-              {formatLocalDateTime(evolution.created_at)}
-            </text>
-          ))}
+          {points.map((evolution, index) => {
+            const anchor =
+              points.length === 1 ? "middle" : index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
+            return (
+              <text key={evolution.id} x={xFor(index)} y={height - 18} textAnchor={anchor} className="fill-gray-600 text-[11px]">
+                {formatLocalDateTime(evolution.created_at)}
+              </text>
+            );
+          })}
         </svg>
       </div>
     </div>
