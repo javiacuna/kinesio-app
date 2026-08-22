@@ -291,14 +291,14 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.GET("/patients/:patient_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientHandler.GetPatientByID)
 
 	v1.POST("/appointments", apptHandler.Create)
-	v1.POST("/appointment-packages", middleware.RequireRole("recepcionista"), apptHandler.CreatePackage)
-	v1.PUT("/appointment-packages/:package_id", middleware.RequireRole("recepcionista"), apptHandler.UpdatePackage)
-	v1.PATCH("/appointment-packages/:package_id", middleware.RequireRole("recepcionista"), apptHandler.UpdatePackage)
+	v1.POST("/appointment-packages", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.CreatePackage)
+	v1.PUT("/appointment-packages/:package_id", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.UpdatePackage)
+	v1.PATCH("/appointment-packages/:package_id", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.UpdatePackage)
 	v1.GET("/appointments", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.ListDay)
 	v1.GET("/appointments/patient", apptHandler.ListByPatient)
 	v1.PUT("/appointments/:id", apptHandler.Update)
 	v1.PATCH("/appointments/:id", apptHandler.Update)
-	v1.POST("/appointments/:id/video-call", middleware.RequireRole("recepcionista"), apptHandler.GenerateVideoCall)
+	v1.POST("/appointments/:id/video-call", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.GenerateVideoCall)
 	v1.DELETE("/appointments/:id", apptHandler.Cancel)
 	v1.GET("/appointments/:id", apptHandler.GetByID)
 

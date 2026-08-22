@@ -4,6 +4,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { homePathForRole } from "@/features/auth/routing";
 import { LanguageSelect, useLanguage } from "@/shared/i18n/LanguageProvider";
 import { RequiredLabel } from "@/shared/ui/RequiredLabel";
+import { PasswordInput } from "@/shared/ui/PasswordInput";
 
 export default function LoginPage() {
   const { loginWithEmail, isAuthenticated, user } = useAuth();
@@ -73,10 +74,9 @@ export default function LoginPage() {
             <label className="text-sm font-medium" htmlFor="password">
               <RequiredLabel required>{t("auth.password")}</RequiredLabel>
             </label>
-            <input
+            <PasswordInput
               id="password"
               className="mt-1 w-full border rounded-lg p-2"
-              type="password"
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}

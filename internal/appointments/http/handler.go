@@ -197,7 +197,7 @@ type packageWriteResp struct {
 
 func (h *Handler) Create(c *gin.Context) {
 	isPatient := h.isCurrentPatient(c)
-	if !middleware.HasRole(c, "recepcionista") && !isPatient {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") && !isPatient {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -254,7 +254,7 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func (h *Handler) CreatePackage(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -309,7 +309,7 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 }
 
 func (h *Handler) UpdatePackage(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -407,7 +407,7 @@ func (h *Handler) ListDay(c *gin.Context) {
 }
 
 func (h *Handler) Update(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -460,7 +460,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 func (h *Handler) Cancel(c *gin.Context) {
 	isPatient := h.isCurrentPatient(c)
-	if !middleware.HasRole(c, "recepcionista") && !isPatient {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") && !isPatient {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -499,7 +499,7 @@ func (h *Handler) Cancel(c *gin.Context) {
 }
 
 func (h *Handler) GenerateVideoCall(c *gin.Context) {
-	if !middleware.HasRole(c, "recepcionista") {
+	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}

@@ -149,7 +149,7 @@ export default function AgendaPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const isKinesiologist = user?.role === "kinesiologo";
-  const canManageAppointments = user?.role === "admin" || user?.role === "recepcionista";
+  const canManageAppointments = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   // Agenda (listado)
   const [date, setDate] = useState(todayISO());
   const [kinesiologistId, setKinesiologistId] = useState("");
