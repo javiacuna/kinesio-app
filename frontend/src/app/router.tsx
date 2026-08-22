@@ -81,7 +81,7 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    element: <ProtectedRoute roles={["recepcionista"]} />,
+    element: <ProtectedRoute roles={["recepcionista", "kinesiologo"]} />,
     errorElement,
     children: [
       {

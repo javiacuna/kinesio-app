@@ -251,8 +251,9 @@ export default function AgendaPage() {
   useEffect(() => {
     if (!isKinesiologist || !user?.email || kinesios.length === 0) return;
 
-    const ownProfile =
-      kinesios.find((k) => k.email.toLowerCase() === user.email.toLowerCase()) ?? kinesios[0];
+    // No caemos a kinesios[0]: si el email no matchea ningun perfil, mostramos
+    // el aviso de "perfil no encontrado" en vez de mostrarle la agenda de otro profesional.
+    const ownProfile = kinesios.find((k) => k.email.toLowerCase() === user.email.toLowerCase());
 
     if (ownProfile && ownProfile.id !== kinesiologistId) {
       setKinesiologistId(ownProfile.id);
@@ -614,7 +615,7 @@ export default function AgendaPage() {
                 {showCreateForm ? t("agenda.hideForm") : t("agenda.newAppointment")}
               </button>
             )}
-            {(user?.role === "admin" || user?.role === "recepcionista") && (
+            {(user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo") && (
               <Link className="text-sm underline" to="/patients">
                 {t("agenda.goPatients")}
               </Link>

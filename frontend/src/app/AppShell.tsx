@@ -18,7 +18,7 @@ export function AppShell() {
     navigate("/login", { replace: true });
   }
 
-  const canSeePatients = user?.role === "admin" || user?.role === "recepcionista";
+  const canSeePatients = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeDashboard = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeAgenda = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
   const canSeeMaterials = user?.role === "admin" || user?.role === "recepcionista" || user?.role === "kinesiologo";
