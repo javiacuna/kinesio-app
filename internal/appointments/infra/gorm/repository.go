@@ -176,6 +176,34 @@ func (r *Repository) HasOverlapIgnoringAppointments(
 	return count > 0, nil
 }
 
+// ExistsForKinesiologistAndPatient indica si el kinesiólogo alguna vez tuvo (pasado,
+// presente o futuro, sin importar el status) un turno con ese paciente. Se usa para
+// limitar el acceso del kinesiólogo a la historia clínica solo de sus pacientes.
+func (r *Repository) ExistsForKinesiologistAndPatient(ctx context.Context, kinesiologistID uuid.UUID, patientID uuid.UUID) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&AppointmentModel{}).
+		Where("kinesiologist_id = ? AND patient_id = ?", kinesiologistID, patientID).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// ListPatientIDsForKinesiologist devuelve los IDs (sin duplicados) de los pacientes
+// que alguna vez tuvieron un turno con ese kinesiólogo.
+func (r *Repository) ListPatientIDsForKinesiologist(ctx context.Context, kinesiologistID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := r.db.WithContext(ctx).Model(&AppointmentModel{}).
+		Where("kinesiologist_id = ?", kinesiologistID).
+		Distinct().
+		Pluck("patient_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r *Repository) ListByKinesiologistAndRange(ctx context.Context, kinesiologistID uuid.UUID, startDay, endDay time.Time) ([]domain.Appointment, error) {
 	var ms []AppointmentModel
 	err := r.db.WithContext(ctx).

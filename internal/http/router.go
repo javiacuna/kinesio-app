@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"gorm.io/gorm"
 
@@ -126,7 +127,6 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	getPatientByIDUC := patientsUC.NewGetPatientByIDUseCase(patientRepo)
 	listPatientsUC := patientsUC.NewListPatientsUseCase(patientRepo)
 	searchPatients := patientsUC.NewSearchPatientsUseCase(patientRepo)
-	patientHandler := patientsHTTP.NewHandler(registerPatientUC, updatePatientUC, deletePatientUC, getPatientByIDUC, listPatientsUC, searchPatients)
 
 	kRepo := kineRepo.New(db)
 	listKUC := kineUC.NewListKinesiologistsUseCase(kRepo)
@@ -136,6 +136,9 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	listPracticesUC := kineUC.NewListPracticesUseCase(kRepo)
 	savePracticeUC := kineUC.NewSavePracticeUseCase(kRepo)
 	kHandler := kineHTTP.NewHandler(listKUC, saveKUC, listSpecialtiesUC, saveSpecialtyUC, listPracticesUC, savePracticeUC)
+
+	kinesiologistPatientsResolver := kinesiologistPatientsAdapter{kineRepo: kRepo, apptRepo: apptRepo}
+	patientHandler := patientsHTTP.NewHandler(registerPatientUC, updatePatientUC, deletePatientUC, getPatientByIDUC, listPatientsUC, searchPatients, kinesiologistPatientsResolver)
 
 	createApptUC := appointmentsUC.NewCreateAppointmentUseCase(apptRepo)
 	listDayUC := appointmentsUC.NewListAppointmentsDayUseCase(apptRepo)
@@ -242,6 +245,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	supportRepo := supportGorm.NewRepository(db)
 	supportHandler := supportHTTP.NewHandler(supportRepo, notificationMailer, cfg.SupportEmail, cfg.SupportPhone, cfg.SupportFilesDir)
 
+	patientAccessGuard := kinesiologistPatientAccessGuard(kRepo, apptRepo)
+
 	// API v1
 	v1 := r.Group("/api/v1")
 
@@ -271,25 +276,25 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// CU01 - Registrar paciente
 	v1.POST("/patients", patientHandler.RegisterPatient)
 	v1.GET("/patients", patientHandler.Search)
-	v1.POST("/patients/:patient_id/plans", planHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/plans", planHandler.ListByPatient)
-	v1.POST("/patients/:patient_id/evolutions", middleware.RequireRole("kinesiologo"), evoHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/evolutions", middleware.RequireAuth(), evoHandler.ListByPatient)
-	v1.GET("/patients/:patient_id/check-ins", middleware.RequireAuth(), checkInsHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/plans", patientAccessGuard, planHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/plans", patientAccessGuard, planHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/evolutions", middleware.RequireRole("kinesiologo"), patientAccessGuard, evoHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/evolutions", middleware.RequireAuth(), patientAccessGuard, evoHandler.ListByPatient)
+	v1.GET("/patients/:patient_id/check-ins", middleware.RequireAuth(), patientAccessGuard, checkInsHandler.ListByPatient)
 	v1.POST("/patients/me/check-ins", middleware.RequireRole("paciente"), checkInsHandler.CreateForMe)
-	v1.GET("/patients/:patient_id/clinical-reports", middleware.RequireRole("recepcionista", "kinesiologo"), clinicalReportsHandler.ListByPatient)
-	v1.POST("/patients/:patient_id/clinical-reports", middleware.RequireRole("kinesiologo"), clinicalReportsHandler.CreateForPatient)
-	v1.GET("/patients/:patient_id/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), matHandler.ListLoansByPatient)
-	v1.GET("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.ListByPatient)
-	v1.POST("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.CreateForPatient)
-	v1.PUT("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.Update)
-	v1.PATCH("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.Update)
-	v1.DELETE("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), diagnosesHandler.Delete)
-	v1.GET("/patients/:patient_id/attachments", attachmentHandler.ListByPatient)
-	v1.POST("/patients/:patient_id/attachments", attachmentHandler.Upload)
+	v1.GET("/patients/:patient_id/clinical-reports", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, clinicalReportsHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/clinical-reports", middleware.RequireRole("kinesiologo"), patientAccessGuard, clinicalReportsHandler.CreateForPatient)
+	v1.GET("/patients/:patient_id/material-loans", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, matHandler.ListLoansByPatient)
+	v1.GET("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, diagnosesHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/diagnoses", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, diagnosesHandler.CreateForPatient)
+	v1.PUT("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, diagnosesHandler.Update)
+	v1.PATCH("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, diagnosesHandler.Update)
+	v1.DELETE("/patients/:patient_id/diagnoses/:diagnosis_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, diagnosesHandler.Delete)
+	v1.GET("/patients/:patient_id/attachments", patientAccessGuard, attachmentHandler.ListByPatient)
+	v1.POST("/patients/:patient_id/attachments", patientAccessGuard, attachmentHandler.Upload)
 	v1.PUT("/patients/:patient_id", patientHandler.UpdatePatient)
 	v1.DELETE("/patients/:patient_id", patientHandler.DeletePatient)
-	v1.GET("/patients/:patient_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientHandler.GetPatientByID)
+	v1.GET("/patients/:patient_id", middleware.RequireRole("recepcionista", "kinesiologo"), patientAccessGuard, patientHandler.GetPatientByID)
 
 	v1.POST("/appointments", apptHandler.Create)
 	v1.POST("/appointment-packages", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.CreatePackage)
@@ -375,6 +380,68 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	}
 
 	return r
+}
+
+// kinesiologistPatientsAdapter conecta el repo de kinesiólogos (para resolver el email
+// del usuario logueado a un ID) con el repo de turnos (para listar los pacientes con los
+// que ese kinesiólogo tuvo algun turno agendado).
+type kinesiologistPatientsAdapter struct {
+	kineRepo *kineRepo.Repository
+	apptRepo *appointmentsRepo.Repository
+}
+
+func (a kinesiologistPatientsAdapter) ListPatientIDsForKinesiologistEmail(ctx context.Context, email string) ([]uuid.UUID, error) {
+	kine, found, err := a.kineRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return []uuid.UUID{}, nil
+	}
+	return a.apptRepo.ListPatientIDsForKinesiologist(ctx, kine.ID)
+}
+
+// kinesiologistPatientAccessGuard limita el acceso a la historia clínica de un paciente:
+// un kinesiólogo solo puede ver/editar la ficha de pacientes con los que tuvo (o tiene)
+// al menos un turno agendado. Admin y recepcionista no se ven afectados (siguen viendo
+// todo). Una vez que el kinesiólogo tiene acceso, ve el historial completo del paciente,
+// incluidas notas cargadas por otros kinesiólogos.
+func kinesiologistPatientAccessGuard(kRepo *kineRepo.Repository, apptRepo *appointmentsRepo.Repository) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := middleware.CurrentUser(c)
+		if !ok || strings.ToLower(strings.TrimSpace(user.Role)) != "kinesiologo" {
+			c.Next()
+			return
+		}
+
+		patientID, err := uuid.Parse(c.Param("patient_id"))
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_patient_id"})
+			return
+		}
+
+		kine, found, err := kRepo.FindByEmail(c.Request.Context(), user.Email)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": "internal_error"})
+			return
+		}
+		if !found {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
+		hasAppointment, err := apptRepo.ExistsForKinesiologistAndPatient(c.Request.Context(), kine.ID, patientID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"error": "internal_error"})
+			return
+		}
+		if !hasAppointment {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+			return
+		}
+
+		c.Next()
+	}
 }
 
 // startMaterialDueReminders periodically checks for overdue material loans

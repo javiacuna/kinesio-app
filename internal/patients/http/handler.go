@@ -1,31 +1,56 @@
 package http
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/javiacuna/kinesio-backend/internal/http/middleware"
 	"github.com/javiacuna/kinesio-backend/internal/patients/domain"
 	"github.com/javiacuna/kinesio-backend/internal/patients/usecase"
 )
 
+// kinesiologistPatientsResolver resuelve, a partir del email de un kinesiólogo, los IDs
+// de los pacientes con los que alguna vez tuvo un turno agendado. Se usa para que el
+// listado/búsqueda de pacientes le muestre a un kinesiólogo solo a sus propios pacientes.
+type kinesiologistPatientsResolver interface {
+	ListPatientIDsForKinesiologistEmail(ctx context.Context, email string) ([]uuid.UUID, error)
+}
+
 type Handler struct {
-	register *usecase.RegisterPatientUseCase
-	update   *usecase.UpdatePatientUseCase
-	delete   *usecase.DeletePatientUseCase
-	getByID  *usecase.GetPatientByIDUseCase
-	listUC   *usecase.ListPatientsUseCase
-	searchUC *usecase.SearchPatientsUseCase
+	register              *usecase.RegisterPatientUseCase
+	update                *usecase.UpdatePatientUseCase
+	delete                *usecase.DeletePatientUseCase
+	getByID               *usecase.GetPatientByIDUseCase
+	listUC                *usecase.ListPatientsUseCase
+	searchUC              *usecase.SearchPatientsUseCase
+	kinesiologistPatients kinesiologistPatientsResolver
 }
 
 func NewHandler(register *usecase.RegisterPatientUseCase, update *usecase.UpdatePatientUseCase, deleteUC *usecase.DeletePatientUseCase,
 	getByID *usecase.GetPatientByIDUseCase, listUC *usecase.ListPatientsUseCase,
-	searchUC *usecase.SearchPatientsUseCase) *Handler {
-	return &Handler{register: register, update: update, delete: deleteUC, getByID: getByID, listUC: listUC, searchUC: searchUC}
+	searchUC *usecase.SearchPatientsUseCase, lookups ...any) *Handler {
+	var kinesiologistPatients kinesiologistPatientsResolver
+	for _, lookup := range lookups {
+		if resolver, ok := lookup.(kinesiologistPatientsResolver); ok {
+			kinesiologistPatients = resolver
+		}
+	}
+
+	return &Handler{
+		register:              register,
+		update:                update,
+		delete:                deleteUC,
+		getByID:               getByID,
+		listUC:                listUC,
+		searchUC:              searchUC,
+		kinesiologistPatients: kinesiologistPatients,
+	}
 }
 
 type registerPatientRequest struct {
@@ -263,6 +288,25 @@ func (h *Handler) Search(c *gin.Context) {
 		return
 	}
 
+	// Un kinesiólogo solo puede ver/buscar entre sus propios pacientes (con los que
+	// tuvo algun turno agendado), nunca la nomina completa.
+	var allowedPatientIDs map[uuid.UUID]struct{}
+	if user, ok := middleware.CurrentUser(c); ok && strings.EqualFold(strings.TrimSpace(user.Role), "kinesiologo") {
+		if h.kinesiologistPatients == nil {
+			c.JSON(http.StatusOK, []patientResponse{})
+			return
+		}
+		ids, err := h.kinesiologistPatients.ListPatientIDsForKinesiologistEmail(c.Request.Context(), user.Email)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+		allowedPatientIDs = make(map[uuid.UUID]struct{}, len(ids))
+		for _, id := range ids {
+			allowedPatientIDs[id] = struct{}{}
+		}
+	}
+
 	q := strings.TrimSpace(c.Query("query"))
 	limit := 20
 	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
@@ -272,6 +316,13 @@ func (h *Handler) Search(c *gin.Context) {
 	}
 	includeInactive := strings.EqualFold(strings.TrimSpace(c.Query("active")), "false")
 
+	// Si estamos filtrando por kinesiólogo, traemos un lote amplio antes de filtrar
+	// (paginar y despues filtrar podria dejar afuera pacientes suyos por el camino).
+	queryLimit := limit
+	if allowedPatientIDs != nil && queryLimit < 500 {
+		queryLimit = 500
+	}
+
 	if q == "" {
 		offset := 0
 		if rawOffset := strings.TrimSpace(c.Query("offset")); rawOffset != "" {
@@ -279,8 +330,11 @@ func (h *Handler) Search(c *gin.Context) {
 				offset = parsedOffset
 			}
 		}
+		if allowedPatientIDs != nil {
+			offset = 0
+		}
 
-		items, err := h.listUC.Execute(c.Request.Context(), limit, offset, includeInactive)
+		items, err := h.listUC.Execute(c.Request.Context(), queryLimit, offset, includeInactive)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 			return
@@ -288,17 +342,37 @@ func (h *Handler) Search(c *gin.Context) {
 
 		out := make([]patientResponse, 0, len(items))
 		for _, p := range items {
+			if allowedPatientIDs != nil {
+				if _, ok := allowedPatientIDs[p.ID]; !ok {
+					continue
+				}
+			}
 			out = append(out, toResponse(p))
+			if len(out) >= limit {
+				break
+			}
 		}
 
 		c.JSON(http.StatusOK, out)
 		return
 	}
 
-	items, err := h.searchUC.Execute(c.Request.Context(), q, limit, includeInactive)
+	items, err := h.searchUC.Execute(c.Request.Context(), q, queryLimit, includeInactive)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
+	}
+	if allowedPatientIDs != nil {
+		filtered := make([]domain.Patient, 0, len(items))
+		for _, p := range items {
+			if _, ok := allowedPatientIDs[p.ID]; ok {
+				filtered = append(filtered, p)
+				if len(filtered) >= limit {
+					break
+				}
+			}
+		}
+		items = filtered
 	}
 
 	out := make([]patientResponse, 0, len(items))
