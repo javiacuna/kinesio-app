@@ -409,7 +409,12 @@ export default function FinancePage() {
             {tariffs.map((tariff) => (
               <div key={tariff.id} className="py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="font-medium">{practiceById.get(tariff.practice_id)?.name ?? tariff.practice_id}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">{practiceById.get(tariff.practice_id)?.name ?? tariff.practice_id}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-md ${tariff.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      {tariff.active ? t("finance.activeFem") : t("finance.inactiveFem")}
+                    </span>
+                  </div>
                   <div className="text-sm text-gray-600">
                     {financierById.get(tariff.financier_id)?.name ?? tariff.financier_id} · {formatMoney(tariff.billing_value_cents)} · {t("finance.copayInline")} {formatMoney(tariff.copay_cents)} · {t("finance.since")} {tariff.valid_from}
                     {tariff.valid_to && ` · ${t("finance.until")} ${tariff.valid_to}`}
@@ -465,9 +470,14 @@ export default function FinancePage() {
             {feeRules.map((rule) => (
               <div key={rule.id} className="py-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="font-medium">{kinesiologistName(kinesiologistById.get(rule.kinesiologist_id), t)}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">{kinesiologistName(kinesiologistById.get(rule.kinesiologist_id), t)}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-md ${rule.active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      {rule.active ? t("finance.activeFem") : t("finance.inactiveFem")}
+                    </span>
+                  </div>
                   <div className="text-sm text-gray-600">
-                    {practiceById.get(rule.practice_id)?.name ?? rule.practice_id} · {rule.rule_type === "fixed" ? formatMoney(rule.fixed_value_cents ?? 0) : `${rule.percentage ?? 0}%`} · {rule.active ? t("finance.activeFem") : t("finance.inactiveFem")}
+                    {practiceById.get(rule.practice_id)?.name ?? rule.practice_id} · {rule.rule_type === "fixed" ? formatMoney(rule.fixed_value_cents ?? 0) : `${rule.percentage ?? 0}%`}
                   </div>
                 </div>
                 <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editFeeRule(rule, setFeeRuleForm)}>
