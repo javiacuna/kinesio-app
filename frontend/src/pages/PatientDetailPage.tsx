@@ -466,17 +466,17 @@ export default function PatientDetailPage() {
           : appointments.map((appointment) => ({
               id: `appointment:${appointment.id}`,
               at: appointment.start_at,
-              kind: t("detail.appointmentsTitle").replace(/s$/, ""),
+              kind: t("detail.timelineKindAppointment"),
               title:
                 appointment.status === "cancelled"
-                  ? `${t("detail.appointmentsTitle").replace(/s$/, "")} ${t("portal.cancelled").toLowerCase()}`
-                  : `${t("detail.appointmentsTitle").replace(/s$/, "")} ${t("portal.scheduled").toLowerCase()}`,
+                  ? `${t("detail.timelineKindAppointment")} ${t("portal.cancelled").toLowerCase()}`
+                  : `${t("detail.timelineKindAppointment")} ${t("portal.scheduled").toLowerCase()}`,
               detail: `${formatLocalTime(appointment.start_at)} a ${formatLocalTime(appointment.end_at)}${appointment.notes ? ` · ${appointment.notes}` : ""}`,
             }))),
         ...filteredEvolutions.map((evolution) => ({
           id: `evolution:${evolution.id}`,
           at: evolution.created_at,
-          kind: t("detail.evolutionsTitle").replace(/s$/, ""),
+          kind: t("detail.timelineKindEvolution"),
           title: evolutionMetricSummary(evolution, t) || t("detail.clinicalEvolutionTitle"),
           detail: `${diagnosisSummary(diagnosisById.get(evolution.patient_diagnosis_id ?? ""))}${evolution.notes}`,
         })),
@@ -485,14 +485,14 @@ export default function PatientDetailPage() {
           : checkIns.map((checkIn) => ({
               id: `check-in:${checkIn.id}`,
               at: checkIn.created_at,
-              kind: t("portal.checkInTitle"),
+              kind: t("detail.timelineKindCheckIn"),
               title: checkInMetricSummary(checkIn, t) || t("detail.patientCheckInsTitle").replace(/s$/, ""),
               detail: checkIn.notes,
             }))),
         ...filteredPlans.map((plan) => ({
           id: `plan:${plan.id}`,
           at: plan.created_at,
-          kind: t("detail.plansTitle").replace(/s$/, ""),
+          kind: t("detail.timelineKindPlan"),
           title: `${plan.frequency} · ${plan.duration_weeks} ${t("portal.weeks")}`,
           detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ${t("detail.exercises").toLowerCase()} · ${t("detail.status").toLowerCase()} ${plan.status}`,
         })),
@@ -508,8 +508,8 @@ export default function PatientDetailPage() {
           : loans.map((loan) => ({
               id: `loan:${loan.id}`,
               at: loan.loaned_at,
-              kind: t("detail.materialsTitle").replace(/s$/, ""),
-              title: loan.returned_at ? `${t("detail.materialsTitle").replace(/s$/, "")} ${t("materials.returned").toLowerCase()}` : `${t("detail.materialsTitle").replace(/s$/, "")} ${t("materials.loaned").toLowerCase()}`,
+              kind: t("detail.timelineKindMaterial"),
+              title: loan.returned_at ? `${t("detail.timelineKindMaterial")} ${t("materials.returned").toLowerCase()}` : `${t("detail.timelineKindMaterial")} ${t("materials.loaned").toLowerCase()}`,
               detail: `${t("detail.quantity")} ${loan.qty}${loan.notes ? ` · ${loan.notes}` : ""}`,
             }))),
         ...(selectedClinicalDiagnosisId
