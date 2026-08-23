@@ -373,7 +373,7 @@ export default function FinancePage() {
           </div>
         </section>
 
-        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+        <section id="tariffs-section" className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">{t("finance.tariffsTitle")}</h2>
             <p className="text-sm text-gray-600">{t("finance.tariffsSubtitle")}</p>
@@ -412,6 +412,7 @@ export default function FinancePage() {
                   <div className="font-medium">{practiceById.get(tariff.practice_id)?.name ?? tariff.practice_id}</div>
                   <div className="text-sm text-gray-600">
                     {financierById.get(tariff.financier_id)?.name ?? tariff.financier_id} · {formatMoney(tariff.billing_value_cents)} · {t("finance.copayInline")} {formatMoney(tariff.copay_cents)} · {t("finance.since")} {tariff.valid_from}
+                    {tariff.valid_to && ` · ${t("finance.until")} ${tariff.valid_to}`}
                   </div>
                 </div>
                 <button type="button" className="px-3 py-1 rounded-lg border text-sm" onClick={() => editTariff(tariff, setTariffForm)}>
@@ -422,7 +423,7 @@ export default function FinancePage() {
           </div>
         </section>
 
-        <section className="bg-white rounded-xl shadow p-4 space-y-4">
+        <section id="fee-rules-section" className="bg-white rounded-xl shadow p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">{t("finance.feeRulesTitle")}</h2>
             <p className="text-sm text-gray-600">{t("finance.feeRulesSubtitle")}</p>
@@ -790,7 +791,7 @@ function editTariff(tariff: PracticeTariff, setForm: (form: TariffForm) => void)
     valid_to: tariff.valid_to ?? "",
     active: tariff.active,
   });
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.getElementById("tariffs-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function editFeeRule(rule: ProfessionalFeeRule, setForm: (form: FeeRuleForm) => void) {
@@ -803,7 +804,7 @@ function editFeeRule(rule: ProfessionalFeeRule, setForm: (form: FeeRuleForm) => 
     percentage: String(rule.percentage ?? 0),
     active: rule.active,
   });
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  document.getElementById("fee-rules-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function todayISO() {
