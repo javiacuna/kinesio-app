@@ -119,6 +119,7 @@ export default function ProfilePage() {
                 minLength={8}
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">{t("profile.passwordPolicy")}</p>
             </div>
             <div>
               <label className="text-sm font-medium" htmlFor="repeat-password">

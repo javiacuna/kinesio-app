@@ -88,6 +88,7 @@ export default function ResetPasswordPage() {
                 minLength={8}
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">{t("resetPassword.passwordPolicy")}</p>
             </div>
 
             <div>

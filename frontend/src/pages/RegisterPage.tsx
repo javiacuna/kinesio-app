@@ -131,6 +131,7 @@ export default function RegisterPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 minLength={8}
               />
+              <p className="text-xs text-gray-500 mt-1">{t("profile.passwordPolicy")}</p>
               {fieldErrors.password && <p className="text-xs text-red-600 mt-1">{fieldErrors.password}</p>}
             </div>
 
