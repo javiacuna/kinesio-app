@@ -493,7 +493,7 @@ export default function PatientDetailPage() {
           id: `plan:${plan.id}`,
           at: plan.created_at,
           kind: t("detail.timelineKindPlan"),
-          title: `${plan.frequency} · ${plan.duration_weeks} ${t("portal.weeks")}`,
+          title: `${planFrequencyLabel(plan.frequency, t)} · ${plan.duration_weeks} ${t("portal.weeks")}`,
           detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ${t("detail.exercises").toLowerCase()} · ${t("detail.status").toLowerCase()} ${plan.status}`,
         })),
         ...filteredDiagnoses.map((diagnosis) => ({
@@ -1834,7 +1834,7 @@ export default function PatientDetailPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-medium">
-                      {plan.frequency === "daily" ? t("portal.daily") : t("portal.weekly")} · {plan.duration_weeks} {t("portal.weeks")}
+                      {planFrequencyLabel(plan.frequency, t)} · {plan.duration_weeks} {t("portal.weeks")}
                     </div>
                     <div className="text-sm text-gray-600">{t("detail.status")}: {plan.status === "closed" ? t("portal.closed") : t("portal.active")}</div>
                     {plan.patient_diagnosis_id && diagnosisById.has(plan.patient_diagnosis_id) && (
@@ -2193,6 +2193,10 @@ function checkInMetricSummary(checkIn: PatientCheckIn, t: Translate) {
     })
     .filter((value): value is string => value != null)
     .join(" · ");
+}
+
+function planFrequencyLabel(frequency: string, t: Translate) {
+  return frequency === "daily" ? t("portal.daily") : t("portal.weekly");
 }
 
 function diagnosisKindLabel(kind: string, t: Translate) {

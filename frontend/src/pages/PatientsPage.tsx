@@ -34,6 +34,7 @@ export default function PatientsPage() {
   const [invitingPatientId, setInvitingPatientId] = useState<string | null>(null);
   const [togglingPatientId, setTogglingPatientId] = useState<string | null>(null);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
+  const [isCreatingPatient, setIsCreatingPatient] = useState(false);
 
   const selectedFinancier = financiers.find((f) => f.id === financierId);
   const selectedFinancierIsParticular = !selectedFinancier || selectedFinancier.kind === "particular";
@@ -71,6 +72,7 @@ export default function PatientsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isCreatingPatient) return;
     setError("");
     setInviteMessage("");
     setCreated(null);
@@ -78,6 +80,7 @@ export default function PatientsPage() {
     setFormErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
+    setIsCreatingPatient(true);
     try {
       const res = await createPatient({
         dni,
@@ -88,6 +91,7 @@ export default function PatientsPage() {
         financier_member_number: selectedFinancierIsParticular ? null : financierMemberNumber.trim() || null,
       });
 
+      setError("");
       setCreated(res);
       localStorage.setItem("last_patient_id", res.id);
       setDni("");
@@ -109,7 +113,10 @@ export default function PatientsPage() {
       }
       await refreshPatients("");
     } catch (e: any) {
+      setCreated(null);
       setError(e?.message ?? t("patients.error"));
+    } finally {
+      setIsCreatingPatient(false);
     }
   }
 
@@ -276,8 +283,8 @@ export default function PatientsPage() {
             </div>
           </div>
 
-          <button className="px-4 py-2 rounded-lg bg-black text-white" type="submit">
-            {t("patients.createPatient")}
+          <button className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50" type="submit" disabled={isCreatingPatient}>
+            {isCreatingPatient ? t("common.saving") : t("patients.createPatient")}
           </button>
 
           {error && <p className="text-sm text-red-600">{t("patients.error")}: {error}</p>}
