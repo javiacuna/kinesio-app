@@ -163,6 +163,12 @@ func (r *Repository) UpdateMovementStatuses(
 		if *collectionStatus == "pending" || *collectionStatus == "cancelled" {
 			updates["collected_at"] = nil
 		}
+		if *collectionStatus != "cancelled" {
+			// Reabrir un movimiento (pending/collected) limpia el motivo de
+			// una anulación previa; si se está cancelando ahora, el motivo
+			// explícito de más abajo prevalece.
+			updates["cancellation_reason"] = nil
+		}
 	}
 	if professionalPaymentStatus != nil {
 		updates["professional_payment_status"] = *professionalPaymentStatus

@@ -289,12 +289,15 @@ export default function FinancePage() {
     }
   }
 
-  const totalBilling = movements.reduce((sum, item) => sum + item.billing_value_cents, 0);
-  const totalCenter = movements.reduce((sum, item) => sum + item.center_amount_cents, 0);
-  const totalCollected = movements
+  const activeMovements = movements.filter(
+    (item) => item.collection_status !== "cancelled" && item.professional_payment_status !== "cancelled",
+  );
+  const totalBilling = activeMovements.reduce((sum, item) => sum + item.billing_value_cents, 0);
+  const totalCenter = activeMovements.reduce((sum, item) => sum + item.center_amount_cents, 0);
+  const totalCollected = activeMovements
     .filter((item) => item.collection_status === "collected")
     .reduce((sum, item) => sum + item.billing_value_cents, 0);
-  const totalPendingProfessional = movements
+  const totalPendingProfessional = activeMovements
     .filter((item) => item.professional_payment_status !== "paid")
     .reduce((sum, item) => sum + item.professional_fee_cents, 0);
   const settlementMovements = movementKinesiologistId
@@ -610,7 +613,7 @@ export default function FinancePage() {
                       <td className="py-2 pr-3">{formatMoney(movement.billing_value_cents)}</td>
                       <td className="py-2 pr-3">
                         {collectionStatusLabel(movement.collection_status, t)}
-                        {movement.cancellation_reason && (
+                        {movement.collection_status === "cancelled" && movement.cancellation_reason && (
                           <div className="text-xs text-gray-500 mt-1">{t("finance.reasonLabel")}: {movement.cancellation_reason}</div>
                         )}
                       </td>
