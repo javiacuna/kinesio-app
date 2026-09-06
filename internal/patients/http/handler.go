@@ -265,8 +265,10 @@ func actorRole(c *gin.Context) string {
 }
 
 func (h *Handler) GetPatientByID(c *gin.Context) {
-	// Por ahora lo dejo SIN auth (útil para debug y para frontend).
-	// Lo cerramos por rol en el siguiente paso.
+	// El handler no valida rol por sí mismo: la ruta se registra en
+	// router.go con middleware.RequireRole("recepcionista", "kinesiologo")
+	// + patientAccessGuard, que son quienes exigen sesión y limitan el
+	// acceso de un kinesiólogo a sus propios pacientes.
 	id := c.Param("patient_id")
 
 	p, found, err := h.getByID.Execute(c.Request.Context(), id)

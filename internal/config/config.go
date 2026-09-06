@@ -55,6 +55,12 @@ type Config struct {
 	// (frontend/dist) desde ese directorio, ademas de la API. Vacio = desactivado
 	// (modo desarrollo normal, con el frontend corriendo aparte via Vite).
 	StaticDir string
+
+	// AllowDemoAuth habilita el bypass "Bearer demo-recepcionista-token" usado para
+	// probar endpoints de recepcionista sin credenciales reales de Firebase (util en
+	// local/demo). Por defecto esta APAGADO: hay que setear ALLOW_DEMO_AUTH=true a
+	// proposito para habilitarlo, incluso en ENV=local.
+	AllowDemoAuth bool
 }
 
 func MustLoad() Config {
@@ -90,6 +96,7 @@ func MustLoad() Config {
 		WherebyRoomPrefix:        getenv("WHEREBY_ROOM_PREFIX", "kinesio"),
 		VideoCallExpiryMin:       getenvInt("VIDEO_CALL_EXPIRY_MIN", 60),
 		StaticDir:                getenv("STATIC_DIR", ""),
+		AllowDemoAuth:            getenvBool("ALLOW_DEMO_AUTH", false),
 	}
 
 	// Validaciones mínimas

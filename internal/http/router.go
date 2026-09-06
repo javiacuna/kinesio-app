@@ -88,6 +88,11 @@ type RouterDeps struct {
 func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	r := gin.New()
 
+	// El bypass "demo-recepcionista-token" sólo se acepta si se lo habilita
+	// explícitamente por variable de entorno (ALLOW_DEMO_AUTH=true). Por
+	// defecto queda desactivado, incluso en ENV=local.
+	middleware.SetDemoAuthEnabled(cfg.AllowDemoAuth)
+
 	// middlewares globales
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())

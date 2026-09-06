@@ -13,6 +13,20 @@ const AuthUserKey = "auth_user"
 
 const DemoReceptionistToken = "Bearer demo-recepcionista-token"
 
+// demoAuthEnabled controla si el bypass DemoReceptionistToken es aceptado.
+// Arranca en true para no romper los tests unitarios de los handlers (que
+// llaman RequireAuth/RequireRole/HasRole directamente, sin pasar por
+// config.MustLoad ni SetDemoAuthEnabled). En un proceso real, NewRouter lo
+// fija explícitamente según config.Config.AllowDemoAuth (por defecto false).
+var demoAuthEnabled = true
+
+// SetDemoAuthEnabled habilita o deshabilita el bypass de autenticación de
+// demo en tiempo de ejecución. Debe llamarse una sola vez al armar el router
+// de la aplicación, nunca desde un handler.
+func SetDemoAuthEnabled(enabled bool) {
+	demoAuthEnabled = enabled
+}
+
 type AuthUser struct {
 	UID    string
 	Email  string
@@ -139,6 +153,9 @@ func bearerToken(header string) (string, bool) {
 }
 
 func isDemoReceptionist(header string) bool {
+	if !demoAuthEnabled {
+		return false
+	}
 	return strings.EqualFold(strings.TrimSpace(header), DemoReceptionistToken)
 }
 
