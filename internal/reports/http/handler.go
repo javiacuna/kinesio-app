@@ -103,6 +103,19 @@ func (h *Handler) Summary(c *gin.Context) {
 	totals.ScheduledAppointments = appointmentTotals.ScheduledAppointments
 	totals.CancelledAppointments = appointmentTotals.CancelledAppointments
 
+	// "Pacientes activos" debe respetar los mismos filtros de kinesiólogo,
+	// financiador y paciente que el resto del reporte. Sin filtros, sigue
+	// siendo el total de pacientes activos de la clínica; con algún filtro,
+	// se acota a los pacientes activos que efectivamente tuvieron algún
+	// turno con ese kinesiólogo/financiador/paciente (sin acotar por
+	// período, igual que "bajo stock": es una foto del padrón actual, no
+	// una métrica de flujo del rango de fechas).
+	activePatientsFilter, activePatientsArgs := filters.clause("a")
+	activePatientsQuery := "(SELECT COUNT(*)::int FROM patients WHERE active = true)"
+	if activePatientsFilter != "" {
+		activePatientsQuery = "(SELECT COUNT(DISTINCT p.id)::int FROM patients p JOIN appointments a ON a.patient_id = p.id WHERE p.active = true" + activePatientsFilter + ")"
+	}
+
 	loansClause, loansArgs := filters.loansClause("")
 	var resourceTotals struct {
 		ActivePatients       int `json:"active_patients"`
@@ -111,10 +124,10 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 	if err := h.db.WithContext(c.Request.Context()).Raw(`
 		SELECT
-			(SELECT COUNT(*)::int FROM patients WHERE active = true) AS active_patients,
+			`+activePatientsQuery+` AS active_patients,
 			(SELECT COUNT(*)::int FROM materials WHERE total_qty > 0 AND available_qty <= 1) AS low_stock_materials,
 			(SELECT COUNT(*)::int FROM material_loans WHERE returned_at IS NULL`+loansClause+`) AS pending_material_loans
-	`, loansArgs...).Scan(&resourceTotals).Error; err != nil {
+	`, append(activePatientsArgs, loansArgs...)...).Scan(&resourceTotals).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 		return
 	}
