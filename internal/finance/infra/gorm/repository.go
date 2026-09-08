@@ -235,10 +235,25 @@ func (r *Repository) CompleteAppointment(ctx context.Context, appointmentID, pra
 			First(&tariff).
 			Error
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			// No hay tarifa vigente hoy para esta combinación. Antes de reportar
+			// "no configurada" a secas, distinguimos si existe una tarifa para
+			// practice_id+financier_id cuya vigencia simplemente no cubre hoy
+			// (venció, o todavía no empezó), para dar un mensaje más preciso.
+			var closest PracticeTariffModel
+			closestErr := tx.Where("practice_id = ? AND financier_id = ? AND active = ?", practiceID, financierID, true).
+				Order("valid_from DESC, created_at DESC").
+				First(&closest).
+				Error
+			if closestErr != nil {
 				return domain.ErrTariffNotFound
 			}
-			return err
+			if closest.ValidFrom.After(today) {
+				return domain.ErrTariffNotYetValid
+			}
+			return domain.ErrTariffExpired
 		}
 
 		var feeRule ProfessionalFeeRuleModel

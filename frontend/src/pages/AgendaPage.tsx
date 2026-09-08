@@ -1718,6 +1718,16 @@ export default function AgendaPage() {
                     <div className="font-medium">{t("agenda.tariffMissing")}</div>
                     <div>{t("agenda.billingValueMissing")}</div>
                   </>
+                ) : (completeM.error as any)?.message === "tariff_expired" ? (
+                  <>
+                    <div className="font-medium">{t("agenda.tariffExpired")}</div>
+                    <div>{t("agenda.tariffExpiredDetail")}</div>
+                  </>
+                ) : (completeM.error as any)?.message === "tariff_not_yet_valid" ? (
+                  <>
+                    <div className="font-medium">{t("agenda.tariffNotYetValid")}</div>
+                    <div>{t("agenda.tariffNotYetValidDetail")}</div>
+                  </>
                 ) : (completeM.error as any)?.message === "financial_movement_already_generated" ? (
                   <>
                     <div className="font-medium">{t("agenda.financeMovementGenerated")}</div>

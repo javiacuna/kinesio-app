@@ -528,6 +528,10 @@ func writeFinanceError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 	case errors.Is(err, domain.ErrTariffNotFound):
 		c.JSON(http.StatusConflict, gin.H{"error": "tariff_not_found"})
+	case errors.Is(err, domain.ErrTariffExpired):
+		c.JSON(http.StatusConflict, gin.H{"error": "tariff_expired"})
+	case errors.Is(err, domain.ErrTariffNotYetValid):
+		c.JSON(http.StatusConflict, gin.H{"error": "tariff_not_yet_valid"})
 	case errors.Is(err, domain.ErrAlreadyGenerated):
 		c.JSON(http.StatusConflict, gin.H{"error": "financial_movement_already_generated"})
 	case errors.Is(err, domain.ErrInvalidStatus):
