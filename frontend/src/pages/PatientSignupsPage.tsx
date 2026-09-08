@@ -98,6 +98,15 @@ export default function PatientSignupsPage() {
                       </div>
                       <div className="text-sm text-gray-600">{item.email}</div>
                       <div className="text-xs text-gray-500">DNI: {item.dni}</div>
+                      {item.possible_match && (
+                        <div className="text-xs rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-2 py-1 mt-1 max-w-md">
+                          <span className="font-medium">{t("patientSignups.possibleMatchLabel")}</span>{" "}
+                          {item.possible_match.last_name}, {item.possible_match.first_name} ({item.possible_match.email}) —{" "}
+                          {item.possible_match.email_matches
+                            ? t("patientSignups.possibleMatchEmailMatch")
+                            : t("patientSignups.possibleMatchEmailMismatch")}
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col gap-2 sm:items-end">
                       <div className="flex items-center gap-2">

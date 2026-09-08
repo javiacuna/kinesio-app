@@ -12,6 +12,14 @@ export type RegisterPatientAccountResult = {
   status: SignupStatus;
 };
 
+export type PossibleSignupMatch = {
+  patient_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  email_matches: boolean;
+};
+
 export type PendingPatientSignup = {
   id: string;
   firebase_uid: string;
@@ -25,4 +33,5 @@ export type PendingPatientSignup = {
   reviewed_at?: string;
   rejection_reason?: string;
   created_at: string;
+  possible_match?: PossibleSignupMatch;
 };

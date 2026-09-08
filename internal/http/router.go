@@ -170,7 +170,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	createSignupUC := patientSignupsUC.NewCreateSignupRequestUseCase(patientSignupsRepository, patientRepo, firebaseAuthClient)
 	approveSignupUC := patientSignupsUC.NewApproveSignupRequestUseCase(patientSignupsRepository, patientRepo, registerPatientUC, firebaseAuthClient, notificationService)
 	rejectSignupUC := patientSignupsUC.NewRejectSignupRequestUseCase(patientSignupsRepository, firebaseAuthClient, notificationService)
-	listSignupsUC := patientSignupsUC.NewListSignupRequestsUseCase(patientSignupsRepository)
+	listSignupsUC := patientSignupsUC.NewListSignupRequestsUseCase(patientSignupsRepository, patientRepo)
 	patientSignupHandler := patientSignupsHTTP.NewHandler(createSignupUC, approveSignupUC, rejectSignupUC, listSignupsUC)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)

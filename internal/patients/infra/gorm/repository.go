@@ -166,6 +166,20 @@ func (r *Repository) FindByDNIAndEmail(ctx context.Context, dni, email string) (
 	return m.ToDomain(), true, nil
 }
 
+func (r *Repository) FindByDNI(ctx context.Context, dni string) (domain.Patient, bool, error) {
+	var m PatientModel
+	err := r.db.WithContext(ctx).
+		Where("dni = ?", strings.TrimSpace(dni)).
+		First(&m).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.Patient{}, false, nil
+		}
+		return domain.Patient{}, false, err
+	}
+	return m.ToDomain(), true, nil
+}
+
 func (r *Repository) GetByID(ctx context.Context, id string) (domain.Patient, bool, error) {
 	var m PatientModel
 	err := r.db.WithContext(ctx).First(&m, "id = ?", id).Error

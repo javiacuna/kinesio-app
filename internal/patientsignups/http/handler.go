@@ -40,18 +40,30 @@ type rejectRequest struct {
 }
 
 type signupRequestResponse struct {
-	ID               string  `json:"id"`
-	FirebaseUID      string  `json:"firebase_uid"`
-	DNI              string  `json:"dni"`
-	Email            string  `json:"email"`
-	FirstName        string  `json:"first_name"`
-	LastName         string  `json:"last_name"`
-	Status           string  `json:"status"`
-	MatchedPatientID *string `json:"matched_patient_id,omitempty"`
-	ReviewedByEmail  *string `json:"reviewed_by_email,omitempty"`
-	ReviewedAt       *string `json:"reviewed_at,omitempty"`
-	RejectionReason  *string `json:"rejection_reason,omitempty"`
-	CreatedAt        string  `json:"created_at"`
+	ID               string                 `json:"id"`
+	FirebaseUID      string                 `json:"firebase_uid"`
+	DNI              string                 `json:"dni"`
+	Email            string                 `json:"email"`
+	FirstName        string                 `json:"first_name"`
+	LastName         string                 `json:"last_name"`
+	Status           string                 `json:"status"`
+	MatchedPatientID *string                `json:"matched_patient_id,omitempty"`
+	ReviewedByEmail  *string                `json:"reviewed_by_email,omitempty"`
+	ReviewedAt       *string                `json:"reviewed_at,omitempty"`
+	RejectionReason  *string                `json:"rejection_reason,omitempty"`
+	CreatedAt        string                 `json:"created_at"`
+	PossibleMatch    *possibleMatchResponse `json:"possible_match,omitempty"`
+}
+
+// possibleMatchResponse avisa al revisor que el DNI de la solicitud ya
+// pertenece a un paciente cargado por la clínica, aunque el email no haya
+// coincidido lo suficiente como para auto-aprobarla.
+type possibleMatchResponse struct {
+	PatientID    string `json:"patient_id"`
+	FirstName    string `json:"first_name"`
+	LastName     string `json:"last_name"`
+	Email        string `json:"email"`
+	EmailMatches bool   `json:"email_matches"`
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -94,7 +106,7 @@ func (h *Handler) List(c *gin.Context) {
 
 	out := make([]signupRequestResponse, 0, len(items))
 	for _, item := range items {
-		out = append(out, toResponse(item))
+		out = append(out, toListItemResponse(item))
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -174,4 +186,18 @@ func toResponse(r domain.SignupRequest) signupRequestResponse {
 		RejectionReason:  r.RejectionReason,
 		CreatedAt:        r.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	}
+}
+
+func toListItemResponse(item usecase.SignupRequestListItem) signupRequestResponse {
+	resp := toResponse(item.SignupRequest)
+	if item.PossibleMatch != nil {
+		resp.PossibleMatch = &possibleMatchResponse{
+			PatientID:    item.PossibleMatch.PatientID.String(),
+			FirstName:    item.PossibleMatch.FirstName,
+			LastName:     item.PossibleMatch.LastName,
+			Email:        item.PossibleMatch.Email,
+			EmailMatches: item.PossibleMatch.EmailMatches,
+		}
+	}
+	return resp
 }
