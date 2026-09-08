@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { queryClient } from "@/app/queryClient";
 import { getMe, login } from "./api";
 import {
   clearAuthSession,
@@ -69,6 +70,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithEmail = useCallback(async (input: LoginInput) => {
     const res = await login(input);
+    // Si en esta misma pestaña había datos en caché de una sesión anterior
+    // (otro usuario u otro rol, por ejemplo al probar varios roles seguidos
+    // sin recargar la página), hay que descartarlos antes de mostrar la
+    // nueva sesión: la queryKey de varias pantallas (ej. Panel General) no
+    // incluye el usuario, así que un valor viejo podría mostrarse un
+    // instante antes de que la primera consulta de la sesión nueva termine.
+    queryClient.clear();
     saveAuthTokens(res.id_token, res.refresh_token);
     setToken(res.id_token);
 
