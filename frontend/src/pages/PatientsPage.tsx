@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { inviteUserAccess } from "@/features/auth/adminApi";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -35,6 +35,11 @@ export default function PatientsPage() {
   const [togglingPatientId, setTogglingPatientId] = useState<string | null>(null);
   const [isLoadingPatients, setIsLoadingPatients] = useState(false);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  // Bandera sincrónica (no depende del re-render de React) para cerrar la
+  // ventana de doble-click: dos clicks separados por pocos milisegundos
+  // pueden llegar a submit() antes de que isCreatingPatient se refleje en
+  // el DOM y deshabilite el botón.
+  const isCreatingPatientRef = useRef(false);
 
   const selectedFinancier = financiers.find((f) => f.id === financierId);
   const selectedFinancierIsParticular = !selectedFinancier || selectedFinancier.kind === "particular";
@@ -72,7 +77,7 @@ export default function PatientsPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isCreatingPatient) return;
+    if (isCreatingPatientRef.current) return;
     setError("");
     setInviteMessage("");
     setCreated(null);
@@ -80,6 +85,7 @@ export default function PatientsPage() {
     setFormErrors(validation);
     if (Object.keys(validation).length > 0) return;
 
+    isCreatingPatientRef.current = true;
     setIsCreatingPatient(true);
     try {
       const res = await createPatient({
@@ -116,6 +122,7 @@ export default function PatientsPage() {
       setCreated(null);
       setError(e?.message ?? t("patients.error"));
     } finally {
+      isCreatingPatientRef.current = false;
       setIsCreatingPatient(false);
     }
   }
