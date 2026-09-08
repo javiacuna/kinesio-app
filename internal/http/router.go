@@ -306,7 +306,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	v1.PUT("/appointment-packages/:package_id", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.UpdatePackage)
 	v1.PATCH("/appointment-packages/:package_id", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.UpdatePackage)
 	v1.GET("/appointments", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.ListDay)
-	v1.GET("/appointments/patient", apptHandler.ListByPatient)
+	v1.GET("/appointments/patient", middleware.RequireAuth(), patientAccessGuard, apptHandler.ListByPatient)
 	v1.PUT("/appointments/:id", apptHandler.Update)
 	v1.PATCH("/appointments/:id", apptHandler.Update)
 	v1.POST("/appointments/:id/video-call", middleware.RequireRole("recepcionista", "kinesiologo"), apptHandler.GenerateVideoCall)
@@ -419,7 +419,13 @@ func kinesiologistPatientAccessGuard(kRepo *kineRepo.Repository, apptRepo *appoi
 			return
 		}
 
-		patientID, err := uuid.Parse(c.Param("patient_id"))
+		// El patient_id llega como parámetro de ruta (:patient_id) en la mayoría
+		// de las rutas, pero como query string (?patient_id=) en /appointments/patient.
+		rawPatientID := strings.TrimSpace(c.Param("patient_id"))
+		if rawPatientID == "" {
+			rawPatientID = strings.TrimSpace(c.Query("patient_id"))
+		}
+		patientID, err := uuid.Parse(rawPatientID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid_patient_id"})
 			return
