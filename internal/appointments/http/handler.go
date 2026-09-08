@@ -215,6 +215,11 @@ func (h *Handler) Create(c *gin.Context) {
 		}
 		req.PatientID = patientID
 	}
+	kinesiologistID, ok := h.enforceOwnKinesiologistID(c, req.KinesiologistID)
+	if !ok {
+		return
+	}
+	req.KinesiologistID = kinesiologistID
 	if !h.validateKinesiologistWorkingHours(c, req.KinesiologistID, req.StartAt, req.EndAt) {
 		return
 	}
@@ -268,6 +273,12 @@ func (h *Handler) CreatePackage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_json"})
 		return
 	}
+
+	kinesiologistID, ok := h.enforceOwnKinesiologistID(c, req.KinesiologistID)
+	if !ok {
+		return
+	}
+	req.KinesiologistID = kinesiologistID
 
 	_, _, workDays, ok := h.packageKinesiologistWorkingHours(c, req.KinesiologistID)
 	if !ok {
@@ -333,6 +344,9 @@ func (h *Handler) UpdatePackage(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
 		return
 	}
+	if _, ok := h.enforceOwnKinesiologistID(c, pkg.KinesiologistID.String()); !ok {
+		return
+	}
 
 	workStartTime, workEndTime, workDays, ok := h.packageKinesiologistWorkingHours(c, pkg.KinesiologistID.String())
 	if !ok {
@@ -360,33 +374,47 @@ func (h *Handler) UpdatePackage(c *gin.Context) {
 	c.JSON(http.StatusOK, toPackageWriteResp(updatedPackage, appointments))
 }
 
+// enforceOwnKinesiologistID resuelve, para un usuario con rol "kinesiologo",
+// su propio kinesiologist_id y lo compara contra el que vino en el request
+// (query param o body). Si el usuario pidió explícitamente el ID de otro
+// profesional, rechaza con 403; si no vino ninguno, devuelve el propio. Para
+// cualquier otro rol, devuelve requestedID sin tocarlo.
+func (h *Handler) enforceOwnKinesiologistID(c *gin.Context, requestedID string) (string, bool) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok || !strings.EqualFold(user.Role, "kinesiologo") {
+		return requestedID, true
+	}
+	if h.kinesios == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return "", false
+	}
+
+	kinesiologist, found, err := h.kinesios.FindByEmail(c.Request.Context(), user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return "", false
+	}
+	if !found || !kinesiologist.Active {
+		c.JSON(http.StatusForbidden, gin.H{"error": "kinesiologist_profile_not_found"})
+		return "", false
+	}
+
+	ownID := kinesiologist.ID.String()
+	if strings.TrimSpace(requestedID) != "" && strings.TrimSpace(requestedID) != ownID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return "", false
+	}
+	return ownID, true
+}
+
 func (h *Handler) ListDay(c *gin.Context) {
 	// Para agenda normalmente también debería estar autenticado; lo dejamos abierto si querés.
 	kid := c.Query("kinesiologist_id")
 	date := c.Query("date")
 
-	if user, ok := middleware.CurrentUser(c); ok && strings.EqualFold(user.Role, "kinesiologo") {
-		if h.kinesios == nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-			return
-		}
-
-		kinesiologist, found, err := h.kinesios.FindByEmail(c.Request.Context(), user.Email)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
-			return
-		}
-		if !found || !kinesiologist.Active {
-			c.JSON(http.StatusForbidden, gin.H{"error": "kinesiologist_profile_not_found"})
-			return
-		}
-
-		ownID := kinesiologist.ID.String()
-		if strings.TrimSpace(kid) != "" && strings.TrimSpace(kid) != ownID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		kid = ownID
+	kid, ok := h.enforceOwnKinesiologistID(c, kid)
+	if !ok {
+		return
 	}
 
 	items, details, err := h.listDay.Execute(c.Request.Context(), kid, date)
@@ -411,6 +439,10 @@ func (h *Handler) Update(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
+	id := c.Param("id")
+	if !h.currentKinesiologistOwnsAppointment(c, id) {
+		return
+	}
 
 	var req updateReq
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -418,7 +450,6 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	id := c.Param("id")
 	if (req.StartAt != nil || req.EndAt != nil) && !h.validateUpdatedAppointmentWorkingHours(c, id, req.StartAt, req.EndAt) {
 		return
 	}
@@ -477,6 +508,8 @@ func (h *Handler) Cancel(c *gin.Context) {
 		if !h.canCurrentPatientAccessAppointment(c, c.Param("id")) {
 			return
 		}
+	} else if !h.currentKinesiologistOwnsAppointment(c, c.Param("id")) {
+		return
 	}
 
 	out, details, err := h.cancel.Execute(c.Request.Context(), c.Param("id"), usecase.CancelAppointmentInput{
@@ -501,6 +534,9 @@ func (h *Handler) Cancel(c *gin.Context) {
 func (h *Handler) GenerateVideoCall(c *gin.Context) {
 	if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	if !h.currentKinesiologistOwnsAppointment(c, c.Param("id")) {
 		return
 	}
 	if h.generateVideo == nil {
@@ -773,6 +809,8 @@ func (h *Handler) GetByID(c *gin.Context) {
 	} else if !middleware.HasRole(c, "recepcionista", "kinesiologo") {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
+	} else if !h.kinesiologistOwnsAppointment(c, out) {
+		return
 	}
 
 	c.JSON(http.StatusOK, toResp(out))
@@ -885,6 +923,63 @@ func (h *Handler) canCurrentPatientAccessAppointment(c *gin.Context, appointment
 	}
 
 	return true
+}
+
+// kinesiologistOwnsAppointment verifica que, si el usuario autenticado tiene
+// rol "kinesiologo", el turno le pertenezca a él (kinesiologist_id propio).
+// Para cualquier otro rol no hace nada (esa restricción de rol se valida en
+// otro lado): un kinesiólogo no debería poder ver, editar ni cancelar el
+// turno de un colega, aunque conozca o adivine su ID.
+func (h *Handler) kinesiologistOwnsAppointment(c *gin.Context, appointment domain.Appointment) bool {
+	user, ok := middleware.CurrentUser(c)
+	if !ok || !strings.EqualFold(user.Role, "kinesiologo") {
+		return true
+	}
+	if h.kinesios == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return false
+	}
+
+	kinesiologist, found, err := h.kinesios.FindByEmail(c.Request.Context(), user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return false
+	}
+	if !found || appointment.KinesiologistID.String() != kinesiologist.ID.String() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return false
+	}
+
+	return true
+}
+
+// currentKinesiologistOwnsAppointment es la variante de kinesiologistOwnsAppointment
+// que busca el turno por ID cuando el caller todavía no lo tiene cargado.
+func (h *Handler) currentKinesiologistOwnsAppointment(c *gin.Context, appointmentID string) bool {
+	user, ok := middleware.CurrentUser(c)
+	if !ok || !strings.EqualFold(user.Role, "kinesiologo") {
+		return true
+	}
+	if h.getByID == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return false
+	}
+
+	appointment, found, err := h.getByID.Execute(c.Request.Context(), appointmentID)
+	if err != nil {
+		if errors.Is(err, domain.ErrValidation) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_id"})
+			return false
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return false
+	}
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		return false
+	}
+
+	return h.kinesiologistOwnsAppointment(c, appointment)
 }
 
 func (h *Handler) isCurrentPatient(c *gin.Context) bool {
