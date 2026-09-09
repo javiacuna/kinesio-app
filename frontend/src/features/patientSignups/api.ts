@@ -8,6 +8,12 @@ export function registerPatientAccount(input: RegisterPatientAccountInput) {
   });
 }
 
+export function getMySignupStatus() {
+  return apiFetch<{ status: "none" | "pending" | "approved" | "rejected" }>(
+    "/api/v1/auth/patient-signup/status",
+  );
+}
+
 export function listPendingPatientSignups(status: string = "pending") {
   return apiFetch<PendingPatientSignup[]>(`/api/v1/admin/patient-signups?status=${status}`);
 }

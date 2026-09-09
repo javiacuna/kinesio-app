@@ -75,6 +75,8 @@ export default function RegisterPage() {
       const message = (err as Error)?.message;
       if (message === "email_already_registered") {
         setError(t("auth.emailAlreadyRegistered"));
+      } else if (message === "dni_already_claimed") {
+        setError(t("auth.dniAlreadyClaimed"));
       } else if (message === "validation_error") {
         const details = (err as { body?: { details?: Record<string, string> } })?.body?.details;
         if (details) setFieldErrors(details);

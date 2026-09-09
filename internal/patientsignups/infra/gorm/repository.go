@@ -81,6 +81,40 @@ func (r *Repository) List(ctx context.Context, status string) ([]domain.SignupRe
 	return out, nil
 }
 
+// ExistsActiveForDNI indica si ese DNI ya tiene una solicitud de autorregistro
+// aprobada (cuenta de portal ya vinculada) o pendiente de revisión. No cuenta
+// las rechazadas: alguien puede volver a intentar registrarse después de un
+// rechazo.
+func (r *Repository) ExistsActiveForDNI(ctx context.Context, dni string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&SignupRequestModel{}).
+		Where("dni = ? AND status IN ('pending', 'approved')", strings.TrimSpace(dni)).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// FindLatestByEmail busca la solicitud de autorregistro más reciente para un
+// email dado (case-insensitive). La usa el propio usuario, ya autenticado
+// pero todavía sin rol, para saber si su cuenta está pendiente de revisión.
+func (r *Repository) FindLatestByEmail(ctx context.Context, email string) (domain.SignupRequest, bool, error) {
+	var m SignupRequestModel
+	err := r.db.WithContext(ctx).
+		Where("lower(email) = lower(?)", strings.TrimSpace(email)).
+		Order("created_at DESC").
+		First(&m).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domain.SignupRequest{}, false, nil
+		}
+		return domain.SignupRequest{}, false, err
+	}
+	return m.ToDomain(), true, nil
+}
+
 func (r *Repository) UpdateStatus(ctx context.Context, id string, status domain.Status, matchedPatientID *uuid.UUID, reviewedByEmail *string, reviewedAt time.Time, rejectionReason *string) (domain.SignupRequest, error) {
 	updates := map[string]any{
 		"status":             string(status),

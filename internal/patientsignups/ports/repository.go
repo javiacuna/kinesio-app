@@ -13,5 +13,7 @@ type Repository interface {
 	Create(ctx context.Context, r domain.SignupRequest) (domain.SignupRequest, error)
 	GetByID(ctx context.Context, id string) (domain.SignupRequest, bool, error)
 	List(ctx context.Context, status string) ([]domain.SignupRequest, error)
+	ExistsActiveForDNI(ctx context.Context, dni string) (bool, error)
+	FindLatestByEmail(ctx context.Context, email string) (domain.SignupRequest, bool, error)
 	UpdateStatus(ctx context.Context, id string, status domain.Status, matchedPatientID *uuid.UUID, reviewedByEmail *string, reviewedAt time.Time, rejectionReason *string) (domain.SignupRequest, error)
 }

@@ -171,7 +171,8 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	approveSignupUC := patientSignupsUC.NewApproveSignupRequestUseCase(patientSignupsRepository, patientRepo, registerPatientUC, firebaseAuthClient, notificationService)
 	rejectSignupUC := patientSignupsUC.NewRejectSignupRequestUseCase(patientSignupsRepository, firebaseAuthClient, notificationService)
 	listSignupsUC := patientSignupsUC.NewListSignupRequestsUseCase(patientSignupsRepository, patientRepo)
-	patientSignupHandler := patientSignupsHTTP.NewHandler(createSignupUC, approveSignupUC, rejectSignupUC, listSignupsUC)
+	mySignupStatusUC := patientSignupsUC.NewGetMySignupStatusUseCase(patientSignupsRepository)
+	patientSignupHandler := patientSignupsHTTP.NewHandler(createSignupUC, approveSignupUC, rejectSignupUC, listSignupsUC, mySignupStatusUC)
 
 	getApptByIDUC := appointmentsUC.NewGetAppointmentByIDUseCase(apptRepo)
 	listByPatientUC := appointmentsUC.NewListAppointmentsByPatientUseCase(apptRepo)
@@ -263,6 +264,7 @@ func NewRouter(cfg config.Config, db *gorm.DB) http.Handler {
 	// Cuando se setee FIREBASE_PROJECT_ID, este middleware exige y valida un ID token de Firebase.
 	v1.Use(middleware.FirebaseAuthOptional(cfg.FirebaseProjectID, firebaseAuthClient))
 	v1.GET("/auth/me", authHandler.Me)
+	v1.GET("/auth/patient-signup/status", patientSignupHandler.MyStatus)
 	v1.POST("/auth/change-password", authHandler.ChangePassword)
 	v1.GET("/notifications", middleware.RequireAuth(), notificationHandler.List)
 	v1.GET("/notifications/unread-count", middleware.RequireAuth(), notificationHandler.UnreadCount)

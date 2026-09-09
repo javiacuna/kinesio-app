@@ -13,14 +13,19 @@ import (
 )
 
 type Handler struct {
-	create  *usecase.CreateSignupRequestUseCase
-	approve *usecase.ApproveSignupRequestUseCase
-	reject  *usecase.RejectSignupRequestUseCase
-	list    *usecase.ListSignupRequestsUseCase
+	create   *usecase.CreateSignupRequestUseCase
+	approve  *usecase.ApproveSignupRequestUseCase
+	reject   *usecase.RejectSignupRequestUseCase
+	list     *usecase.ListSignupRequestsUseCase
+	myStatus *usecase.GetMySignupStatusUseCase
 }
 
-func NewHandler(create *usecase.CreateSignupRequestUseCase, approve *usecase.ApproveSignupRequestUseCase, reject *usecase.RejectSignupRequestUseCase, list *usecase.ListSignupRequestsUseCase) *Handler {
-	return &Handler{create: create, approve: approve, reject: reject, list: list}
+func NewHandler(create *usecase.CreateSignupRequestUseCase, approve *usecase.ApproveSignupRequestUseCase, reject *usecase.RejectSignupRequestUseCase, list *usecase.ListSignupRequestsUseCase, myStatus *usecase.GetMySignupStatusUseCase) *Handler {
+	return &Handler{create: create, approve: approve, reject: reject, list: list, myStatus: myStatus}
+}
+
+type mySignupStatusResponse struct {
+	Status string `json:"status"`
 }
 
 type registerAccountRequest struct {
@@ -64,6 +69,30 @@ type possibleMatchResponse struct {
 	LastName     string `json:"last_name"`
 	Email        string `json:"email"`
 	EmailMatches bool   `json:"email_matches"`
+}
+
+// MyStatus permite que el propio usuario autenticado (todavía sin rol,
+// porque su autorregistro está en revisión) consulte en qué quedó su
+// solicitud, en vez de ver únicamente la pantalla genérica de "sin rol
+// asignado". No exige ningún rol particular — a propósito, porque el punto
+// es que este usuario no tiene ninguno todavía.
+func (h *Handler) MyStatus(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	req, found, err := h.myStatus.Execute(c.Request.Context(), user.Email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		return
+	}
+	if !found {
+		c.JSON(http.StatusOK, mySignupStatusResponse{Status: "none"})
+		return
+	}
+	c.JSON(http.StatusOK, mySignupStatusResponse{Status: string(req.Status)})
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -149,6 +178,8 @@ func writeSignupError(c *gin.Context, err error, validation map[string]string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "email_already_registered"})
 	case errors.Is(err, domain.ErrAlreadyPending):
 		c.JSON(http.StatusConflict, gin.H{"error": "signup_already_pending"})
+	case errors.Is(err, domain.ErrDNIAlreadyClaimed):
+		c.JSON(http.StatusConflict, gin.H{"error": "dni_already_claimed"})
 	case errors.Is(err, domain.ErrRequestNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "request_not_found"})
 	case errors.Is(err, domain.ErrAlreadyReviewed):

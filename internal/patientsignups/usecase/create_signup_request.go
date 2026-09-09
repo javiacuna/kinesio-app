@@ -71,6 +71,18 @@ func (uc *CreateSignupRequestUseCase) Execute(ctx context.Context, in CreateSign
 		return domain.SignupRequest{}, errs, domain.ErrValidation
 	}
 
+	// Si este DNI ya tiene una cuenta de portal aprobada, o una solicitud
+	// pendiente de revisión, no se crea una segunda en paralelo — evita que
+	// alguien reclame el DNI de otro paciente con un email distinto y quede
+	// una solicitud "fantasma" compitiendo con la ya vinculada.
+	dniClaimed, err := uc.repo.ExistsActiveForDNI(ctx, in.DNI)
+	if err != nil {
+		return domain.SignupRequest{}, nil, err
+	}
+	if dniClaimed {
+		return domain.SignupRequest{}, nil, domain.ErrDNIAlreadyClaimed
+	}
+
 	if uc.firebase == nil {
 		return domain.SignupRequest{}, nil, errFirebaseNotConfigured
 	}
