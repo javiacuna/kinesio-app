@@ -494,7 +494,7 @@ export default function PatientDetailPage() {
           at: plan.created_at,
           kind: t("detail.timelineKindPlan"),
           title: `${planFrequencyLabel(plan.frequency, t)} · ${plan.duration_weeks} ${t("portal.weeks")}`,
-          detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ${t("detail.exercises").toLowerCase()} · ${t("detail.status").toLowerCase()} ${plan.status}`,
+          detail: `${diagnosisSummary(diagnosisById.get(plan.patient_diagnosis_id ?? ""))}${plan.items.length} ${t("detail.exercises").toLowerCase()} · ${t("detail.status").toLowerCase()} ${(plan.status === "closed" ? t("portal.closed") : t("portal.active")).toLowerCase()}`,
         })),
         ...filteredDiagnoses.map((diagnosis) => ({
           id: `diagnosis:${diagnosis.id}`,
