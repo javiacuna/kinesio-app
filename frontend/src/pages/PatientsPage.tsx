@@ -14,6 +14,11 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function PatientsPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  // El alta de pacientes es sólo para recepción/administración (CU01); el
+  // backend ya lo rechaza para un kinesiólogo (RegisterPatient exige rol
+  // "recepcionista"), pero antes el formulario se mostraba igual y fallaba
+  // recién al enviarlo con un "unauthorized" sin explicación.
+  const canRegisterPatient = user?.role === "admin" || user?.role === "recepcionista";
   const [dni, setDni] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -220,6 +225,13 @@ export default function PatientsPage() {
           <Link className="text-sm underline" to="/agenda">{t("patients.goToAgenda")}</Link>
         </header>
 
+        {!canRegisterPatient && (
+          <div className="bg-white rounded-xl shadow p-4 text-sm text-gray-600">
+            {t("patients.registerRestricted")}
+          </div>
+        )}
+
+        {canRegisterPatient && (
         <form className="bg-white rounded-xl shadow p-4 space-y-3" onSubmit={submit} noValidate>
           <p className="text-xs text-gray-500">{t("patients.requiredFieldsNote")}</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -316,6 +328,7 @@ export default function PatientsPage() {
             </div>
           )}
         </form>
+        )}
 
         <section className="bg-white rounded-xl shadow p-4 space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
