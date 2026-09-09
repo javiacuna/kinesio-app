@@ -536,6 +536,8 @@ func writeFinanceError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "financial_movement_already_generated"})
 	case errors.Is(err, domain.ErrInvalidStatus):
 		c.JSON(http.StatusConflict, gin.H{"error": "invalid_appointment_status"})
+	case errors.Is(err, domain.ErrAppointmentInFuture):
+		c.JSON(http.StatusConflict, gin.H{"error": "appointment_in_future"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 	}

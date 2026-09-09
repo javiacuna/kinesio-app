@@ -18,6 +18,17 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
+// clinicLocation es el huso horario en el que opera el consultorio. Si el
+// runtime no tiene la tzdata de "America/Argentina/Cordoba" cargada, cae a
+// un offset fijo de UTC-3 (Argentina no usa horario de verano).
+func clinicLocation() *time.Location {
+	loc, err := time.LoadLocation("America/Argentina/Cordoba")
+	if err == nil {
+		return loc
+	}
+	return time.FixedZone("ART", -3*60*60)
+}
+
 func (r *Repository) ListFinanciers(ctx context.Context, includeInactive bool) ([]domain.Financier, error) {
 	var ms []FinancierModel
 	q := r.db.WithContext(ctx).Order("name ASC")
@@ -209,7 +220,7 @@ func (r *Repository) CompleteAppointment(ctx context.Context, appointmentID, pra
 
 		var appointment appointmentFinanceModel
 		err = tx.Table("appointments").
-			Select("id, patient_id, kinesiologist_id, practice_id, financier_id, status").
+			Select("id, patient_id, kinesiologist_id, practice_id, financier_id, status, start_at").
 			Where("id = ?", appointmentID).
 			First(&appointment).
 			Error
@@ -224,6 +235,17 @@ func (r *Repository) CompleteAppointment(ctx context.Context, appointmentID, pra
 		}
 		if appointment.Status == "completed" {
 			return domain.ErrAlreadyGenerated
+		}
+		// Sólo se puede marcar como realizado un turno de hoy o de un día
+		// anterior (hora de la clínica), nunca uno agendado para un día
+		// futuro.
+		loc := clinicLocation()
+		nowLocal := time.Now().In(loc)
+		todayLocalDate := time.Date(nowLocal.Year(), nowLocal.Month(), nowLocal.Day(), 0, 0, 0, 0, loc)
+		apptLocal := appointment.StartAt.In(loc)
+		apptLocalDate := time.Date(apptLocal.Year(), apptLocal.Month(), apptLocal.Day(), 0, 0, 0, 0, loc)
+		if apptLocalDate.After(todayLocalDate) {
+			return domain.ErrAppointmentInFuture
 		}
 
 		var tariff PracticeTariffModel

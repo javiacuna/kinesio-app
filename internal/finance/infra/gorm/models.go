@@ -80,4 +80,5 @@ type appointmentFinanceModel struct {
 	PracticeID      *uuid.UUID `gorm:"column:practice_id"`
 	FinancierID     *uuid.UUID `gorm:"column:financier_id"`
 	Status          string     `gorm:"column:status"`
+	StartAt         time.Time  `gorm:"column:start_at"`
 }

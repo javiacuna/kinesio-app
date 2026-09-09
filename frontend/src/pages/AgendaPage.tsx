@@ -1728,6 +1728,11 @@ export default function AgendaPage() {
                     <div className="font-medium">{t("agenda.tariffNotYetValid")}</div>
                     <div>{t("agenda.tariffNotYetValidDetail")}</div>
                   </>
+                ) : (completeM.error as any)?.message === "appointment_in_future" ? (
+                  <>
+                    <div className="font-medium">{t("agenda.appointmentInFuture")}</div>
+                    <div>{t("agenda.appointmentInFutureDetail")}</div>
+                  </>
                 ) : (completeM.error as any)?.message === "financial_movement_already_generated" ? (
                   <>
                     <div className="font-medium">{t("agenda.financeMovementGenerated")}</div>
