@@ -114,7 +114,23 @@ func (r *Repository) SaveFeeRule(ctx context.Context, item domain.ProfessionalFe
 		Percentage:      item.Percentage,
 		Active:          item.Active,
 	}
-	err := r.db.WithContext(ctx).Save(&m).Error
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if item.Active {
+			// Sólo puede haber una regla de honorario activa por
+			// kinesiólogo+práctica a la vez. Al activar ésta (alta o edición),
+			// se desactivan las demás que compitieran por la misma
+			// combinación — si no, quedan dos "Activa" a la vista pero
+			// CompleteAppointment sólo usa la más nueva en silencio.
+			if err := tx.Model(&ProfessionalFeeRuleModel{}).
+				Where("kinesiologist_id = ? AND practice_id = ? AND active = ? AND id <> ?",
+					item.KinesiologistID, item.PracticeID, true, item.ID).
+				Update("active", false).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Save(&m).Error
+	})
 	return toFeeRuleDomain(m), err
 }
 
