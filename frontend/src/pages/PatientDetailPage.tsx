@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router-dom";
 import { inviteUserAccess } from "@/features/auth/adminApi";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { listPatientAppointments } from "@/features/appointments/api";
+import type { Appointment } from "@/features/appointments/types";
 import { listKinesiologists } from "@/features/kinesiologists/api";
 import { formatLocalDateTime, formatLocalTime } from "@/shared/time/format";
 import { archivePatient, getPatient, updatePatient } from "@/features/patients/api";
@@ -433,6 +434,13 @@ export default function PatientDetailPage() {
     }
     return index;
   }, [diagnoses]);
+  const appointmentById = useMemo(() => {
+    const index = new Map<string, Appointment>();
+    for (const appointment of appointments) {
+      index.set(appointment.id, appointment);
+    }
+    return index;
+  }, [appointments]);
   const selectedClinicalDiagnosis = useMemo(
     () => (selectedClinicalDiagnosisId ? diagnosisById.get(selectedClinicalDiagnosisId) : undefined),
     [diagnosisById, selectedClinicalDiagnosisId],
@@ -455,8 +463,15 @@ export default function PatientDetailPage() {
         : plans,
     [plans, selectedClinicalDiagnosisId],
   );
+  const appointmentIdsWithEvolution = useMemo(() => {
+    const ids = new Set<string>();
+    for (const evolution of evolutions) {
+      if (evolution.appointment_id) ids.add(evolution.appointment_id);
+    }
+    return ids;
+  }, [evolutions]);
   const upcomingScheduledAppointments = appointments.filter(
-    (appointment) => appointment.status !== "cancelled",
+    (appointment) => appointment.status !== "cancelled" && !appointmentIdsWithEvolution.has(appointment.id),
   );
   const timeline = useMemo(
     () =>
@@ -1796,6 +1811,11 @@ export default function PatientDetailPage() {
               <div key={evolution.id} className="py-3 border-b last:border-b-0">
                 <div className="font-medium">{formatLocalDateTime(evolution.created_at)}</div>
                 <EvolutionMetrics evolution={evolution} />
+                {evolution.appointment_id && appointmentById.has(evolution.appointment_id) && (
+                  <div className="text-sm text-gray-600">
+                    {t("detail.associatedAppointment")}: {formatLocalDateTime(appointmentById.get(evolution.appointment_id)!.start_at)}
+                  </div>
+                )}
                 {evolution.patient_diagnosis_id && diagnosisById.has(evolution.patient_diagnosis_id) && (
                   <div className="text-sm text-gray-600">
                     {t("detail.diagnosisLabel")}: {diagnosisLabel(diagnosisById.get(evolution.patient_diagnosis_id))}
