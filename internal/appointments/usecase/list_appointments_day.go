@@ -18,7 +18,11 @@ func NewListAppointmentsDayUseCase(repo ports.Repository) *ListAppointmentsDayUs
 	return &ListAppointmentsDayUseCase{repo: repo}
 }
 
-// date: YYYY-MM-DD; retorna [date 00:00, next day 00:00) en UTC (simple para empezar)
+// date: YYYY-MM-DD; retorna [date 00:00, next day 00:00) en el huso horario
+// de la clínica (America/Argentina/Cordoba), no en UTC. Un turno a las 22:15
+// hora local cae después de las 00:00 UTC del día siguiente, así que usar
+// medianoche UTC como límite lo mostraba en el día equivocado de la agenda
+// (y podía disparar un falso "sin solapamiento" contra el día real).
 func (uc *ListAppointmentsDayUseCase) Execute(ctx context.Context, kinesiologistID string, date string) ([]domain.Appointment, map[string]string, error) {
 	errs := map[string]string{}
 
@@ -36,7 +40,8 @@ func (uc *ListAppointmentsDayUseCase) Execute(ctx context.Context, kinesiologist
 		return nil, errs, domain.ErrValidation
 	}
 
-	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+	loc := clinicLocation()
+	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, loc)
 	end := start.Add(24 * time.Hour)
 
 	items, err := uc.repo.ListByKinesiologistAndRange(ctx, kid, start, end)
