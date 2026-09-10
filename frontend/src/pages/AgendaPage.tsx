@@ -323,6 +323,7 @@ export default function AgendaPage() {
         return;
       }
       agendaQ.refetch();
+      weekAgendaQ.refetch();
     },
     onError: (error) => {
       if (isInactivePatientError(error)) {
