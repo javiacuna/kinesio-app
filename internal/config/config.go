@@ -49,6 +49,7 @@ type Config struct {
 	DailyAPIKey        string
 	WherebyAPIKey      string
 	WherebyRoomPrefix  string
+	JitsiRoomPrefix    string
 	VideoCallExpiryMin int
 
 	// StaticDir, si se setea, hace que el backend sirva el frontend ya compilado
@@ -94,6 +95,7 @@ func MustLoad() Config {
 		DailyAPIKey:              getenv("DAILY_API_KEY", ""),
 		WherebyAPIKey:            getenv("WHEREBY_API_KEY", ""),
 		WherebyRoomPrefix:        getenv("WHEREBY_ROOM_PREFIX", "kinesio"),
+		JitsiRoomPrefix:          getenv("JITSI_ROOM_PREFIX", "kinesio"),
 		VideoCallExpiryMin:       getenvInt("VIDEO_CALL_EXPIRY_MIN", 60),
 		StaticDir:                getenv("STATIC_DIR", ""),
 		AllowDemoAuth:            getenvBool("ALLOW_DEMO_AUTH", false),

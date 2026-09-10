@@ -43,6 +43,10 @@ func NewProvider(cfg config.Config) Provider {
 			RoomNamePrefix:  cfg.WherebyRoomPrefix,
 			ExpiryBufferMin: cfg.VideoCallExpiryMin,
 		})
+	case "jitsi":
+		return NewJitsiProvider(JitsiConfig{
+			RoomNamePrefix: cfg.JitsiRoomPrefix,
+		})
 	default:
 		return nil
 	}

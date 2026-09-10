@@ -110,11 +110,17 @@ Los turnos virtuales pueden usar link manual o generar una sala automáticamente
 Para activar la generación automática, configurá un proveedor:
 
 ```bash
-# daily o whereby
-VIDEO_CALL_PROVIDER=daily
-DAILY_API_KEY=tu_daily_api_key
+# jitsi, daily o whereby
 
-# Alternativa Whereby
+# Jitsi Meet: gratis, no requiere API key ni registro previo
+VIDEO_CALL_PROVIDER=jitsi
+JITSI_ROOM_PREFIX=kinesio
+
+# Alternativa Daily.co (requiere cuenta y API key)
+# VIDEO_CALL_PROVIDER=daily
+# DAILY_API_KEY=tu_daily_api_key
+
+# Alternativa Whereby (requiere cuenta y API key)
 # VIDEO_CALL_PROVIDER=whereby
 # WHEREBY_API_KEY=tu_whereby_api_key
 # WHEREBY_ROOM_PREFIX=kinesio
