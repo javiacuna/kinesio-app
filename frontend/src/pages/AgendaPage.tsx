@@ -268,6 +268,12 @@ export default function AgendaPage() {
   }, [practiceId, selectedKinesiologist]);
 
   useEffect(() => {
+    if (selectedPatient?.financier_id) {
+      setFinancierId(selectedPatient.financier_id);
+    }
+  }, [patientId, selectedPatient?.financier_id]);
+
+  useEffect(() => {
     if (financiers.length > 0 && !financiers.some((financier) => financier.id === financierId)) {
       setFinancierId(financiers[0].id);
     }
