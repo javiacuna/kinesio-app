@@ -463,15 +463,8 @@ export default function PatientDetailPage() {
         : plans,
     [plans, selectedClinicalDiagnosisId],
   );
-  const appointmentIdsWithEvolution = useMemo(() => {
-    const ids = new Set<string>();
-    for (const evolution of evolutions) {
-      if (evolution.appointment_id) ids.add(evolution.appointment_id);
-    }
-    return ids;
-  }, [evolutions]);
   const upcomingScheduledAppointments = appointments.filter(
-    (appointment) => appointment.status !== "cancelled" && !appointmentIdsWithEvolution.has(appointment.id),
+    (appointment) => appointment.status !== "cancelled",
   );
   const timeline = useMemo(
     () =>
