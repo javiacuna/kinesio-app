@@ -103,17 +103,29 @@ export default function SupportPage() {
           />
         </div>
 
-        <label className="text-sm font-medium block">
+        <div className="text-sm font-medium block">
           {t("support.attachment")}
-          <input
-            ref={fileInputRef}
-            className="mt-1 w-full border rounded-lg p-2 bg-white text-sm"
-            type="file"
-            accept="image/*,.pdf"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border text-sm hover:bg-gray-100"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {t("support.chooseFile")}
+            </button>
+            <span className="text-sm text-gray-600 truncate">
+              {file ? file.name : t("support.noFileSelected")}
+            </span>
+            <input
+              ref={fileInputRef}
+              className="hidden"
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
           <span className="mt-1 block text-xs text-gray-500">{t("support.attachmentHint")}</span>
-        </label>
+        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600">{success}</p>}
