@@ -44,12 +44,15 @@ export default function ProfilePage() {
       setSuccess(t("profile.passwordChanged"));
     } catch (err) {
       const message = (err as Error)?.message;
+      const details = (err as { body?: { details?: Record<string, string> } })?.body?.details;
       setError(
         message === "invalid_current_password"
           ? t("profile.invalidCurrentPassword")
-          : message === "validation_error"
-            ? t("profile.passwordPolicy")
-          : t("profile.passwordChangeFailed"),
+          : details?.new_password === "same_as_current"
+            ? t("profile.samePassword")
+            : message === "validation_error"
+              ? t("profile.passwordPolicy")
+              : t("profile.passwordChangeFailed"),
       );
     } finally {
       setIsSubmitting(false);

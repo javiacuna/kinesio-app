@@ -308,6 +308,8 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}
 	if reason := domain.PasswordPolicyViolation(newPassword); reason != "" {
 		validation["new_password"] = reason
+	} else if currentPassword != "" && newPassword == currentPassword {
+		validation["new_password"] = "same_as_current"
 	}
 	if len(validation) > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "validation_error", "details": validation})
